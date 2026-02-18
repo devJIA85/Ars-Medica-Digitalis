@@ -48,6 +48,35 @@ final class SessionViewModel {
         ("cancelada", "Cancelada")
     ]
 
+    // MARK: - Pre-carga de diagnósticos vigentes (modo alta)
+
+    /// Al crear una nueva sesión, carga automáticamente los diagnósticos
+    /// de la última sesión completada del paciente. Así el profesional no
+    /// tiene que re-seleccionar diagnósticos crónicos en cada consulta —
+    /// solo cambia los que necesite.
+    func preloadDiagnoses(from patient: Patient) {
+        guard selectedDiagnoses.isEmpty else { return }
+
+        let lastCompleted = (patient.sessions ?? [])
+            .filter { $0.status == "completada" }
+            .sorted { $0.sessionDate > $1.sessionDate }
+            .first
+
+        guard let diagnoses = lastCompleted?.diagnoses, !diagnoses.isEmpty else { return }
+
+        selectedDiagnoses = diagnoses.map { diagnosis in
+            ICD11SearchResult(
+                id: diagnosis.icdURI,
+                theCode: diagnosis.icdCode.isEmpty ? nil : diagnosis.icdCode,
+                title: diagnosis.icdTitleEs.isEmpty
+                    ? diagnosis.icdTitle
+                    : diagnosis.icdTitleEs,
+                chapter: nil,
+                score: nil
+            )
+        }
+    }
+
     // MARK: - Carga (modo edición)
 
     /// Carga datos de una Session existente para edición.

@@ -41,6 +41,7 @@ struct ProfileEditView: View {
             }
         }
         .navigationTitle("Editar Perfil")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Guardar") {

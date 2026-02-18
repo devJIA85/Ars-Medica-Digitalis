@@ -150,8 +150,8 @@ struct SessionDetailView: View {
     container.mainContext.insert(patient)
 
     let session = Session(
-        chiefComplaint: "Ansiedad generalizada con episodios de pánico",
         notes: "Paciente refiere aumento de síntomas en las últimas 2 semanas.",
+        chiefComplaint: "Ansiedad generalizada con episodios de pánico",
         treatmentPlan: "Continuar terapia cognitivo-conductual. Evaluar derivación a psiquiatría.",
         patient: patient
     )

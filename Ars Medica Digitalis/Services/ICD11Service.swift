@@ -45,7 +45,6 @@ actor ICD11Service {
 
     /// Busca diagnósticos en la linearización MMS del CIE-11.
     /// Requiere mínimo 3 caracteres para evitar consultas demasiado amplias.
-    @concurrent
     func search(
         query: String,
         offset: Int = 0,
@@ -131,7 +130,6 @@ actor ICD11Service {
 
     /// Solicita un nuevo token OAuth2 al servidor de la OMS.
     /// Las credenciales se cargan desde ICD11Config.plist.
-    @concurrent
     private func fetchNewToken() async throws -> String {
         let credentials = try loadCredentials()
 

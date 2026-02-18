@@ -12,10 +12,25 @@ import Foundation
 // MARK: - OAuth Token Response
 
 /// Respuesta del endpoint de autenticación OAuth2 de la OMS.
-struct ICD11TokenResponse: Decodable, Sendable {
+struct ICD11TokenResponse: Sendable {
     let access_token: String
     let expires_in: Int
     let token_type: String
+}
+
+extension ICD11TokenResponse: Decodable {
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.access_token = try container.decode(String.self, forKey: .access_token)
+        self.expires_in = try container.decode(Int.self, forKey: .expires_in)
+        self.token_type = try container.decode(String.self, forKey: .token_type)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case access_token
+        case expires_in
+        case token_type
+    }
 }
 
 // MARK: - Search Result

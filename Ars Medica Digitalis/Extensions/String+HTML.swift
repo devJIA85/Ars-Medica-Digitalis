@@ -13,7 +13,7 @@ extension String {
 
     /// Elimina etiquetas <em ...> y </em> que la API CIE-11 usa para
     /// marcar coincidencias de búsqueda en los títulos devueltos.
-    func cleanedHTMLTags() -> String {
+    nonisolated func cleanedHTMLTags() -> String {
         var result = self
         if let regex = try? NSRegularExpression(pattern: "<em[^>]*>", options: []) {
             result = regex.stringByReplacingMatches(

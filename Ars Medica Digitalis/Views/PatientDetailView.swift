@@ -20,6 +20,22 @@ struct PatientDetailView: View {
     @State private var showingNewSession: Bool = false
     @State private var showingDeleteConfirmation: Bool = false
 
+    /// Última sesión completada del paciente, ordenada por fecha descendente.
+    /// Solo se consideran sesiones con status "completada" porque las programadas
+    /// o canceladas no representan diagnósticos confirmados.
+    private var latestCompletedSession: Session? {
+        (patient.sessions ?? [])
+            .filter { $0.status == "completada" }
+            .sorted { $0.sessionDate > $1.sessionDate }
+            .first
+    }
+
+    /// Diagnósticos vigentes = los de la última sesión completada.
+    /// Son snapshots inmutables, se leen sin llamar a la API.
+    private var latestCompletedDiagnoses: [Diagnosis]? {
+        latestCompletedSession?.diagnoses
+    }
+
     var body: some View {
         List {
             // MARK: - Datos demográficos
@@ -47,6 +63,41 @@ struct PatientDetailView: View {
                     }
                     if !patient.address.isEmpty {
                         LabeledContent("Dirección", value: patient.address)
+                    }
+                }
+            }
+
+            // MARK: - Diagnósticos Vigentes
+            // Muestra los diagnósticos de la sesión completada más reciente.
+            // Esto permite ver el cuadro actual del paciente sin entrar a cada sesión.
+
+            if let currentDiagnoses = latestCompletedDiagnoses, !currentDiagnoses.isEmpty {
+                Section("Diagnósticos Vigentes") {
+                    ForEach(currentDiagnoses) { diagnosis in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(
+                                diagnosis.icdTitleEs.isEmpty
+                                    ? diagnosis.icdTitle
+                                    : diagnosis.icdTitleEs
+                            )
+                            .font(.body)
+
+                            if !diagnosis.icdCode.isEmpty {
+                                Text(diagnosis.icdCode)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.quaternary, in: Capsule())
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+
+                    if let latestSession = latestCompletedSession {
+                        Text("Según sesión del \(latestSession.sessionDate.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }

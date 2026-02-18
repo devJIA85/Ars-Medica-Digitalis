@@ -73,6 +73,7 @@ struct PatientFormView: View {
             }
         }
         .navigationTitle(isEditing ? "Editar Paciente" : "Nuevo Paciente")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancelar") { dismiss() }

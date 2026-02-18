@@ -130,6 +130,7 @@ struct SessionFormView: View {
             }
         }
         .navigationTitle(isEditing ? "Editar Sesión" : "Nueva Sesión")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancelar") { dismiss() }
@@ -144,6 +145,11 @@ struct SessionFormView: View {
         .onAppear {
             if let session {
                 viewModel.load(from: session)
+            } else {
+                // Modo alta: pre-cargar diagnósticos de la última sesión completada
+                // para que el profesional no tenga que re-seleccionarlos manualmente
+                // en cada consulta de seguimiento.
+                viewModel.preloadDiagnoses(from: patient)
             }
         }
     }

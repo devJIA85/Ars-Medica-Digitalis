@@ -3,7 +3,8 @@
 //  Ars Medica Digitalis
 //
 //  Formulario para alta (HU-02) y edición (HU-03) de pacientes.
-//  Si recibe un Patient existente, entra en modo edición.
+//  Se enfoca en datos demográficos, identificación y contacto.
+//  La historia clínica se gestiona desde PatientMedicalHistoryView.
 //
 
 import SwiftUI
@@ -30,7 +31,16 @@ struct PatientFormView: View {
 
     var body: some View {
         Form {
-            Section("Datos Personales") {
+            // MARK: - Foto y Datos Personales
+            Section("Foto y Datos Personales") {
+                ProfilePhotoPickerView(
+                    photoData: $viewModel.photoData,
+                    genderHint: viewModel.gender.isEmpty
+                        ? viewModel.biologicalSex
+                        : viewModel.gender,
+                    onResize: { viewModel.resizePhoto($0) }
+                )
+
                 TextField("Nombre", text: $viewModel.firstName)
                     .textContentType(.givenName)
 
@@ -50,15 +60,48 @@ struct PatientFormView: View {
                     Text("Femenino").tag("femenino")
                     Text("Intersexual").tag("intersexual")
                 }
+
+                Picker("Género", selection: $viewModel.gender) {
+                    ForEach(PatientViewModel.genderOptions, id: \.0) { value, label in
+                        Text(label).tag(value)
+                    }
+                }
+
+                Picker("Estado Civil", selection: $viewModel.maritalStatus) {
+                    ForEach(PatientViewModel.maritalStatusOptions, id: \.0) { value, label in
+                        Text(label).tag(value)
+                    }
+                }
+
+                TextField("Nacionalidad", text: $viewModel.nationality)
+
+                TextField("País de Residencia", text: $viewModel.residenceCountry)
+
+                TextField("Ocupación", text: $viewModel.occupation)
+
+                Picker("Nivel Académico", selection: $viewModel.educationLevel) {
+                    ForEach(PatientViewModel.educationLevelOptions, id: \.0) { value, label in
+                        Text(label).tag(value)
+                    }
+                }
             }
 
-            Section("Identificación") {
+            // MARK: - Identificación y Cobertura
+            Section("Identificación y Cobertura") {
                 TextField("Documento de Identidad", text: $viewModel.nationalId)
                     .textContentType(.none)
                     .keyboardType(.numberPad)
+
+                TextField("Obra Social", text: $viewModel.healthInsurance)
+
+                TextField("Nº de Afiliado", text: $viewModel.insuranceMemberNumber)
+                    .keyboardType(.numberPad)
+
+                TextField("Plan", text: $viewModel.insurancePlan)
             }
 
-            Section("Contacto (opcional)") {
+            // MARK: - Contacto
+            Section("Contacto") {
                 TextField("Email", text: $viewModel.email)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
@@ -70,6 +113,18 @@ struct PatientFormView: View {
 
                 TextField("Dirección", text: $viewModel.address)
                     .textContentType(.fullStreetAddress)
+
+                // Contacto de emergencia
+                TextField("Emergencia: Nombre", text: $viewModel.emergencyContactName)
+
+                TextField("Emergencia: Teléfono", text: $viewModel.emergencyContactPhone)
+                    .keyboardType(.phonePad)
+
+                Picker("Emergencia: Vínculo", selection: $viewModel.emergencyContactRelation) {
+                    ForEach(PatientViewModel.emergencyRelationOptions, id: \.0) { value, label in
+                        Text(label).tag(value)
+                    }
+                }
             }
         }
         .navigationTitle(isEditing ? "Editar Paciente" : "Nuevo Paciente")
@@ -114,7 +169,7 @@ struct PatientFormView: View {
             )
         )
     }
-    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self], inMemory: true)
+    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self], inMemory: true)
 }
 
 #Preview("Edición") {
@@ -132,5 +187,5 @@ struct PatientFormView: View {
             )
         )
     }
-    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self], inMemory: true)
+    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self], inMemory: true)
 }

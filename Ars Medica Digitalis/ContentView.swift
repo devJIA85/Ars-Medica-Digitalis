@@ -37,16 +37,26 @@ struct ContentView: View {
 
     @ViewBuilder
     private func mainView(for professional: Professional) -> some View {
-        NavigationStack {
-            PatientListView(professional: professional)
-                .navigationDestination(for: UUID.self) { patientID in
-                    // Busca el Patient por UUID para la navegación tipada
-                    PatientDestinationView(
-                        patientID: patientID,
-                        professional: professional
-                    )
+        TabView {
+            Tab("Pacientes", systemImage: "person.2") {
+                NavigationStack {
+                    PatientListView(professional: professional)
+                        .navigationDestination(for: UUID.self) { patientID in
+                            PatientDestinationView(
+                                patientID: patientID,
+                                professional: professional
+                            )
+                        }
                 }
+            }
+
+            Tab("Calendario", systemImage: "calendar") {
+                NavigationStack {
+                    CalendarView(professional: professional)
+                }
+            }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 }
 

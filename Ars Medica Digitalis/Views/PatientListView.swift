@@ -47,15 +47,15 @@ struct PatientListView: View {
                 NavigationLink {
                     ProfileEditView(professional: professional)
                 } label: {
-                    Label("Perfil", systemImage: "person.circle")
+                    Label("Perfil", systemImage: "person.crop.circle")
                 }
             }
 
-            ToolbarItem(placement: .bottomBar) {
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingNewPatient = true
                 } label: {
-                    Label("Nuevo Paciente", systemImage: "plus")
+                    Image(systemName: "plus")
                 }
             }
         }
@@ -209,7 +209,7 @@ private struct PatientRowView: View {
 
 #Preview {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(

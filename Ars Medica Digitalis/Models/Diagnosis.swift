@@ -2,9 +2,11 @@
 //  Diagnosis.swift
 //  Ars Medica Digitalis
 //
-//  Diagnóstico CIE-11 asociado a una sesión.
-//  Los datos del código se persisten como snapshot inmutable al momento del diagnóstico,
-//  garantizando legibilidad histórica sin dependencia de la API externa.
+//  Diagnóstico CIE-11 con doble uso:
+//  1. Snapshot inmutable en sesión: cada Session tiene sus propios Diagnosis
+//     que registran el diagnóstico al momento de la consulta.
+//  2. Diagnóstico vigente del paciente: Patient.activeDiagnoses mantiene
+//     los diagnósticos actuales editables directamente desde el perfil.
 //
 //  Desnormalización intencional: guardar código, título y URI directamente
 //  asegura que un diagnóstico de 2025 sea legible en 2035, independientemente
@@ -36,8 +38,12 @@ final class Diagnosis {
     var diagnosedAt: Date = Date()
     var createdAt: Date = Date()
 
-    // Relación opcional por requisito CloudKit
+    // Relaciones opcionales por requisito CloudKit.
+    // Un Diagnosis pertenece a una Session (snapshot histórico)
+    // O a un Patient (diagnóstico vigente editable desde el perfil).
+    // Ambas son opcionales — nunca se usan simultáneamente.
     var session: Session? = nil
+    var patient: Patient? = nil
 
     init(
         id: UUID = UUID(),
@@ -51,7 +57,8 @@ final class Diagnosis {
         clinicalNotes: String = "",
         diagnosedAt: Date = Date(),
         createdAt: Date = Date(),
-        session: Session? = nil
+        session: Session? = nil,
+        patient: Patient? = nil
     ) {
         self.id = id
         self.icdCode = icdCode
@@ -65,5 +72,6 @@ final class Diagnosis {
         self.diagnosedAt = diagnosedAt
         self.createdAt = createdAt
         self.session = session
+        self.patient = patient
     }
 }

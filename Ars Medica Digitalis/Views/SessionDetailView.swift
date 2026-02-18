@@ -20,18 +20,20 @@ struct SessionDetailView: View {
 
     var body: some View {
         List {
-            // MARK: - Información General
-            Section("Información General") {
+            // MARK: - Datos de la Sesión
+            Section("Datos de la Sesión") {
                 LabeledContent("Fecha", value: session.sessionDate.formatted(date: .long, time: .shortened))
                 LabeledContent("Modalidad", value: sessionTypeLabel)
-                LabeledContent("Duración", value: "\(session.durationMinutes) minutos")
+                LabeledContent("Duración", value: "\(session.durationMinutes) min")
                 LabeledContent("Estado", value: statusLabel)
-            }
 
-            // MARK: - Motivo de Consulta
-            if !session.chiefComplaint.isEmpty {
-                Section("Motivo de Consulta") {
-                    Text(session.chiefComplaint)
+                if !session.chiefComplaint.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Motivo de consulta")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text(session.chiefComplaint)
+                    }
                 }
             }
 
@@ -73,24 +75,33 @@ struct SessionDetailView: View {
                 }
             }
 
-            // MARK: - Notas Clínicas
-            if !session.notes.isEmpty {
-                Section("Notas Clínicas") {
-                    Text(session.notes)
-                }
-            }
+            // MARK: - Notas y Plan
+            if !session.notes.isEmpty || !session.treatmentPlan.isEmpty {
+                Section("Notas y Plan") {
+                    if !session.notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Notas clínicas")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text(session.notes)
+                        }
+                    }
 
-            // MARK: - Plan de Tratamiento
-            if !session.treatmentPlan.isEmpty {
-                Section("Plan de Tratamiento") {
-                    Text(session.treatmentPlan)
+                    if !session.treatmentPlan.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Plan de tratamiento")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text(session.treatmentPlan)
+                        }
+                    }
                 }
             }
 
             // MARK: - Trazabilidad
-            Section("Información") {
+            Section {
                 LabeledContent("Creado", value: session.createdAt.formatted(date: .abbreviated, time: .shortened))
-                LabeledContent("Última modificación", value: session.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Modificado", value: session.updatedAt.formatted(date: .abbreviated, time: .shortened))
             }
         }
         .navigationTitle("Sesión")
@@ -140,7 +151,7 @@ struct SessionDetailView: View {
 
 #Preview {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(fullName: "Dr. Test", licenseNumber: "MN 999", specialty: "Psicología")

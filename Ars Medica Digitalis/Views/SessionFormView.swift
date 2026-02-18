@@ -20,13 +20,18 @@ struct SessionFormView: View {
     /// nil = modo alta, non-nil = modo edición
     let session: Session?
 
+    /// Fecha inicial para sesiones nuevas creadas desde el calendario.
+    /// Si es nil, el ViewModel usa Date() (ahora).
+    let initialDate: Date?
+
     @Bindable var viewModel = SessionViewModel()
 
     private var isEditing: Bool { session != nil }
 
-    init(patient: Patient, session: Session? = nil) {
+    init(patient: Patient, session: Session? = nil, initialDate: Date? = nil) {
         self.patient = patient
         self.session = session
+        self.initialDate = initialDate
     }
 
     var body: some View {
@@ -36,7 +41,6 @@ struct SessionFormView: View {
                 DatePicker(
                     "Fecha",
                     selection: $viewModel.sessionDate,
-                    in: ...Date.now,
                     displayedComponents: [.date, .hourAndMinute]
                 )
 
@@ -58,12 +62,11 @@ struct SessionFormView: View {
                         Text(label).tag(value)
                     }
                 }
-            }
 
-            // MARK: - Motivo de Consulta
-            Section("Motivo de Consulta") {
+                // Motivo de consulta integrado en la misma sección
+                // para reducir cajas Liquid Glass
                 TextField(
-                    "Motivo principal de la consulta",
+                    "Motivo de consulta",
                     text: $viewModel.chiefComplaint,
                     axis: .vertical
                 )
@@ -109,24 +112,21 @@ struct SessionFormView: View {
                 }
             }
 
-            // MARK: - Notas Clínicas
-            Section("Notas Clínicas") {
+            // MARK: - Notas y Plan (unificados para layout compacto)
+            Section("Notas y Plan") {
                 TextField(
-                    "Observaciones, evolución, hallazgos...",
+                    "Notas clínicas: observaciones, evolución...",
                     text: $viewModel.notes,
                     axis: .vertical
                 )
-                .lineLimit(4...10)
-            }
+                .lineLimit(3...8)
 
-            // MARK: - Plan de Tratamiento
-            Section("Plan de Tratamiento") {
                 TextField(
-                    "Indicaciones, derivaciones, próximos pasos...",
+                    "Plan: indicaciones, derivaciones, próximos pasos...",
                     text: $viewModel.treatmentPlan,
                     axis: .vertical
                 )
-                .lineLimit(3...8)
+                .lineLimit(2...6)
             }
         }
         .navigationTitle(isEditing ? "Editar Sesión" : "Nueva Sesión")
@@ -146,7 +146,11 @@ struct SessionFormView: View {
             if let session {
                 viewModel.load(from: session)
             } else {
-                // Modo alta: pre-cargar diagnósticos de la última sesión completada
+                // Fecha preseleccionada desde el calendario (si existe)
+                if let initialDate {
+                    viewModel.sessionDate = initialDate
+                }
+                // Pre-cargar diagnósticos vigentes del paciente
                 // para que el profesional no tenga que re-seleccionarlos manualmente
                 // en cada consulta de seguimiento.
                 viewModel.preloadDiagnoses(from: patient)
@@ -176,7 +180,7 @@ struct SessionFormView: View {
         )
     }
     .modelContainer(
-        for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self],
+        for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self],
         inMemory: true
     )
 }

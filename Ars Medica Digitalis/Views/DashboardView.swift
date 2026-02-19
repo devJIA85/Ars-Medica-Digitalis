@@ -10,16 +10,26 @@
 
 import SwiftUI
 import Charts
+import SwiftData
 
 struct DashboardView: View {
 
     let professional: Professional
+    @Query private var patients: [Patient]
 
-    @Bindable var viewModel = DashboardViewModel()
+    @State private var viewModel = DashboardViewModel()
+
+    init(professional: Professional) {
+        self.professional = professional
+        let id = professional.id
+        _patients = Query(
+            filter: #Predicate<Patient> { $0.professional?.id == id && $0.deletedAt == nil }
+        )
+    }
 
     var body: some View {
         Group {
-            if viewModel.totalPatients == 0 {
+            if patients.isEmpty {
                 // Empty state cuando no hay pacientes registrados
                 ContentUnavailableView(
                     "Sin datos",
@@ -96,8 +106,8 @@ struct DashboardView: View {
         }
         .navigationTitle("Dashboard")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            viewModel.loadStatistics(for: professional)
+        .task(id: refreshToken) {
+            viewModel.loadStatistics(from: patients)
         }
     }
 
@@ -133,6 +143,19 @@ struct DashboardView: View {
                 color: .purple
             )
         }
+    }
+
+    private var refreshToken: String {
+        let patientCount = patients.count
+        let latestSessionUpdate = patients
+            .flatMap { $0.sessions ?? [] }
+            .map(\.updatedAt.timeIntervalSince1970)
+            .max() ?? 0
+        let activeDiagnosisCount = patients
+            .flatMap { $0.activeDiagnoses ?? [] }
+            .count
+
+        return "\(patientCount)-\(latestSessionUpdate)-\(activeDiagnosisCount)"
     }
 
     // MARK: - Género (Donut)

@@ -37,7 +37,7 @@ extension ICD11TokenResponse: Decodable {
 
 /// Un resultado individual de búsqueda en la linearización MMS del CIE-11.
 /// Solo incluye los campos que AMD necesita para la UI y el snapshot.
-struct ICD11SearchResult: Identifiable, Sendable {
+struct ICD11SearchResult: Identifiable, Sendable, Codable {
     /// URI canónico del WHO (ej: "http://id.who.int/icd/entity/123456")
     let id: String
     /// Código MMS (ej: "6A70"). Puede ser nil para categorías intermedias.

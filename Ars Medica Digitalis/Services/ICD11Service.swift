@@ -30,6 +30,10 @@ actor ICD11Service {
     /// Nivel 1 del sistema de cache (Nivel 2 es el snapshot en SwiftData).
     private var searchCache: [String: [ICD11SearchResult]] = [:]
 
+    // MARK: - Cache persistente (disco)
+
+    private let cacheFolderName = "ICD11SearchCache"
+
     // MARK: - Configuración
 
     /// Versión del release MMS a consultar
@@ -54,66 +58,134 @@ actor ICD11Service {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 3 else { return [] }
 
-        let cacheKey = "\(trimmed.lowercased())|\(offset)|\(limit)"
+        let cacheKey = "\(trimmed.lowercased())|\(offset)|\(limit)|\(language)"
         if let cached = searchCache[cacheKey] {
             return cached
         }
 
-        let token = try await validToken()
-
-        guard var components = URLComponents(string: searchBaseURL) else {
-            throw ICD11Error.invalidURL
-        }
-        components.queryItems = [
-            URLQueryItem(name: "q", value: trimmed),
-            URLQueryItem(name: "flatResults", value: "true"),
-            URLQueryItem(name: "offset", value: "\(offset)"),
-            URLQueryItem(name: "limit", value: "\(limit)")
-        ]
-        guard let url = components.url else {
-            throw ICD11Error.invalidURL
+        let diskCached = loadSearchCache(for: cacheKey)
+        if let diskCached {
+            searchCache[cacheKey] = diskCached
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("v2", forHTTPHeaderField: "API-Version")
-        request.setValue(language, forHTTPHeaderField: "Accept-Language")
+        do {
+            let token = try await validToken()
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw ICD11Error.invalidResponse
-        }
-
-        // Si el token expiró durante la request, renovar y reintentar una vez
-        if httpResponse.statusCode == 401 {
-            cachedToken = nil
-            tokenExpiration = nil
-            let newToken = try await validToken()
-            request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-            let (retryData, retryResponse) = try await URLSession.shared.data(for: request)
-            guard let retryHTTP = retryResponse as? HTTPURLResponse,
-                  (200...299).contains(retryHTTP.statusCode) else {
-                throw ICD11Error.authenticationFailed
+            guard var components = URLComponents(string: searchBaseURL) else {
+                throw ICD11Error.invalidURL
             }
-            let results = try parseSearchResults(from: retryData)
+            components.queryItems = [
+                URLQueryItem(name: "q", value: trimmed),
+                URLQueryItem(name: "flatResults", value: "true"),
+                URLQueryItem(name: "offset", value: "\(offset)"),
+                URLQueryItem(name: "limit", value: "\(limit)")
+            ]
+            guard let url = components.url else {
+                throw ICD11Error.invalidURL
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("v2", forHTTPHeaderField: "API-Version")
+            request.setValue(language, forHTTPHeaderField: "Accept-Language")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ICD11Error.invalidResponse
+            }
+
+            // Si el token expiró durante la request, renovar y reintentar una vez
+            if httpResponse.statusCode == 401 {
+                cachedToken = nil
+                tokenExpiration = nil
+                let newToken = try await validToken()
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await URLSession.shared.data(for: request)
+                guard let retryHTTP = retryResponse as? HTTPURLResponse,
+                      (200...299).contains(retryHTTP.statusCode) else {
+                    throw ICD11Error.authenticationFailed
+                }
+                let results = try parseSearchResults(from: retryData)
+                searchCache[cacheKey] = results
+                saveSearchCache(results, for: cacheKey)
+                return results
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw ICD11Error.httpError(statusCode: httpResponse.statusCode)
+            }
+
+            let results = try parseSearchResults(from: data)
             searchCache[cacheKey] = results
+            saveSearchCache(results, for: cacheKey)
             return results
+        } catch {
+            if let diskCached {
+                return diskCached
+            }
+            throw error
         }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw ICD11Error.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        let results = try parseSearchResults(from: data)
-        searchCache[cacheKey] = results
-        return results
     }
 
     /// Limpia la cache de búsqueda en memoria.
     func clearCache() {
         searchCache.removeAll()
+        clearDiskCache()
+    }
+
+    // MARK: - Cache persistente (disco)
+
+    private func loadSearchCache(for cacheKey: String) -> [ICD11SearchResult]? {
+        guard let url = cacheFileURL(for: cacheKey),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return try? JSONDecoder().decode([ICD11SearchResult].self, from: data)
+    }
+
+    private func saveSearchCache(_ results: [ICD11SearchResult], for cacheKey: String) {
+        guard let url = cacheFileURL(for: cacheKey),
+              let data = try? JSONEncoder().encode(results) else {
+            return
+        }
+        try? data.write(to: url, options: [.atomic])
+    }
+
+    private func clearDiskCache() {
+        guard let directory = cacheDirectoryURL() else { return }
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    private func cacheFileURL(for cacheKey: String) -> URL? {
+        guard let directory = cacheDirectoryURL() else { return nil }
+        let fileName = cacheFileName(for: cacheKey)
+        return directory.appendingPathComponent(fileName)
+    }
+
+    private func cacheDirectoryURL() -> URL? {
+        guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let directory = base.appendingPathComponent(cacheFolderName, isDirectory: true)
+        if !FileManager.default.fileExists(atPath: directory.path) {
+            try? FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+        }
+        return directory
+    }
+
+    private func cacheFileName(for cacheKey: String) -> String {
+        let base64 = Data(cacheKey.utf8).base64EncodedString()
+        let safe = base64
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "=", with: "")
+        return "search-\(safe).json"
     }
 
     // MARK: - Gestión de Token (privado)

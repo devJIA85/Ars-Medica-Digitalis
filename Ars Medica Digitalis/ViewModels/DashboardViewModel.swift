@@ -48,6 +48,25 @@ enum TimePeriod: String, CaseIterable {
 @Observable
 final class DashboardViewModel {
 
+    /// Variante que recibe directamente la lista de pacientes activos.
+    /// Evita depender de la relación inversa `professional.patients` que puede no estar faulted.
+    func loadStatistics(from patients: [Patient]) {
+        totalPatients = patients.count
+        // Recolectar todas las sesiones una sola vez
+        allSessions = patients.flatMap { $0.sessions ?? [] }
+
+        computeKPIs()
+        computeGenderDistribution(patients)
+        computeAgeRangeDistribution(patients)
+        computeTopDiagnoses(patients)
+        recomputeSessionsOverTime()
+        computeSessionsByModality()
+        computeSessionsByStatus()
+        computeLifestyleFactors(patients)
+        computeFamilyHistoryPrevalence(patients)
+        computePatientGrowth(patients)
+    }
+
     // MARK: - KPIs
 
     private(set) var totalPatients: Int = 0
@@ -376,3 +395,4 @@ final class DashboardViewModel {
         patientGrowth = points
     }
 }
+

@@ -40,7 +40,7 @@ struct SessionFormView: View {
             Section("Datos de la Sesión") {
                 DatePicker(
                     "Fecha",
-                    selection: $viewModel.sessionDate,
+                    selection: sessionDateBinding,
                     displayedComponents: [.date, .hourAndMinute]
                 )
 
@@ -148,7 +148,9 @@ struct SessionFormView: View {
             } else {
                 // Fecha preseleccionada desde el calendario (si existe)
                 if let initialDate {
-                    viewModel.sessionDate = initialDate
+                    viewModel.sessionDate = initialDate.roundedToMinuteInterval(5)
+                } else {
+                    viewModel.sessionDate = viewModel.sessionDate.roundedToMinuteInterval(5)
                 }
                 // Pre-cargar diagnósticos vigentes del paciente
                 // para que el profesional no tenga que re-seleccionarlos manualmente
@@ -156,6 +158,15 @@ struct SessionFormView: View {
                 viewModel.preloadDiagnoses(from: patient)
             }
         }
+    }
+
+    private var sessionDateBinding: Binding<Date> {
+        Binding(
+            get: { viewModel.sessionDate },
+            set: { newDate in
+                viewModel.sessionDate = newDate.roundedToMinuteInterval(5)
+            }
+        )
     }
 
     // MARK: - Acciones
@@ -167,6 +178,27 @@ struct SessionFormView: View {
             viewModel.createSession(for: patient, in: modelContext)
         }
         dismiss()
+    }
+}
+
+private extension Date {
+    func roundedToMinuteInterval(_ interval: Int, calendar: Calendar = .current) -> Date {
+        guard interval > 0 else { return self }
+        var components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: self)
+        guard let minute = components.minute else { return self }
+
+        let rounded = Int((Double(minute) / Double(interval)).rounded()) * interval
+        if rounded >= 60 {
+            components.minute = 0
+            if let hour = components.hour {
+                components.hour = hour + 1
+            }
+        } else {
+            components.minute = rounded
+        }
+        components.second = 0
+
+        return calendar.date(from: components) ?? self
     }
 }
 

@@ -20,6 +20,7 @@ struct Ars_Medica_DigitalisApp: App {
             Attachment.self,
             PriorTreatment.self,
             Hospitalization.self,
+            AnthropometricRecord.self,
         ])
 
         // cloudKitDatabase: .automatic habilita sincronización con la zona privada

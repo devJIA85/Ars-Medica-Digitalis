@@ -11,6 +11,7 @@
 import SwiftUI
 import SwiftData
 import PencilKit
+import Charts
 
 struct PatientMedicalHistoryView: View {
 
@@ -58,12 +59,21 @@ struct PatientMedicalHistoryView: View {
                 if patient.waistCm > 0 {
                     LabeledContent("Cintura", value: "\(String(format: "%.0f", patient.waistCm)) cm")
                 }
+
+                // Gauge visual del IMC — reemplaza el badge de texto
                 if let bmi = patient.bmi {
-                    LabeledContent("IMC") {
-                        Text("\(String(format: "%.1f", bmi)) — \(bmiCategory(bmi))")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(bmiColor(bmi))
-                    }
+                    BMIGaugeView(bmiValue: bmi)
+                }
+
+                // Tendencia temporal: solo si hay 2+ registros históricos
+                let records = patient.anthropometricRecords ?? []
+                if records.count >= 2 {
+                    WeightTrendChartView(records: records)
+                } else if records.count == 1 {
+                    // Hint para que el profesional sepa que la tendencia aparecerá
+                    Text("Guardá mediciones en diferentes fechas para ver la tendencia")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 if patient.weightKg == 0 && patient.heightCm == 0 {
@@ -239,24 +249,6 @@ struct PatientMedicalHistoryView: View {
         if patient.familyHistoryHeartDisease { items.append("Enfermedad cardíaca") }
         if patient.familyHistoryMentalHealth { items.append("Salud mental") }
         return items
-    }
-
-    private func bmiColor(_ bmi: Double) -> Color {
-        switch bmi {
-        case ..<18.5: .orange
-        case 18.5..<25: .green
-        case 25..<30: .orange
-        default: .red
-        }
-    }
-
-    private func bmiCategory(_ bmi: Double) -> String {
-        switch bmi {
-        case ..<18.5: "Bajo peso"
-        case 18.5..<25: "Normal"
-        case 25..<30: "Sobrepeso"
-        default: "Obesidad"
-        }
     }
 
     private func deleteTreatments(at offsets: IndexSet, from sorted: [PriorTreatment]) {

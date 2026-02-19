@@ -169,7 +169,7 @@ struct PatientFormView: View {
             )
         )
     }
-    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self], inMemory: true)
+    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self], inMemory: true)
 }
 
 #Preview("Edición") {
@@ -187,5 +187,5 @@ struct PatientFormView: View {
             )
         )
     }
-    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self], inMemory: true)
+    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self], inMemory: true)
 }

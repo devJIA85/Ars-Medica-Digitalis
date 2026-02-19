@@ -151,7 +151,7 @@ struct SessionDetailView: View {
 
 #Preview {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(fullName: "Dr. Test", licenseNumber: "MN 999", specialty: "Psicología")

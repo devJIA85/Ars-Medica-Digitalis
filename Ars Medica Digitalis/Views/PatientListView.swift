@@ -29,18 +29,18 @@ struct PatientListView: View {
                 patientToDelete = patient
             }
         )
-        .searchable(text: $searchText, prompt: "Buscar paciente")
+        .searchable(text: $searchText, placement: .automatic, prompt: "Buscar paciente")
+        .searchToolbarBehavior(.minimize)
         .navigationTitle(showInactive ? "Pacientes Inactivos" : "Pacientes")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
                     showInactive.toggle()
                 } label: {
-                    Label(
-                        showInactive ? "Ver Activos" : "Ver Inactivos",
-                        systemImage: showInactive ? "person.fill" : "person.slash"
-                    )
+                    Image(systemName: showInactive ? "person.fill" : "person.slash")
+                        .accessibilityLabel(showInactive ? "Ver Activos" : "Ver Inactivos")
                 }
+                .buttonStyle(.glass)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -51,12 +51,16 @@ struct PatientListView: View {
                 }
             }
 
+            DefaultToolbarItem(kind: .search, placement: .topBarTrailing)
+
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     showingNewPatient = true
                 } label: {
                     Image(systemName: "plus")
                 }
+                .buttonStyle(.glassProminent)
+                .tint(.blue)
             }
         }
         .sheet(isPresented: $showingNewPatient) {
@@ -106,6 +110,7 @@ private struct PatientFilteredList: View {
         self.onDelete = onDelete
 
         let trimmed = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let currentProfessionalID = professional.id
 
         // #Predicate filtra por estado activo/inactivo y texto de búsqueda.
         // Todo se resuelve localmente en SwiftData, sin llamadas de red.
@@ -113,14 +118,16 @@ private struct PatientFilteredList: View {
             if showInactive {
                 _patients = Query(
                     filter: #Predicate<Patient> { patient in
-                        patient.deletedAt != nil
+                        patient.professional?.id == currentProfessionalID
+                        && patient.deletedAt != nil
                     },
                     sort: \Patient.lastName
                 )
             } else {
                 _patients = Query(
                     filter: #Predicate<Patient> { patient in
-                        patient.deletedAt == nil
+                        patient.professional?.id == currentProfessionalID
+                        && patient.deletedAt == nil
                     },
                     sort: \Patient.lastName
                 )
@@ -129,7 +136,8 @@ private struct PatientFilteredList: View {
             if showInactive {
                 _patients = Query(
                     filter: #Predicate<Patient> { patient in
-                        patient.deletedAt != nil
+                        patient.professional?.id == currentProfessionalID
+                        && patient.deletedAt != nil
                         && (patient.firstName.localizedStandardContains(trimmed)
                             || patient.lastName.localizedStandardContains(trimmed))
                     },
@@ -138,7 +146,8 @@ private struct PatientFilteredList: View {
             } else {
                 _patients = Query(
                     filter: #Predicate<Patient> { patient in
-                        patient.deletedAt == nil
+                        patient.professional?.id == currentProfessionalID
+                        && patient.deletedAt == nil
                         && (patient.firstName.localizedStandardContains(trimmed)
                             || patient.lastName.localizedStandardContains(trimmed))
                     },
@@ -171,6 +180,8 @@ private struct PatientFilteredList: View {
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .scrollEdgeEffectStyle(.hard, for: .all)
     }
 }
 
@@ -181,27 +192,36 @@ private struct PatientRowView: View {
     let patient: Patient
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(patient.fullName)
-                    .font(.body)
-                    .fontWeight(.medium)
+        HStack(spacing: 12) {
+            // Avatar circular con foto o SF Symbol según género
+            PatientAvatarView(
+                photoData: patient.photoData,
+                genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
+                size: 40
+            )
 
-                if !patient.isActive, let deletedAt = patient.deletedAt {
-                    Text("Baja: \(deletedAt.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(patient.fullName)
+                        .font(.body)
+                        .fontWeight(.medium)
+
+                    if !patient.isActive, let deletedAt = patient.deletedAt {
+                        Text("Baja: \(deletedAt.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .glassEffect(in: .capsule)
+                    }
                 }
-            }
 
-            let sessionCount = patient.sessions?.count ?? 0
-            if sessionCount > 0 {
-                Text("\(sessionCount) sesión\(sessionCount == 1 ? "" : "es")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                let sessionCount = patient.sessions?.count ?? 0
+                if sessionCount > 0 {
+                    Text("\(sessionCount) sesión\(sessionCount == 1 ? "" : "es")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -209,7 +229,7 @@ private struct PatientRowView: View {
 
 #Preview {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(
@@ -231,3 +251,4 @@ private struct PatientRowView: View {
     }
     .modelContainer(container)
 }
+

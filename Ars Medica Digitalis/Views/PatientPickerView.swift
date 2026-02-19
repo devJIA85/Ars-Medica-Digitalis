@@ -105,21 +105,30 @@ private struct PatientPickerRow: View {
     let patient: Patient
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(patient.fullName)
-                .font(.body)
-                .fontWeight(.medium)
+        HStack(spacing: 12) {
+            // Avatar circular con foto o SF Symbol según género
+            PatientAvatarView(
+                photoData: patient.photoData,
+                genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
+                size: 40
+            )
 
-            Text(patient.dateOfBirth.formatted(date: .long, time: .omitted))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(patient.fullName)
+                    .font(.body)
+                    .fontWeight(.medium)
+
+                Text(patient.dateOfBirth.formatted(date: .long, time: .omitted))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
 
 #Preview {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(

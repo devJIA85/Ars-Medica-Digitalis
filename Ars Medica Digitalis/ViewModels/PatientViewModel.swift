@@ -349,6 +349,32 @@ final class PatientViewModel {
         patient.updatedAt = Date()
     }
 
+    // MARK: - Registro antropométrico histórico
+
+    /// Crea un snapshot inmutable de los datos antropométricos si cambiaron.
+    /// Debe llamarse ANTES de update() porque compara los valores del VM
+    /// contra los valores actuales del paciente para detectar cambios.
+    func createAnthropometricRecordIfNeeded(for patient: Patient, in context: ModelContext) {
+        // Solo crear registro si hay datos relevantes
+        guard weightKg > 0 || heightCm > 0 else { return }
+
+        // Detectar si algo cambió respecto al paciente (epsilon para doubles)
+        let weightChanged = abs(weightKg - patient.weightKg) > 0.01
+        let heightChanged = abs(heightCm - patient.heightCm) > 0.01
+        let waistChanged = abs(waistCm - patient.waistCm) > 0.01
+
+        guard weightChanged || heightChanged || waistChanged else { return }
+
+        let record = AnthropometricRecord(
+            recordDate: Date(),
+            weightKg: weightKg,
+            heightCm: heightCm,
+            waistCm: waistCm,
+            patient: patient
+        )
+        context.insert(record)
+    }
+
     // MARK: - Helpers de foto
 
     /// Redimensiona una imagen a thumbnail para almacenamiento eficiente.

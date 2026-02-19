@@ -100,12 +100,15 @@ private struct PatientDestinationView: View {
             Session.self,
             Diagnosis.self,
             Attachment.self,
+            PriorTreatment.self,
+            Hospitalization.self,
+            AnthropometricRecord.self,
         ], inMemory: true)
 }
 
 #Preview("Con perfil — Lista de Pacientes") {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(

@@ -14,6 +14,7 @@ import SwiftData
 struct PatientMedicalHistoryFormView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     let patient: Patient
 
@@ -94,6 +95,9 @@ struct PatientMedicalHistoryFormView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Guardar") {
+                    // Crear registro histórico ANTES de actualizar,
+                    // porque la detección de cambios compara VM vs paciente actual
+                    viewModel.createAnthropometricRecordIfNeeded(for: patient, in: modelContext)
                     viewModel.update(patient)
                     dismiss()
                 }

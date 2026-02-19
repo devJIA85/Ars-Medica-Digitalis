@@ -26,9 +26,12 @@ struct PatientDetailView: View {
 
             Section {
                 HStack(spacing: 16) {
-                    patientAvatar
-                        .frame(width: 64, height: 64)
-                        .clipShape(Circle())
+                    // Avatar reutilizable — reemplaza lógica inline duplicada
+                    PatientAvatarView(
+                        photoData: patient.photoData,
+                        genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
+                        size: 64
+                    )
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(patient.fullName)
@@ -405,33 +408,6 @@ struct PatientDetailView: View {
         }
     }
 
-    // MARK: - Avatar del paciente
-
-    @ViewBuilder
-    private var patientAvatar: some View {
-        if let photoData = patient.photoData, let uiImage = UIImage(data: photoData) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFill()
-        } else {
-            Image(systemName: defaultAvatarSymbol)
-                .resizable()
-                .scaledToFit()
-                .padding(12)
-                .foregroundStyle(.secondary)
-                .background(.quaternary, in: Circle())
-        }
-    }
-
-    private var defaultAvatarSymbol: String {
-        let hint = patient.gender.isEmpty ? patient.biologicalSex : patient.gender
-        switch hint.lowercased() {
-        case "masculino": return "figure.stand"
-        case "femenino": return "figure.stand.dress"
-        default: return "person.crop.circle.fill"
-        }
-    }
-
     // MARK: - Helpers
 
     private var hasContactData: Bool {
@@ -606,7 +582,7 @@ private struct SessionTypeBadge: View {
 
 #Preview {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(

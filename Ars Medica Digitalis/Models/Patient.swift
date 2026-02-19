@@ -137,6 +137,11 @@ final class Patient {
     @Relationship(deleteRule: .cascade, inverse: \Hospitalization.patient)
     var hospitalizations: [Hospitalization]? = []
 
+    /// Registros históricos de antropometría para graficar evolución
+    /// con Swift Charts (peso, IMC, cintura a lo largo del tiempo)
+    @Relationship(deleteRule: .cascade, inverse: \AnthropometricRecord.patient)
+    var anthropometricRecords: [AnthropometricRecord]? = []
+
     // MARK: - Computed properties (no se persisten)
 
     var fullName: String { "\(firstName) \(lastName)" }
@@ -218,7 +223,8 @@ final class Patient {
         sessions: [Session]? = [],
         activeDiagnoses: [Diagnosis]? = [],
         priorTreatments: [PriorTreatment]? = [],
-        hospitalizations: [Hospitalization]? = []
+        hospitalizations: [Hospitalization]? = [],
+        anthropometricRecords: [AnthropometricRecord]? = []
     ) {
         self.id = id
         self.firstName = firstName
@@ -267,5 +273,6 @@ final class Patient {
         self.activeDiagnoses = activeDiagnoses
         self.priorTreatments = priorTreatments
         self.hospitalizations = hospitalizations
+        self.anthropometricRecords = anthropometricRecords
     }
 }

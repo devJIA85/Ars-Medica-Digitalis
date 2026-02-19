@@ -240,11 +240,13 @@ struct DashboardView: View {
                     series: .value("Estado", point.series)
                 )
                 .interpolationMethod(.catmullRom)
+                .foregroundStyle(by: .value("Estado", point.series))
 
                 PointMark(
                     x: .value("Fecha", point.date),
                     y: .value("Sesiones", point.value)
                 )
+                .foregroundStyle(by: .value("Estado", point.series))
             }
             .chartForegroundStyleScale([
                 "Completadas": Color.green,
@@ -451,3 +453,4 @@ private struct KPICard: View {
         )
     }
 }
+

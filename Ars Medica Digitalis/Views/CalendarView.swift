@@ -123,10 +123,12 @@ struct CalendarView: View {
 
     /// Texto del mes capitalizado (ej: "Febrero 2026")
     private var monthYearText: String {
-        let formatted = viewModel.displayedMonth.formatted(
-            .dateTime.month(.wide).year()
-        )
-        return formatted.prefix(1).uppercased() + formatted.dropFirst()
+        // Ej: "Feb 2026" en español abreviado
+        var style = Date.FormatStyle.dateTime
+            .month(.abbreviated)
+            .year(.defaultDigits)
+        style.locale = Locale(identifier: "es_AR")
+        return viewModel.displayedMonth.formatted(style)
     }
 
     // MARK: - Días de la semana
@@ -190,7 +192,7 @@ struct CalendarView: View {
                         Label("Sin sesiones", systemImage: "calendar.badge.exclamationmark")
                     } description: {
                         Text(selectedDate.formatted(
-                            .dateTime.weekday(.wide).day().month(.wide)
+                            Date.FormatStyle.dateTime.weekday(.wide).day().month(.abbreviated).locale(Locale(identifier: "es_AR"))
                         ))
                     }
                     .frame(maxHeight: .infinity)
@@ -214,7 +216,7 @@ struct CalendarView: View {
                             }
                         } header: {
                             Text(selectedDate.formatted(
-                                .dateTime.weekday(.wide).day().month(.wide)
+                                Date.FormatStyle.dateTime.weekday(.wide).day().month(.abbreviated).locale(Locale(identifier: "es_AR"))
                             ))
                         }
                     }
@@ -297,7 +299,7 @@ private struct CalendarSessionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             // Hora a la izquierda
-            Text(session.sessionDate.formatted(date: .omitted, time: .shortened))
+            Text(session.sessionDate.esShortTime())
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .monospacedDigit()
@@ -395,3 +397,4 @@ private struct CalendarSessionRow: View {
     }
     .modelContainer(container)
 }
+

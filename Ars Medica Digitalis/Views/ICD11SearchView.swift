@@ -6,12 +6,16 @@
 //  Permite buscar, seleccionar y confirmar un diagnóstico
 //  que se vinculará a la sesión clínica actual.
 //
+//  Búsqueda híbrida: online vía API WHO con fallback automático
+//  al catálogo offline local (ICD11Entry en SwiftData).
+//
 
 import SwiftUI
 
 struct ICD11SearchView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
 
     @Bindable var viewModel = ICD11SearchViewModel()
 
@@ -25,6 +29,11 @@ struct ICD11SearchView: View {
 
     var body: some View {
         List {
+            // Badge de modo offline
+            if viewModel.isOfflineMode {
+                offlineBadge
+            }
+
             if let error = viewModel.errorMessage {
                 errorSection(message: error)
             } else if viewModel.isLoading {
@@ -42,7 +51,18 @@ struct ICD11SearchView: View {
         .navigationTitle("Buscar CIE-11")
         .searchable(text: $searchText, prompt: "Ej: depresión, fractura, diabetes...")
         .onChange(of: searchText) { _, newValue in
-            viewModel.search(query: newValue)
+            viewModel.search(query: newValue, context: modelContext)
+        }
+    }
+
+    // MARK: - Badge Offline
+
+    @ViewBuilder
+    private var offlineBadge: some View {
+        Section {
+            Label("Modo offline — resultados del catálogo local", systemImage: "internaldrive")
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 
@@ -108,7 +128,7 @@ struct ICD11SearchView: View {
                     .multilineTextAlignment(.center)
 
                 Button {
-                    viewModel.search(query: searchText)
+                    viewModel.search(query: searchText, context: modelContext)
                 } label: {
                     Label("Reintentar", systemImage: "arrow.clockwise")
                 }

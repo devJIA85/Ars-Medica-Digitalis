@@ -15,9 +15,11 @@ struct ProfileEditView: View {
 
     let professional: Professional
 
-    @Bindable var viewModel = ProfessionalViewModel()
+    @State private var viewModel = ProfessionalViewModel()
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         Form {
             // MARK: - Header visual con avatar del profesional
 
@@ -119,14 +121,14 @@ struct ProfileEditView: View {
                     Image(systemName: "calendar.badge.clock")
                         .foregroundStyle(.secondary)
                         .frame(width: 24)
-                    LabeledContent("Creado", value: professional.createdAt.formatted(date: .abbreviated, time: .omitted))
+                    LabeledContent("Creado", value: professional.createdAt.esShortDate())
                 }
 
                 HStack(spacing: 12) {
                     Image(systemName: "pencil.and.outline")
                         .foregroundStyle(.secondary)
                         .frame(width: 24)
-                    LabeledContent("Modificado", value: professional.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                    LabeledContent("Modificado", value: professional.updatedAt.esShortDateTime())
                 }
             } header: {
                 Label("Información", systemImage: "info.circle")
@@ -143,9 +145,14 @@ struct ProfileEditView: View {
                 .disabled(!viewModel.canSave)
             }
         }
-        .onAppear {
-            viewModel.load(from: professional)
+        .task(id: professional.updatedAt) {
+            await loadViewModel()
         }
+    }
+
+    @MainActor
+    private func loadViewModel() async {
+        viewModel.load(from: professional)
     }
 
     // MARK: - Helpers

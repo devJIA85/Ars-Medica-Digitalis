@@ -43,7 +43,7 @@ struct PatientDetailView: View {
                             .foregroundStyle(.secondary)
 
                         if let nextBirthday = patient.nextBirthday {
-                            Text("Cumple el \(nextBirthday.formatted(.dateTime.day().month(.wide)))")
+                            Text("Cumple el \(nextBirthday.esDayMonthAbbrev())")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -57,7 +57,7 @@ struct PatientDetailView: View {
                 IconLabeledValueRow(
                     title: "Nacimiento",
                     systemImage: "calendar",
-                    value: patient.dateOfBirth.formatted(date: .long, time: .omitted)
+                    value: patient.dateOfBirth.esShortDateAbbrev()
                 )
 
                 if !patient.biologicalSex.isEmpty {
@@ -335,19 +335,19 @@ struct PatientDetailView: View {
                 IconLabeledValueRow(
                     title: "Creado",
                     systemImage: "calendar.badge.clock",
-                    value: patient.createdAt.formatted(date: .abbreviated, time: .omitted)
+                    value: patient.createdAt.esShortDate()
                 )
                 IconLabeledValueRow(
                     title: "Modificado",
                     systemImage: "pencil.and.outline",
-                    value: patient.updatedAt.formatted(date: .abbreviated, time: .shortened)
+                    value: patient.updatedAt.esShortDateTime()
                 )
 
                 if !patient.isActive, let deletedAt = patient.deletedAt {
                     IconLabeledValueRow(
                         title: "Fecha de baja",
                         systemImage: "person.crop.circle.badge.xmark",
-                        value: deletedAt.formatted(date: .abbreviated, time: .shortened),
+                        value: deletedAt.esShortDateTime(),
                         valueStyle: .red
                     )
                 }
@@ -475,7 +475,7 @@ private struct SessionRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(session.sessionDate.formatted(date: .abbreviated, time: .shortened))
+                Text(session.sessionDate.esShortDateTime())
                     .font(.body)
                     .fontWeight(.medium)
 
@@ -606,3 +606,4 @@ private struct SessionTypeBadge: View {
     }
     .modelContainer(container)
 }
+

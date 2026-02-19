@@ -13,6 +13,7 @@ import SwiftData
 /// - Con Professional → Lista de pacientes (HU-02, HU-03)
 struct ContentView: View {
 
+    @Environment(\.modelContext) private var modelContext
     @Query private var professionals: [Professional]
 
     // Flag local para forzar la transición tras completar el onboarding,
@@ -57,6 +58,11 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .task {
+            // Poblar catálogo CIE-11 offline en background (solo primer launch)
+            let service = ICD11SeedService(modelContainer: modelContext.container)
+            await service.seedIfNeeded()
+        }
     }
 }
 
@@ -103,12 +109,13 @@ private struct PatientDestinationView: View {
             PriorTreatment.self,
             Hospitalization.self,
             AnthropometricRecord.self,
+            ICD11Entry.self,
         ], inMemory: true)
 }
 
 #Preview("Con perfil — Lista de Pacientes") {
     let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
+        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self, ICD11Entry.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let professional = Professional(

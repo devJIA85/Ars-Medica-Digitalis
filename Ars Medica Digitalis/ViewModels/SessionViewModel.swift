@@ -39,6 +39,21 @@ final class SessionViewModel {
     /// Se convierten a modelos Diagnosis de SwiftData al guardar la sesión.
     var selectedDiagnoses: [ICD11SearchResult] = []
 
+    // MARK: - Init
+
+    /// Init por defecto: sessionDate = ahora, status = completada.
+    init() {}
+
+    /// Init con fecha inicial (ej: día seleccionado en calendario + hora actual).
+    /// Ajusta el status automáticamente según si la fecha es futura.
+    init(initialDate: Date) {
+        self.sessionDate = initialDate
+        // Ajustar status coherente con la fecha recibida
+        if initialDate > Date() {
+            self.status = "programada"
+        }
+    }
+
     // MARK: - Validación
 
     /// El motivo de consulta es el campo mínimo obligatorio para una sesión.

@@ -24,7 +24,7 @@ struct SessionFormView: View {
     /// Si es nil, el ViewModel usa Date() (ahora).
     let initialDate: Date?
 
-    @Bindable var viewModel = SessionViewModel()
+    @Bindable var viewModel: SessionViewModel
 
     private var isEditing: Bool { session != nil }
 
@@ -32,6 +32,19 @@ struct SessionFormView: View {
         self.patient = patient
         self.session = session
         self.initialDate = initialDate
+
+        // Establecer la fecha inmediatamente en el init para evitar que
+        // el DatePicker muestre "hoy" por un frame antes del onAppear.
+        // En modo alta con fecha del calendario: día seleccionado + hora actual.
+        // En modo edición, load(from:) la sobreescribirá en onAppear.
+        if session == nil, let initialDate {
+            let resolved = initialDate
+                .combiningTimeFrom(Date())
+                .roundedToMinuteInterval(5)
+            self.viewModel = SessionViewModel(initialDate: resolved)
+        } else {
+            self.viewModel = SessionViewModel()
+        }
     }
 
     var body: some View {
@@ -170,18 +183,10 @@ struct SessionFormView: View {
             if let session {
                 viewModel.load(from: session)
             } else {
-                // Fecha preseleccionada desde el calendario: combinar el día
-                // seleccionado con la hora actual para un default razonable
-                if let initialDate {
-                    viewModel.sessionDate = initialDate
-                        .combiningTimeFrom(Date())
-                        .roundedToMinuteInterval(5)
-                } else {
-                    viewModel.sessionDate = viewModel.sessionDate.roundedToMinuteInterval(5)
-                }
                 // Pre-cargar diagnósticos vigentes del paciente
                 // para que el profesional no tenga que re-seleccionarlos manualmente
                 // en cada consulta de seguimiento.
+                // La fecha ya fue configurada en el init de la vista.
                 viewModel.preloadDiagnoses(from: patient)
             }
         }

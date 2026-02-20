@@ -106,10 +106,13 @@ private struct PatientPickerRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Avatar circular con foto o SF Symbol según género
+            // Avatar con iniciales (o foto) y anillo de estado clínico
             PatientAvatarView(
                 photoData: patient.photoData,
+                firstName: patient.firstName,
+                lastName: patient.lastName,
                 genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
+                clinicalStatus: patient.clinicalStatus,
                 size: 40
             )
 

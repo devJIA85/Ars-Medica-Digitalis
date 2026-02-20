@@ -84,6 +84,13 @@ struct PatientFormView: View {
                         Text(label).tag(value)
                     }
                 }
+
+                Picker("Estado Clínico", selection: $viewModel.clinicalStatus) {
+                    ForEach(PatientViewModel.clinicalStatusOptions, id: \.0) { value, label in
+                        Text(label).tag(value)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
 
             // MARK: - Identificación y Cobertura

@@ -53,6 +53,10 @@ final class PatientViewModel {
 
     var photoData: Data? = nil
 
+    // MARK: - Estado clínico
+
+    var clinicalStatus: String = "estable"
+
     // MARK: - Historia clínica
 
     var medicalRecordNumber: String = ""
@@ -132,6 +136,12 @@ final class PatientViewModel {
         ("viudo/a", "Viudo/a"),
     ]
 
+    static let clinicalStatusOptions: [(String, String)] = [
+        ("estable", "Estable"),
+        ("activo", "En tratamiento"),
+        ("riesgo", "Riesgo alto"),
+    ]
+
     static let emergencyRelationOptions: [(String, String)] = [
         ("", "Sin especificar"),
         ("padre/madre", "Padre/Madre"),
@@ -186,6 +196,9 @@ final class PatientViewModel {
 
         // Foto
         photoData = patient.photoData
+
+        // Estado clínico
+        clinicalStatus = patient.clinicalStatus
 
         // Historia clínica
         medicalRecordNumber = patient.medicalRecordNumber
@@ -246,6 +259,7 @@ final class PatientViewModel {
             insuranceMemberNumber: insuranceMemberNumber.trimmed,
             insurancePlan: insurancePlan.trimmed,
             photoData: photoData,
+            clinicalStatus: clinicalStatus,
             medicalRecordNumber: recordNumber,
             currentMedication: currentMedication.trimmed,
             weightKg: weightKg,
@@ -304,6 +318,9 @@ final class PatientViewModel {
 
         // Foto
         patient.photoData = photoData
+
+        // Estado clínico
+        patient.clinicalStatus = clinicalStatus
 
         // Historia clínica
         patient.currentMedication = currentMedication.trimmed

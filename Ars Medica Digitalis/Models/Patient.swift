@@ -63,6 +63,12 @@ final class Patient {
     @Attribute(.externalStorage)
     var photoData: Data? = nil
 
+    // MARK: - Estado clínico
+    // Indicador visual del estado general del paciente.
+    // Se refleja como anillo de color en el avatar:
+    // verde (estable), naranja (activo), rojo (riesgo).
+    var clinicalStatus: String = "estable"  // "estable" | "activo" | "riesgo"
+
     // MARK: - Historia clínica
 
     /// Número autogenerado "HC-XXXXXXXX" al crear el paciente.
@@ -199,6 +205,7 @@ final class Patient {
         insuranceMemberNumber: String = "",
         insurancePlan: String = "",
         photoData: Data? = nil,
+        clinicalStatus: String = "estable",
         medicalRecordNumber: String = "",
         currentMedication: String = "",
         weightKg: Double = 0,
@@ -248,6 +255,7 @@ final class Patient {
         self.insuranceMemberNumber = insuranceMemberNumber
         self.insurancePlan = insurancePlan
         self.photoData = photoData
+        self.clinicalStatus = clinicalStatus
         self.medicalRecordNumber = medicalRecordNumber
         self.currentMedication = currentMedication
         self.weightKg = weightKg

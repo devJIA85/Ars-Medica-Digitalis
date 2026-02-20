@@ -11,6 +11,10 @@ import SwiftData
 @main
 struct Ars_Medica_DigitalisApp: App {
 
+    /// Preferencia de apariencia local (por dispositivo, no se sincroniza vía CloudKit).
+    /// Valores posibles: "system", "light", "dark".
+    @AppStorage("appearance.colorScheme") private var colorSchemePreference: String = "system"
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Professional.self,
@@ -42,7 +46,18 @@ struct Ars_Medica_DigitalisApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(resolvedColorScheme)
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    /// Resuelve la preferencia de string a ColorScheme opcional.
+    /// nil = seguir la configuración del sistema operativo.
+    private var resolvedColorScheme: ColorScheme? {
+        switch colorSchemePreference {
+        case "light": .light
+        case "dark": .dark
+        default: nil
+        }
     }
 }

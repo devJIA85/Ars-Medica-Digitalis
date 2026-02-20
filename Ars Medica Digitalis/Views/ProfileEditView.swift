@@ -15,7 +15,17 @@ struct ProfileEditView: View {
 
     let professional: Professional
 
+    @AppStorage("security.biometricEnabled") private var biometricLockEnabled: Bool = false
+    @AppStorage("appearance.colorScheme") private var colorSchemePreference: String = "system"
+
     @State private var viewModel = ProfessionalViewModel()
+    @State private var biometricCapability = BiometricCapability(
+        kind: .none,
+        isAvailable: false,
+        unavailableReason: nil
+    )
+
+    private let biometricAuthService = BiometricAuthService()
 
     var body: some View {
         @Bindable var viewModel = viewModel
@@ -68,6 +78,40 @@ struct ProfileEditView: View {
                 }
             } header: {
                 Label("Estadísticas", systemImage: "chart.pie")
+            }
+
+            // MARK: - Privacidad
+
+            Section {
+                Toggle(isOn: $biometricLockEnabled) {
+                    Label("Bloqueo al abrir la app", systemImage: biometricSystemImage)
+                }
+                .disabled(!biometricCapability.isAvailable)
+
+                if biometricCapability.isAvailable {
+                    Text("Protegé las historias clínicas usando \(biometricCapability.localizedName).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if let reason = biometricCapability.unavailableReason {
+                    Text(reason)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Label("Privacidad", systemImage: "lock.shield")
+            }
+
+            // MARK: - Apariencia
+
+            Section {
+                Picker("Modo", selection: $colorSchemePreference) {
+                    Text("Sistema").tag("system")
+                    Text("Claro").tag("light")
+                    Text("Oscuro").tag("dark")
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Label("Apariencia", systemImage: "paintbrush")
             }
 
             // MARK: - Datos Profesionales
@@ -153,6 +197,12 @@ struct ProfileEditView: View {
     @MainActor
     private func loadViewModel() async {
         viewModel.load(from: professional)
+        biometricCapability = biometricAuthService.capability()
+
+        // Evita dejar activa una opción que no puede ejecutarse.
+        if biometricLockEnabled && !biometricCapability.isAvailable {
+            biometricLockEnabled = false
+        }
     }
 
     // MARK: - Helpers
@@ -171,6 +221,15 @@ struct ProfileEditView: View {
         }
         // Solo un nombre → primera letra
         return String(name.prefix(1)).uppercased()
+    }
+
+    private var biometricSystemImage: String {
+        switch biometricCapability.kind {
+        case .faceID: "faceid"
+        case .touchID: "touchid"
+        case .opticID: "opticid"
+        case .none: "lock.shield"
+        }
     }
 }
 

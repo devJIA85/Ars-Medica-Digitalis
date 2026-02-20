@@ -3,7 +3,7 @@ import Foundation
 extension Date {
     /// Fecha y hora abreviadas en español, sin "at". Ej: "19 Feb 2026 17:54"
     func esShortDateTime(localeIdentifier: String = "es_AR") -> String {
-        var dateStyle = Date.FormatStyle()
+        let dateStyle = Date.FormatStyle()
             .day(.twoDigits)
             .month(.abbreviated)
             .year(.defaultDigits)
@@ -15,7 +15,7 @@ extension Date {
 
     /// Solo fecha en español (abreviada). Ej: "19 Feb 2026"
     func esShortDate(localeIdentifier: String = "es_AR") -> String {
-        var dateStyle = Date.FormatStyle()
+        let dateStyle = Date.FormatStyle()
             .day(.twoDigits)
             .month(.abbreviated)
             .year(.defaultDigits)
@@ -25,7 +25,7 @@ extension Date {
 
     /// Solo hora en español (24h). Ej: "17:54"
     func esShortTime(localeIdentifier: String = "es_AR") -> String {
-        var timeStyle = Date.FormatStyle()
+        let timeStyle = Date.FormatStyle()
             .hour(.twoDigits(amPM: .omitted))
             .minute(.twoDigits)
             .locale(Locale(identifier: localeIdentifier))

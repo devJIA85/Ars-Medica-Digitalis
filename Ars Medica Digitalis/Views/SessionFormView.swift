@@ -41,8 +41,32 @@ struct SessionFormView: View {
                 DatePicker(
                     "Fecha",
                     selection: sessionDateBinding,
-                    displayedComponents: [.date, .hourAndMinute]
+                    displayedComponents: .date
                 )
+
+                // Hora con intervalos de 5 minutos (el DatePicker nativo
+                // no soporta minuteInterval, así que usamos Pickers manuales)
+                HStack {
+                    Text("Hora")
+                    Spacer()
+                    Picker("", selection: selectedHourBinding) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text(String(format: "%02d", hour)).tag(hour)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+
+                    Text(":")
+
+                    Picker("", selection: selectedMinuteBinding) {
+                        ForEach(Array(stride(from: 0, to: 60, by: 5)), id: \.self) { minute in
+                            Text(String(format: "%02d", minute)).tag(minute)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
 
                 Picker("Modalidad", selection: $viewModel.sessionType) {
                     ForEach(SessionViewModel.sessionTypes, id: \.0) { value, label in
@@ -146,9 +170,12 @@ struct SessionFormView: View {
             if let session {
                 viewModel.load(from: session)
             } else {
-                // Fecha preseleccionada desde el calendario (si existe)
+                // Fecha preseleccionada desde el calendario: combinar el día
+                // seleccionado con la hora actual para un default razonable
                 if let initialDate {
-                    viewModel.sessionDate = initialDate.roundedToMinuteInterval(5)
+                    viewModel.sessionDate = initialDate
+                        .combiningTimeFrom(Date())
+                        .roundedToMinuteInterval(5)
                 } else {
                     viewModel.sessionDate = viewModel.sessionDate.roundedToMinuteInterval(5)
                 }
@@ -164,7 +191,40 @@ struct SessionFormView: View {
         Binding(
             get: { viewModel.sessionDate },
             set: { newDate in
-                viewModel.sessionDate = newDate.roundedToMinuteInterval(5)
+                // Preservar hora/minuto actuales al cambiar solo la fecha
+                let calendar = Calendar.current
+                var comps = calendar.dateComponents([.year, .month, .day], from: newDate)
+                let timeComps = calendar.dateComponents([.hour, .minute], from: viewModel.sessionDate)
+                comps.hour = timeComps.hour
+                comps.minute = timeComps.minute
+                comps.second = 0
+                viewModel.sessionDate = calendar.date(from: comps) ?? newDate
+            }
+        )
+    }
+
+    private var selectedHourBinding: Binding<Int> {
+        Binding(
+            get: { Calendar.current.component(.hour, from: viewModel.sessionDate) },
+            set: { newHour in
+                let calendar = Calendar.current
+                var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: viewModel.sessionDate)
+                comps.hour = newHour
+                comps.second = 0
+                viewModel.sessionDate = calendar.date(from: comps) ?? viewModel.sessionDate
+            }
+        )
+    }
+
+    private var selectedMinuteBinding: Binding<Int> {
+        Binding(
+            get: { Calendar.current.component(.minute, from: viewModel.sessionDate) },
+            set: { newMinute in
+                let calendar = Calendar.current
+                var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: viewModel.sessionDate)
+                comps.minute = newMinute
+                comps.second = 0
+                viewModel.sessionDate = calendar.date(from: comps) ?? viewModel.sessionDate
             }
         )
     }
@@ -182,6 +242,17 @@ struct SessionFormView: View {
 }
 
 private extension Date {
+    /// Toma el año/mes/día de self y la hora/minuto de `source`.
+    /// Útil para combinar una fecha del calendario con la hora actual.
+    func combiningTimeFrom(_ source: Date, calendar: Calendar = .current) -> Date {
+        var comps = calendar.dateComponents([.year, .month, .day], from: self)
+        let timeComps = calendar.dateComponents([.hour, .minute], from: source)
+        comps.hour = timeComps.hour
+        comps.minute = timeComps.minute
+        comps.second = 0
+        return calendar.date(from: comps) ?? self
+    }
+
     func roundedToMinuteInterval(_ interval: Int, calendar: Calendar = .current) -> Date {
         guard interval > 0 else { return self }
         var components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: self)

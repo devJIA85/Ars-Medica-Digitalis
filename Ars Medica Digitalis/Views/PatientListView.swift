@@ -163,54 +163,39 @@ private struct PatientFilteredList: View {
     }
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.93, green: 0.96, blue: 0.99),
-                    Color(red: 0.97, green: 0.98, blue: 1.00),
-                    Color(red: 0.95, green: 0.97, blue: 0.99)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            List {
-                if patients.isEmpty {
-                    ContentUnavailableView(
-                        "Sin pacientes",
-                        systemImage: "person.slash",
-                        description: Text("No se encontraron pacientes con estos criterios.")
-                    )
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                } else {
-                    ForEach(patients) { patient in
-                        NavigationLink(value: patient.id) {
-                            PatientRowView(patient: patient)
-                        }
-                        // Fuente visual para la transición zoom al navegar al detalle
-                        .matchedTransitionSource(id: patient.id, in: namespace)
-                        .swipeActions(edge: .trailing) {
-                            if patient.isActive {
-                                Button("Baja", role: .destructive) {
-                                    onDelete(patient)
-                                }
+        List {
+            if patients.isEmpty {
+                ContentUnavailableView(
+                    "Sin pacientes",
+                    systemImage: "person.slash",
+                    description: Text("No se encontraron pacientes con estos criterios.")
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(patients) { patient in
+                    NavigationLink(value: patient.id) {
+                        PatientRowView(patient: patient)
+                    }
+                    // Fuente visual para la transición zoom al navegar al detalle
+                    .matchedTransitionSource(id: patient.id, in: namespace)
+                    .swipeActions(edge: .trailing) {
+                        if patient.isActive {
+                            Button("Baja", role: .destructive) {
+                                onDelete(patient)
                             }
                         }
-                        // Eliminar separadores y fondo del sistema para
-                        // que las cards con material floten sobre el fondo limpio
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     }
+                    // Eliminar separadores y fondo del sistema para
+                    // que las cards con material floten sobre el fondo limpio
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 }
             }
-            // .plain da control total sobre cada fila (sin fondo compartido de grupo)
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .scrollEdgeEffectStyle(.hard, for: .all)
         }
+        // Eliminamos modificadores que interfieren con el material translúcido de la TabBar
+        .listStyle(.plain)
     }
 }
 

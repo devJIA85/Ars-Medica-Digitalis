@@ -477,7 +477,7 @@ private struct MedicalHistoryCard: View {
                 HStack(spacing: 12) {
                     Image(systemName: "list.clipboard")
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.accent)
+                        .foregroundStyle(.tint)
                         .frame(width: 24)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -694,7 +694,7 @@ private struct CardShell<Content: View>: View {
                 in: shape
             )
         }
-        .glassEffect(hierarchy == .primary ? .regular : .thin, in: .container)
+        .glassEffect(hierarchy == .primary ? .regular : .clear, in: shape)
         .clipShape(shape)
         .shadow(
             color: .black.opacity(hierarchy == .primary ? 0.10 : 0.08),

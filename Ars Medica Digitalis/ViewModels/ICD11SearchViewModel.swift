@@ -6,9 +6,9 @@
 //  Gestiona el debounce de la consulta, el estado de carga y
 //  los resultados para la vista ICD11SearchView.
 //
-//  Estrategia híbrida: intenta búsqueda online primero (resultados
-//  rankeados por relevancia), y si falla usa el catálogo offline
-//  local (ICD11Entry en SwiftData) como fallback automático.
+//  Estrategia offline-first: muestra resultados locales de inmediato
+//  y en paralelo intenta la API online. Si la API responde con
+//  resultados rankeados, reemplaza los locales transparentemente.
 //
 
 import Foundation
@@ -34,12 +34,9 @@ final class ICD11SearchViewModel {
 
     // MARK: - Búsqueda
 
-    /// Ejecuta una búsqueda con debounce de 400ms.
-    /// Cada invocación cancela la búsqueda anterior, evitando
-    /// llamadas redundantes mientras el usuario escribe.
-    ///
-    /// Si la búsqueda online falla (sin conexión, error de red),
-    /// busca automáticamente en el catálogo offline local.
+    /// Ejecuta una búsqueda offline-first con debounce de 400ms.
+    /// Muestra resultados locales instantáneamente y en paralelo
+    /// intenta la API online para obtener resultados rankeados.
     func search(query: String, context: ModelContext) {
         searchTask?.cancel()
 
@@ -55,27 +52,33 @@ final class ICD11SearchViewModel {
 
         searchTask = Task {
             // Debounce: esperar 400ms antes de ejecutar.
-            // Si la Task se cancela durante la espera, no se llama a la API.
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
 
-            isLoading = true
             errorMessage = nil
-            isOfflineMode = false
 
+            // Paso 1: resultados locales inmediatos
+            let localResults = searchOffline(query: trimmed, context: context)
+            if !localResults.isEmpty {
+                results = localResults
+                isOfflineMode = true
+            } else {
+                // Sin resultados locales — mostrar spinner mientras busca online
+                isLoading = true
+            }
+
+            // Paso 2: intentar online en paralelo para mejorar resultados
             do {
-                let searchResults = try await ICD11Service.shared.search(query: trimmed)
+                let onlineResults = try await ICD11Service.shared.search(query: trimmed)
                 guard !Task.isCancelled else { return }
-                results = searchResults
+                if !onlineResults.isEmpty {
+                    results = onlineResults
+                    isOfflineMode = false
+                }
             } catch {
                 guard !Task.isCancelled else { return }
-
-                // Fallback: búsqueda en catálogo offline local
-                let localResults = searchOffline(query: trimmed, context: context)
-                if !localResults.isEmpty {
-                    results = localResults
-                    isOfflineMode = true
-                } else {
+                // Si no teníamos resultados locales, mostrar error
+                if results.isEmpty {
                     errorMessage = error.localizedDescription
                 }
             }

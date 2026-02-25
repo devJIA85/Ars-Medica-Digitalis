@@ -95,9 +95,9 @@ struct SessionFormView: View {
                 )
 
                 Picker("Estado", selection: $viewModel.status) {
-                    ForEach(SessionViewModel.sessionStatuses, id: \.0) { value, label in
-                        Text(label).tag(value)
-                    }
+                    Text("Programada").tag("programada")
+                    Text("Completada").tag("completada")
+                    Text("Cancelada").tag("cancelada")
                 }
 
                 // Motivo de consulta integrado en la misma sección

@@ -58,7 +58,7 @@ final class ICD11SearchViewModel {
             errorMessage = nil
 
             // Paso 1: resultados locales inmediatos
-            let localResults = await searchOffline(query: trimmed, context: context)
+            let localResults = searchOffline(query: trimmed, context: context)
             if !localResults.isEmpty {
                 results = localResults
                 isOfflineMode = true
@@ -74,7 +74,7 @@ final class ICD11SearchViewModel {
                 if !onlineResults.isEmpty {
                     results = onlineResults
                     isOfflineMode = false
-                    await upsertOnlineResults(onlineResults, context: context)
+                    upsertOnlineResults(onlineResults, context: context)
                 }
             } catch {
                 guard !Task.isCancelled else { return }

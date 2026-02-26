@@ -34,11 +34,6 @@ struct PatientPickerView: View {
         .searchable(text: $searchText, prompt: "Buscar paciente")
         .navigationTitle("Seleccionar Paciente")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancelar") { dismiss() }
-            }
-        }
     }
 }
 

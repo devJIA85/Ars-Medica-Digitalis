@@ -58,7 +58,7 @@ final class ICD11SearchViewModel {
             errorMessage = nil
 
             // Paso 1: resultados locales inmediatos
-            let localResults = searchOffline(query: trimmed, context: context)
+            let localResults = await searchOffline(query: trimmed, context: context)
             if !localResults.isEmpty {
                 results = localResults
                 isOfflineMode = true
@@ -74,6 +74,7 @@ final class ICD11SearchViewModel {
                 if !onlineResults.isEmpty {
                     results = onlineResults
                     isOfflineMode = false
+                    await upsertOnlineResults(onlineResults, context: context)
                 }
             } catch {
                 guard !Task.isCancelled else { return }
@@ -91,6 +92,7 @@ final class ICD11SearchViewModel {
 
     /// Busca en el catálogo local ICD11Entry usando #Predicate.
     /// Solo devuelve entidades con classKind "category" (las que tienen código asignable).
+    @MainActor
     private func searchOffline(query: String, context: ModelContext) -> [ICD11SearchResult] {
         let predicate = #Predicate<ICD11Entry> { entry in
             entry.title.localizedStandardContains(query) && entry.classKind == "category"
@@ -108,5 +110,43 @@ final class ICD11SearchViewModel {
                 score: nil
             )
         }
+    }
+
+    // MARK: - Persistencia Online
+
+    @MainActor
+    private func upsertOnlineResults(_ results: [ICD11SearchResult], context: ModelContext) {
+        let candidates = results.compactMap { result -> ICD11SearchResult? in
+            guard let code = result.theCode, !code.isEmpty else { return nil }
+            return result
+        }
+
+        guard !candidates.isEmpty else { return }
+
+        for result in candidates {
+            let predicate = #Predicate<ICD11Entry> { entry in
+                entry.uri == result.id
+            }
+            let descriptor = FetchDescriptor(predicate: predicate)
+            if let existing = try? context.fetch(descriptor).first {
+                existing.code = result.theCode ?? existing.code
+                existing.title = result.title
+                existing.chapterCode = result.chapter ?? existing.chapterCode
+                if existing.classKind.isEmpty {
+                    existing.classKind = "category"
+                }
+            } else {
+                let newEntry = ICD11Entry(
+                    code: result.theCode ?? "",
+                    title: result.title,
+                    uri: result.id,
+                    classKind: "category",
+                    chapterCode: result.chapter ?? ""
+                )
+                context.insert(newEntry)
+            }
+        }
+
+        try? context.save()
     }
 }

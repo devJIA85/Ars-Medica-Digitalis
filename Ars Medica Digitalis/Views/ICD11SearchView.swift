@@ -11,13 +11,14 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ICD11SearchView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
-    @Bindable var viewModel = ICD11SearchViewModel()
+    @State private var viewModel = ICD11SearchViewModel()
 
     @State private var searchText: String = ""
 

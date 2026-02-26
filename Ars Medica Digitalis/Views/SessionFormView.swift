@@ -169,9 +169,6 @@ struct SessionFormView: View {
         .navigationTitle(isEditing ? "Editar Sesión" : "Nueva Sesión")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancelar") { dismiss() }
-            }
             ToolbarItem(placement: .confirmationAction) {
                 Button(isEditing ? "Guardar" : "Crear") {
                     save()

@@ -20,13 +20,21 @@ struct PatientFormView: View {
     /// nil = modo alta, non-nil = modo edición
     let patient: Patient?
 
-    @Bindable var viewModel = PatientViewModel()
+    // @State preserva el VM entre re-renders del padre (sheets, etc.)
+    // @Bindable no lo hacía → se recreaba vacío y se perdían datos.
+    @State private var viewModel: PatientViewModel
 
     private var isEditing: Bool { patient != nil }
 
     init(professional: Professional, patient: Patient? = nil) {
         self.professional = professional
         self.patient = patient
+
+        let vm = PatientViewModel()
+        if let patient {
+            vm.load(from: patient)
+        }
+        _viewModel = State(initialValue: vm)
     }
 
     var body: some View {
@@ -112,7 +120,7 @@ struct PatientFormView: View {
                 TextField("Email", text: $viewModel.email)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
 
                 TextField("Teléfono", text: $viewModel.phoneNumber)
                     .textContentType(.telephoneNumber)
@@ -147,11 +155,7 @@ struct PatientFormView: View {
                 .disabled(!viewModel.canSave)
             }
         }
-        .onAppear {
-            if let patient {
-                viewModel.load(from: patient)
-            }
-        }
+        // Carga de datos ahora ocurre en init → @State preserva el VM.
     }
 
     // MARK: - Acciones
@@ -176,7 +180,7 @@ struct PatientFormView: View {
             )
         )
     }
-    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self], inMemory: true)
+    .modelContainer(ModelContainer.preview)
 }
 
 #Preview("Edición") {
@@ -194,5 +198,5 @@ struct PatientFormView: View {
             )
         )
     }
-    .modelContainer(for: [Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self], inMemory: true)
+    .modelContainer(ModelContainer.preview)
 }

@@ -152,7 +152,7 @@ struct ProfileEditView: View {
                     TextField("Email", text: $viewModel.email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
+                        .textInputAutocapitalization(.never)
                 }
             } header: {
                 Label("Contacto", systemImage: "phone.circle")

@@ -67,7 +67,7 @@ final class Patient {
     // Indicador visual del estado general del paciente.
     // Se refleja como anillo de color en el avatar:
     // verde (estable), naranja (activo), rojo (riesgo).
-    var clinicalStatus: String = "estable"  // "estable" | "activo" | "riesgo"
+    var clinicalStatus: String = ClinicalStatusMapping.estable.rawValue  // "estable" | "activo" | "riesgo"
 
     // MARK: - Historia clínica
 
@@ -77,6 +77,10 @@ final class Patient {
 
     /// Medicación actual del paciente (texto libre)
     var currentMedication: String = ""
+
+    /// Medicación actual seleccionada desde el vademécum local.
+    @Relationship(deleteRule: .nullify, inverse: \Medication.patients)
+    var currentMedications: [Medication]? = []
 
     // MARK: - Antropometría
 
@@ -175,9 +179,13 @@ final class Patient {
 
     /// IMC calculado automáticamente. Nil si faltan peso o altura.
     var bmi: Double? {
-        guard heightCm > 0, weightKg > 0 else { return nil }
-        let heightM = heightCm / 100.0
-        return weightKg / (heightM * heightM)
+        calculateBMI(weightKg: weightKg, heightCm: heightCm)
+    }
+
+    /// Acceso tipado para estado clinico sin romper compatibilidad de persistencia.
+    var clinicalStatusValue: ClinicalStatusMapping {
+        get { ClinicalStatusMapping(clinicalStatusRawValue: clinicalStatus) ?? .estable }
+        set { clinicalStatus = newValue.rawValue }
     }
 
     // MARK: - Init
@@ -205,9 +213,10 @@ final class Patient {
         insuranceMemberNumber: String = "",
         insurancePlan: String = "",
         photoData: Data? = nil,
-        clinicalStatus: String = "estable",
+        clinicalStatus: String = ClinicalStatusMapping.estable.rawValue,
         medicalRecordNumber: String = "",
         currentMedication: String = "",
+        currentMedications: [Medication]? = [],
         weightKg: Double = 0,
         heightCm: Double = 0,
         waistCm: Double = 0,
@@ -258,6 +267,7 @@ final class Patient {
         self.clinicalStatus = clinicalStatus
         self.medicalRecordNumber = medicalRecordNumber
         self.currentMedication = currentMedication
+        self.currentMedications = currentMedications
         self.weightKg = weightKg
         self.heightCm = heightCm
         self.waistCm = waistCm

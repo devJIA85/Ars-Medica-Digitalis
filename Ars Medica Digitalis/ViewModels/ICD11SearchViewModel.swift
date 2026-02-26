@@ -123,17 +123,36 @@ final class ICD11SearchViewModel {
 
         guard !candidates.isEmpty else { return }
 
+        let candidateURIs = Set(candidates.map(\.id))
+        let existingPredicate = #Predicate<ICD11Entry> { entry in
+            candidateURIs.contains(entry.uri)
+        }
+        let existingDescriptor = FetchDescriptor(predicate: existingPredicate)
+        let existingEntries = (try? context.fetch(existingDescriptor)) ?? []
+        var existingByURI = Dictionary(uniqueKeysWithValues: existingEntries.map { ($0.uri, $0) })
+        var didChange = false
+
         for result in candidates {
-            let predicate = #Predicate<ICD11Entry> { entry in
-                entry.uri == result.id
-            }
-            let descriptor = FetchDescriptor(predicate: predicate)
-            if let existing = try? context.fetch(descriptor).first {
-                existing.code = result.theCode ?? existing.code
-                existing.title = result.title
-                existing.chapterCode = result.chapter ?? existing.chapterCode
+            if let existing = existingByURI[result.id] {
+                let nextCode = result.theCode ?? existing.code
+                let nextTitle = result.title
+                let nextChapterCode = result.chapter ?? existing.chapterCode
+
+                if existing.code != nextCode {
+                    existing.code = nextCode
+                    didChange = true
+                }
+                if existing.title != nextTitle {
+                    existing.title = nextTitle
+                    didChange = true
+                }
+                if existing.chapterCode != nextChapterCode {
+                    existing.chapterCode = nextChapterCode
+                    didChange = true
+                }
                 if existing.classKind.isEmpty {
                     existing.classKind = "category"
+                    didChange = true
                 }
             } else {
                 let newEntry = ICD11Entry(
@@ -144,9 +163,13 @@ final class ICD11SearchViewModel {
                     chapterCode: result.chapter ?? ""
                 )
                 context.insert(newEntry)
+                existingByURI[result.id] = newEntry
+                didChange = true
             }
         }
 
-        try? context.save()
+        if didChange {
+            try? context.save()
+        }
     }
 }

@@ -114,52 +114,25 @@ private struct PatientFilteredList: View {
         self.onDelete = onDelete
         self.namespace = namespace
 
-        let trimmed = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let trimmed = searchText.trimmed.lowercased()
+        let searchIsEmpty = trimmed.isEmpty
+        let shouldShowInactive = showInactive
         let currentProfessionalID = professional.id
 
         // #Predicate filtra por estado activo/inactivo y texto de búsqueda.
         // Todo se resuelve localmente en SwiftData, sin llamadas de red.
-        if trimmed.isEmpty {
-            if showInactive {
-                _patients = Query(
-                    filter: #Predicate<Patient> { patient in
-                        patient.professional?.id == currentProfessionalID
-                        && patient.deletedAt != nil
-                    },
-                    sort: \Patient.lastName
+        _patients = Query(
+            filter: #Predicate<Patient> { patient in
+                patient.professional?.id == currentProfessionalID
+                && ((patient.deletedAt != nil) == shouldShowInactive)
+                && (
+                    searchIsEmpty
+                    || patient.firstName.localizedStandardContains(trimmed)
+                    || patient.lastName.localizedStandardContains(trimmed)
                 )
-            } else {
-                _patients = Query(
-                    filter: #Predicate<Patient> { patient in
-                        patient.professional?.id == currentProfessionalID
-                        && patient.deletedAt == nil
-                    },
-                    sort: \Patient.lastName
-                )
-            }
-        } else {
-            if showInactive {
-                _patients = Query(
-                    filter: #Predicate<Patient> { patient in
-                        patient.professional?.id == currentProfessionalID
-                        && patient.deletedAt != nil
-                        && (patient.firstName.localizedStandardContains(trimmed)
-                            || patient.lastName.localizedStandardContains(trimmed))
-                    },
-                    sort: \Patient.lastName
-                )
-            } else {
-                _patients = Query(
-                    filter: #Predicate<Patient> { patient in
-                        patient.professional?.id == currentProfessionalID
-                        && patient.deletedAt == nil
-                        && (patient.firstName.localizedStandardContains(trimmed)
-                            || patient.lastName.localizedStandardContains(trimmed))
-                    },
-                    sort: \Patient.lastName
-                )
-            }
-        }
+            },
+            sort: \Patient.lastName
+        )
     }
 
     var body: some View {
@@ -206,6 +179,8 @@ private struct PatientRowView: View {
     let patient: Patient
 
     var body: some View {
+        let summary = rowSummary
+
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 // Avatar circular con iniciales (o foto) y anillo de estado clínico
@@ -226,8 +201,8 @@ private struct PatientRowView: View {
                         .minimumScaleFactor(0.85)
 
                     HStack(spacing: 4) {
-                        Text("\(sessionCount) sesión\(sessionCount == 1 ? "" : "es")")
-                        if let latestCompletedSessionDate {
+                        Text("\(summary.sessionCount) sesión\(summary.sessionCount == 1 ? "" : "es")")
+                        if let latestCompletedSessionDate = summary.latestCompletedSessionDate {
                             Text("· Última: \(latestCompletedSessionDate.esDayMonthAbbrev())")
                         }
                     }
@@ -243,11 +218,11 @@ private struct PatientRowView: View {
             HStack(spacing: 8) {
                 infoPill(
                     title: "Dx",
-                    value: primaryDiagnosisCode ?? "Sin Dx",
+                    value: summary.primaryDiagnosisCode ?? "Sin Dx",
                     icon: "stethoscope"
                 )
 
-                if let nextScheduledSessionDate {
+                if let nextScheduledSessionDate = summary.nextScheduledSessionDate {
                     infoPill(
                         title: "Próxima",
                         value: nextScheduledSessionDate.esDayMonthAbbrev(),
@@ -283,40 +258,49 @@ private struct PatientRowView: View {
         )
     }
 
-    private var sessionCount: Int {
-        patient.sessions?.count ?? 0
-    }
-
-    private var latestCompletedSessionDate: Date? {
-        let completedSessions = (patient.sessions ?? [])
-            .filter { $0.status.localizedCaseInsensitiveCompare("completada") == .orderedSame }
-            .map(\.sessionDate)
-        return completedSessions.max()
-    }
-
-    private var nextScheduledSessionDate: Date? {
+    private var rowSummary: PatientRowSummary {
+        let sessions = patient.sessions ?? []
         let today = Calendar.current.startOfDay(for: Date())
-        return (patient.sessions ?? [])
-            .filter {
-                $0.status.localizedCaseInsensitiveCompare("programada") == .orderedSame
-                && $0.sessionDate >= today
+
+        var latestCompletedSessionDate: Date?
+        var latestCompletedDiagnoses: [Diagnosis]?
+        var nextScheduledSessionDate: Date?
+
+        for session in sessions {
+            if session.sessionStatusValue == .completada {
+                if let currentLatest = latestCompletedSessionDate {
+                    if session.sessionDate > currentLatest {
+                        latestCompletedSessionDate = session.sessionDate
+                        latestCompletedDiagnoses = session.diagnoses
+                    }
+                } else {
+                    latestCompletedSessionDate = session.sessionDate
+                    latestCompletedDiagnoses = session.diagnoses
+                }
             }
-            .map(\.sessionDate)
-            .min()
-    }
 
-    private var primaryDiagnosisCode: String? {
-        if let code = diagnosisCode(from: patient.activeDiagnoses) {
-            return code
+            if session.sessionStatusValue == .programada,
+                session.sessionDate >= today {
+                if let currentNext = nextScheduledSessionDate {
+                    if session.sessionDate < currentNext {
+                        nextScheduledSessionDate = session.sessionDate
+                    }
+                } else {
+                    nextScheduledSessionDate = session.sessionDate
+                }
+            }
         }
 
-        guard let latestSession = ((patient.sessions ?? [])
-            .filter { $0.status.localizedCaseInsensitiveCompare("completada") == .orderedSame }
-            .max(by: { $0.sessionDate < $1.sessionDate })) else {
-            return nil
-        }
+        let primaryDiagnosisCode =
+            diagnosisCode(from: patient.activeDiagnoses)
+            ?? diagnosisCode(from: latestCompletedDiagnoses)
 
-        return diagnosisCode(from: latestSession.diagnoses)
+        return PatientRowSummary(
+            sessionCount: sessions.count,
+            latestCompletedSessionDate: latestCompletedSessionDate,
+            nextScheduledSessionDate: nextScheduledSessionDate,
+            primaryDiagnosisCode: primaryDiagnosisCode
+        )
     }
 
     private func diagnosisCode(from diagnoses: [Diagnosis]?) -> String? {
@@ -329,6 +313,13 @@ private struct PatientRowView: View {
 
         let rawCode = preferred?.icdCode.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return rawCode.isEmpty ? nil : rawCode
+    }
+
+    private struct PatientRowSummary {
+        let sessionCount: Int
+        let latestCompletedSessionDate: Date?
+        let nextScheduledSessionDate: Date?
+        let primaryDiagnosisCode: String?
     }
 
     @ViewBuilder
@@ -398,10 +389,7 @@ private struct PatientRowView: View {
         }
     }
 
-    let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
+    let container = ModelContainer.preview
     let professional = Professional(
         fullName: "Dr. Test",
         licenseNumber: "MN 999",

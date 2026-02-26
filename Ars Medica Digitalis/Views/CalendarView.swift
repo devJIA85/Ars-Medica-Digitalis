@@ -344,47 +344,32 @@ private struct CalendarSessionRow: View {
     }
 
     private var statusColor: Color {
-        switch session.status {
-        case "programada": .blue
-        case "completada": .green
-        case "cancelada": .red
-        default: .secondary
-        }
+        statusMapping?.tint ?? .secondary
     }
 
     private var statusIcon: String {
-        switch session.status {
-        case "programada": "clock"
-        case "completada": "checkmark.circle.fill"
-        case "cancelada": "xmark.circle.fill"
-        default: "questionmark.circle"
-        }
+        statusMapping?.icon ?? "questionmark.circle"
     }
 
     private var modalityLabel: String {
-        switch session.sessionType {
-        case "presencial": "Presencial"
-        case "videollamada": "Video"
-        case "telefónica": "Tel."
-        default: session.sessionType
-        }
+        sessionTypeMapping?.abbreviatedLabel ?? session.sessionType
     }
 
     private var modalityIcon: String {
-        switch session.sessionType {
-        case "presencial": "person.2.wave.2"
-        case "videollamada": "video"
-        case "telefónica": "phone"
-        default: "questionmark"
-        }
+        sessionTypeMapping?.icon ?? "questionmark"
+    }
+
+    private var sessionTypeMapping: SessionTypeMapping? {
+        SessionTypeMapping(sessionTypeRawValue: session.sessionType)
+    }
+
+    private var statusMapping: SessionStatusMapping? {
+        SessionStatusMapping(sessionStatusRawValue: session.status)
     }
 }
 
 #Preview {
-    let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
+    let container = ModelContainer.preview
     let professional = Professional(
         fullName: "Dr. Test",
         licenseNumber: "MN 999",
@@ -397,4 +382,3 @@ private struct CalendarSessionRow: View {
     }
     .modelContainer(container)
 }
-

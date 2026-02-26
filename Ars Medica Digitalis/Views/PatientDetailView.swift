@@ -166,31 +166,14 @@ struct PatientDetailView: View {
     // MARK: - Diagnósticos vigentes
 
     private var activeDiagnosesAsDTO: [ICD11SearchResult] {
-        (patient.activeDiagnoses ?? []).map { diagnosis in
-            ICD11SearchResult(
-                id: diagnosis.icdURI,
-                theCode: diagnosis.icdCode.isEmpty ? nil : diagnosis.icdCode,
-                title: diagnosis.icdTitleEs.isEmpty
-                    ? diagnosis.icdTitle
-                    : diagnosis.icdTitleEs,
-                chapter: nil,
-                score: nil
-            )
-        }
+        (patient.activeDiagnoses ?? []).map(\.asSearchResult)
     }
 
     private func addActiveDiagnosis(_ result: ICD11SearchResult) {
         let existing = patient.activeDiagnoses ?? []
         guard !existing.contains(where: { $0.icdURI == result.id }) else { return }
 
-        let diagnosis = Diagnosis(
-            icdCode: result.theCode ?? "",
-            icdTitle: result.title,
-            icdTitleEs: result.title,
-            icdURI: result.id,
-            icdVersion: "2024-01",
-            patient: patient
-        )
+        let diagnosis = Diagnosis(from: result, patient: patient)
         modelContext.insert(diagnosis)
         patient.updatedAt = Date()
     }
@@ -461,7 +444,7 @@ private struct DiagnosesCard: View {
     }
 
     private func diagnosisTitle(for diagnosis: Diagnosis) -> String {
-        diagnosis.icdTitleEs.isEmpty ? diagnosis.icdTitle : diagnosis.icdTitleEs
+        diagnosis.displayTitle
     }
 }
 
@@ -746,30 +729,19 @@ private struct SessionRowView: View {
     }
 
     private var sessionTypeLabel: String {
-        switch session.sessionType {
-        case "presencial": "Presencial"
-        case "videollamada": "Video"
-        case "telefónica": "Tel."
-        default: session.sessionType
-        }
+        sessionTypeMapping?.abbreviatedLabel ?? session.sessionType
     }
 
     private var sessionTypeIcon: String {
-        switch session.sessionType {
-        case "presencial": "person.2.wave.2"
-        case "videollamada": "video"
-        case "telefónica": "phone"
-        default: "questionmark"
-        }
+        sessionTypeMapping?.icon ?? "questionmark"
     }
 
     private var sessionTypeTint: Color {
-        switch session.sessionType {
-        case "presencial": .teal
-        case "videollamada": .indigo
-        case "telefónica": .orange
-        default: .secondary
-        }
+        sessionTypeMapping?.tint ?? .secondary
+    }
+
+    private var sessionTypeMapping: SessionTypeMapping? {
+        SessionTypeMapping(sessionTypeRawValue: session.sessionType)
     }
 }
 
@@ -860,17 +832,5 @@ private struct PDFExportShareView: View {
     NavigationStack {
         PatientDetailView(patient: patient, professional: professional)
     }
-    .modelContainer(
-        for: [
-            Professional.self,
-            Patient.self,
-            Session.self,
-            Diagnosis.self,
-            Attachment.self,
-            PriorTreatment.self,
-            Hospitalization.self,
-            AnthropometricRecord.self,
-        ],
-        inMemory: true
-    )
+    .modelContainer(ModelContainer.preview)
 }

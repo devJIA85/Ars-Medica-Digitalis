@@ -125,10 +125,7 @@ private struct PatientPickerRow: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
+    let container = ModelContainer.preview
     let professional = Professional(
         fullName: "Dr. Test",
         licenseNumber: "MN 999",

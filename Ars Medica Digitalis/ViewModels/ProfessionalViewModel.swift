@@ -20,9 +20,9 @@ final class ProfessionalViewModel {
 
     // Validación mínima para habilitar el botón de guardar
     var canSave: Bool {
-        !fullName.trimmingCharacters(in: .whitespaces).isEmpty
-        && !specialty.trimmingCharacters(in: .whitespaces).isEmpty
-        && !licenseNumber.trimmingCharacters(in: .whitespaces).isEmpty
+        !fullName.trimmed.isEmpty
+        && !specialty.trimmed.isEmpty
+        && !licenseNumber.trimmed.isEmpty
     }
 
     // Carga los datos de un Professional existente para edición
@@ -36,20 +36,20 @@ final class ProfessionalViewModel {
     // Crea un nuevo Professional y lo inserta en el contexto
     func createProfessional(in context: ModelContext) {
         let professional = Professional(
-            fullName: fullName.trimmingCharacters(in: .whitespaces),
-            licenseNumber: licenseNumber.trimmingCharacters(in: .whitespaces),
-            specialty: specialty.trimmingCharacters(in: .whitespaces),
-            email: email.trimmingCharacters(in: .whitespaces)
+            fullName: fullName.trimmed,
+            licenseNumber: licenseNumber.trimmed,
+            specialty: specialty.trimmed,
+            email: email.trimmed
         )
         context.insert(professional)
     }
 
     // Actualiza un Professional existente con los valores del formulario
     func update(_ professional: Professional) {
-        professional.fullName = fullName.trimmingCharacters(in: .whitespaces)
-        professional.licenseNumber = licenseNumber.trimmingCharacters(in: .whitespaces)
-        professional.specialty = specialty.trimmingCharacters(in: .whitespaces)
-        professional.email = email.trimmingCharacters(in: .whitespaces)
+        professional.fullName = fullName.trimmed
+        professional.licenseNumber = licenseNumber.trimmed
+        professional.specialty = specialty.trimmed
+        professional.email = email.trimmed
         professional.updatedAt = Date()
     }
 }

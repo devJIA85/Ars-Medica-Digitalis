@@ -24,12 +24,12 @@ final class SessionViewModel {
             }
         }
     }
-    var sessionType: String = "presencial"
+    var sessionType: String = SessionTypeMapping.presencial.rawValue
     var durationMinutes: Int = 50
     var chiefComplaint: String = ""
     var notes: String = ""
     var treatmentPlan: String = ""
-    var status: String = "completada"
+    var status: String = SessionStatusMapping.completada.rawValue
 
     /// Flag interno para evitar ajustar el status al cargar datos
     /// de una sesión existente (modo edición).
@@ -50,7 +50,7 @@ final class SessionViewModel {
         self.sessionDate = initialDate
         // Ajustar status coherente con la fecha recibida
         if initialDate > Date() {
-            self.status = "programada"
+            self.status = SessionStatusMapping.programada.rawValue
         }
     }
 
@@ -58,21 +58,21 @@ final class SessionViewModel {
 
     /// El motivo de consulta es el campo mínimo obligatorio para una sesión.
     var canSave: Bool {
-        !chiefComplaint.trimmingCharacters(in: .whitespaces).isEmpty
+        !chiefComplaint.trimmed.isEmpty
     }
 
     // MARK: - Opciones para Pickers
 
     static let sessionTypes = [
-        ("presencial", "Presencial"),
-        ("videollamada", "Videollamada"),
-        ("telefónica", "Telefónica")
+        (SessionTypeMapping.presencial.rawValue, SessionTypeMapping.presencial.label),
+        (SessionTypeMapping.videollamada.rawValue, SessionTypeMapping.videollamada.label),
+        (SessionTypeMapping.telefonica.rawValue, SessionTypeMapping.telefonica.label)
     ]
 
     static let sessionStatuses = [
-        ("programada", "Programada"),
-        ("completada", "Completada"),
-        ("cancelada", "Cancelada")
+        (SessionStatusMapping.programada.rawValue, SessionStatusMapping.programada.label),
+        (SessionStatusMapping.completada.rawValue, SessionStatusMapping.completada.label),
+        (SessionStatusMapping.cancelada.rawValue, SessionStatusMapping.cancelada.label)
     ]
 
     // MARK: - Ajuste automático de status
@@ -83,10 +83,12 @@ final class SessionViewModel {
     /// para no sobreescribir "cancelada" elegida manualmente.
     private func adjustStatusForDate() {
         let isFuture = sessionDate > Date()
-        if isFuture && status == "completada" {
-            status = "programada"
-        } else if !isFuture && status == "programada" {
-            status = "completada"
+        let current = SessionStatusMapping(sessionStatusRawValue: status) ?? .completada
+
+        if isFuture && current == .completada {
+            status = SessionStatusMapping.programada.rawValue
+        } else if !isFuture && current == .programada {
+            status = SessionStatusMapping.completada.rawValue
         }
     }
 
@@ -102,17 +104,7 @@ final class SessionViewModel {
         let active = patient.activeDiagnoses ?? []
         guard !active.isEmpty else { return }
 
-        selectedDiagnoses = active.map { diagnosis in
-            ICD11SearchResult(
-                id: diagnosis.icdURI,
-                theCode: diagnosis.icdCode.isEmpty ? nil : diagnosis.icdCode,
-                title: diagnosis.icdTitleEs.isEmpty
-                    ? diagnosis.icdTitle
-                    : diagnosis.icdTitleEs,
-                chapter: nil,
-                score: nil
-            )
-        }
+        selectedDiagnoses = active.map(\.asSearchResult)
     }
 
     // MARK: - Carga (modo edición)
@@ -132,17 +124,7 @@ final class SessionViewModel {
 
         // Reconstruir DTOs desde los Diagnosis persistidos para que la UI
         // muestre los diagnósticos sin necesidad de llamar a la API.
-        selectedDiagnoses = (session.diagnoses ?? []).map { diagnosis in
-            ICD11SearchResult(
-                id: diagnosis.icdURI,
-                theCode: diagnosis.icdCode.isEmpty ? nil : diagnosis.icdCode,
-                title: diagnosis.icdTitleEs.isEmpty
-                    ? diagnosis.icdTitle
-                    : diagnosis.icdTitleEs,
-                chapter: nil,
-                score: nil
-            )
-        }
+        selectedDiagnoses = (session.diagnoses ?? []).map(\.asSearchResult)
     }
 
     // MARK: - Creación
@@ -155,9 +137,9 @@ final class SessionViewModel {
             sessionDate: sessionDate,
             sessionType: sessionType,
             durationMinutes: durationMinutes,
-            notes: notes.trimmingCharacters(in: .whitespaces),
-            chiefComplaint: chiefComplaint.trimmingCharacters(in: .whitespaces),
-            treatmentPlan: treatmentPlan.trimmingCharacters(in: .whitespaces),
+            notes: notes.trimmed,
+            chiefComplaint: chiefComplaint.trimmed,
+            treatmentPlan: treatmentPlan.trimmed,
             status: status,
             patient: patient
         )
@@ -165,14 +147,7 @@ final class SessionViewModel {
 
         // Snapshot inmutable de cada diagnóstico CIE-11 seleccionado
         for result in selectedDiagnoses {
-            let diagnosis = Diagnosis(
-                icdCode: result.theCode ?? "",
-                icdTitle: result.title,
-                icdTitleEs: result.title,
-                icdURI: result.id,
-                icdVersion: "2024-01",
-                session: session
-            )
+            let diagnosis = Diagnosis(from: result, session: session)
             context.insert(diagnosis)
         }
 
@@ -191,9 +166,9 @@ final class SessionViewModel {
         session.sessionDate = sessionDate
         session.sessionType = sessionType
         session.durationMinutes = durationMinutes
-        session.notes = notes.trimmingCharacters(in: .whitespaces)
-        session.chiefComplaint = chiefComplaint.trimmingCharacters(in: .whitespaces)
-        session.treatmentPlan = treatmentPlan.trimmingCharacters(in: .whitespaces)
+        session.notes = notes.trimmed
+        session.chiefComplaint = chiefComplaint.trimmed
+        session.treatmentPlan = treatmentPlan.trimmed
         session.status = status
         session.updatedAt = Date()
 
@@ -210,14 +185,7 @@ final class SessionViewModel {
         // Agregar diagnósticos nuevos
         let existingURIs = Set(existingDiagnoses.map(\.icdURI))
         for result in selectedDiagnoses where !existingURIs.contains(result.id) {
-            let diagnosis = Diagnosis(
-                icdCode: result.theCode ?? "",
-                icdTitle: result.title,
-                icdTitleEs: result.title,
-                icdURI: result.id,
-                icdVersion: "2024-01",
-                session: session
-            )
+            let diagnosis = Diagnosis(from: result, session: session)
             context.insert(diagnosis)
         }
 
@@ -243,14 +211,7 @@ final class SessionViewModel {
 
         // Agregar los nuevos que no existen como vigentes
         for result in selectedDiagnoses where !activeURIs.contains(result.id) {
-            let diagnosis = Diagnosis(
-                icdCode: result.theCode ?? "",
-                icdTitle: result.title,
-                icdTitleEs: result.title,
-                icdURI: result.id,
-                icdVersion: "2024-01",
-                patient: patient
-            )
+            let diagnosis = Diagnosis(from: result, patient: patient)
             context.insert(diagnosis)
         }
 

@@ -138,6 +138,10 @@ struct ContentView: View {
             // Poblar catálogo CIE-11 offline en background (solo primer launch)
             let service = ICD11SeedService(modelContainer: modelContext.container)
             await service.seedIfNeeded()
+
+            // Poblar vademécum local desde CSV (solo primer launch)
+            let medicationSeed = MedicationSeedService(modelContainer: modelContext.container)
+            await medicationSeed.seedIfNeeded()
         }
     }
 
@@ -210,6 +214,26 @@ struct ContentView: View {
 
     @MainActor
     private func unlockWithBiometrics() async {
+        await performAuthentication {
+            await biometricAuthService.authenticateBiometrically(
+                reason: "Desbloqueá Ars Medica Digitalis para acceder a historias clínicas."
+            )
+        }
+    }
+
+    @MainActor
+    private func unlockWithDeviceOwnerAuthentication() async {
+        await performAuthentication {
+            await biometricAuthService.authenticateWithDeviceOwner(
+                reason: "Validá tu identidad para acceder a Ars Medica Digitalis."
+            )
+        }
+    }
+
+    @MainActor
+    private func performAuthentication(
+        _ method: () async -> BiometricAuthOutcome
+    ) async {
         guard shouldRequireLock else {
             isAppUnlocked = true
             return
@@ -220,38 +244,7 @@ struct ContentView: View {
         lockErrorMessage = nil
         biometricCapability = biometricAuthService.capability()
 
-        let result = await biometricAuthService.authenticateBiometrically(
-            reason: "Desbloqueá Ars Medica Digitalis para acceder a historias clínicas."
-        )
-
-        isAuthenticating = false
-
-        switch result {
-        case .success:
-            isAppUnlocked = true
-            lockErrorMessage = nil
-        case .cancelled:
-            isAppUnlocked = false
-        case .failed(let message):
-            isAppUnlocked = false
-            lockErrorMessage = message
-        }
-    }
-
-    @MainActor
-    private func unlockWithDeviceOwnerAuthentication() async {
-        guard shouldRequireLock else {
-            isAppUnlocked = true
-            return
-        }
-        guard !isAuthenticating else { return }
-
-        isAuthenticating = true
-        lockErrorMessage = nil
-
-        let result = await biometricAuthService.authenticateWithDeviceOwner(
-            reason: "Validá tu identidad para acceder a Ars Medica Digitalis."
-        )
+        let result = await method()
 
         isAuthenticating = false
 
@@ -309,24 +302,11 @@ private struct PatientDestinationView: View {
 
 #Preview("Sin perfil — Onboarding") {
     ContentView()
-        .modelContainer(for: [
-            Professional.self,
-            Patient.self,
-            Session.self,
-            Diagnosis.self,
-            Attachment.self,
-            PriorTreatment.self,
-            Hospitalization.self,
-            AnthropometricRecord.self,
-            ICD11Entry.self,
-        ], inMemory: true)
+        .modelContainer(ModelContainer.preview)
 }
 
 #Preview("Con perfil — Lista de Pacientes") {
-    let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self, ICD11Entry.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
+    let container = ModelContainer.preview
     let professional = Professional(
         fullName: "Dra. María López",
         licenseNumber: "MN 54321",
@@ -345,4 +325,3 @@ private struct PatientDestinationView: View {
     ContentView()
         .modelContainer(container)
 }
-

@@ -23,12 +23,25 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testLaunchShowsPrimaryEntryPoint() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        // Puede iniciar en onboarding o en tabs principales según datos persistidos.
+        let onboardingTitle = app.navigationBars["Bienvenido"]
+        let createProfileButton = app.buttons["Crear Perfil"]
+        let patientsTab = app.tabBars.buttons["Pacientes"]
+        let calendarTab = app.tabBars.buttons["Calendario"]
+
+        let appears = onboardingTitle.waitForExistence(timeout: 4)
+            || createProfileButton.waitForExistence(timeout: 1)
+            || patientsTab.waitForExistence(timeout: 1)
+            || calendarTab.waitForExistence(timeout: 1)
+
+        XCTAssertTrue(
+            appears,
+            "La app debería mostrar onboarding o tabs principales tras el launch."
+        )
     }
 
     @MainActor

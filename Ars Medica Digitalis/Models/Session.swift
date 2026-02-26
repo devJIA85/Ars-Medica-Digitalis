@@ -15,12 +15,12 @@ final class Session {
     var id: UUID = UUID()
 
     var sessionDate: Date = Date()
-    var sessionType: String = "presencial"   // "presencial" | "videollamada" | "telefónica"
+    var sessionType: String = SessionTypeMapping.presencial.rawValue   // "presencial" | "videollamada" | "telefónica"
     var durationMinutes: Int = 50
     var notes: String = ""                   // ⚠️ CRÍTICO — contenido clínico privado
     var chiefComplaint: String = ""          // Motivo de consulta
     var treatmentPlan: String = ""
-    var status: String = "completada"        // "programada" | "completada" | "cancelada"
+    var status: String = SessionStatusMapping.completada.rawValue      // "programada" | "completada" | "cancelada"
 
     // Trazabilidad
     var createdAt: Date = Date()
@@ -35,15 +35,27 @@ final class Session {
     @Relationship(deleteRule: .cascade, inverse: \Attachment.session)
     var attachments: [Attachment]? = []
 
+    /// Acceso tipado para modalidad sin romper compatibilidad de persistencia.
+    var sessionTypeValue: SessionTypeMapping {
+        get { SessionTypeMapping(sessionTypeRawValue: sessionType) ?? .presencial }
+        set { sessionType = newValue.rawValue }
+    }
+
+    /// Acceso tipado para estado sin romper compatibilidad de persistencia.
+    var sessionStatusValue: SessionStatusMapping {
+        get { SessionStatusMapping(sessionStatusRawValue: status) ?? .completada }
+        set { status = newValue.rawValue }
+    }
+
     init(
         id: UUID = UUID(),
         sessionDate: Date = Date(),
-        sessionType: String = "presencial",
+        sessionType: String = SessionTypeMapping.presencial.rawValue,
         durationMinutes: Int = 50,
         notes: String = "",
         chiefComplaint: String = "",
         treatmentPlan: String = "",
-        status: String = "completada",
+        status: String = SessionStatusMapping.completada.rawValue,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         patient: Patient? = nil,

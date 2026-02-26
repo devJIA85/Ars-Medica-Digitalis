@@ -96,22 +96,12 @@ struct BMIGaugeView: View {
 
     /// Color según clasificación OMS
     private var bmiColor: Color {
-        switch bmiValue {
-        case ..<18.5: .orange
-        case 18.5..<25: .green
-        case 25..<30: .orange
-        default: .red
-        }
+        BMICategory(bmi: bmiValue)?.color ?? .secondary
     }
 
     /// Categoría textual según clasificación OMS
     private var bmiCategory: String {
-        switch bmiValue {
-        case ..<18.5: "Bajo peso"
-        case 18.5..<25: "Normal"
-        case 25..<30: "Sobrepeso"
-        default: "Obesidad"
-        }
+        BMICategory(bmi: bmiValue)?.label ?? "Sin categoría"
     }
 }
 

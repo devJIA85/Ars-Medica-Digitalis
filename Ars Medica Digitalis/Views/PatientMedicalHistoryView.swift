@@ -24,6 +24,7 @@ struct PatientMedicalHistoryView: View {
     @State private var showingGenogram: Bool = false
     @State private var showingNewTreatment: Bool = false
     @State private var showingNewHospitalization: Bool = false
+    @State private var infoMedication: Medication? = nil
 
     // Binding local para el genograma
     @State private var genogramData: Data? = nil
@@ -40,11 +41,38 @@ struct PatientMedicalHistoryView: View {
 
             // MARK: - Medicación Actual
             Section("Medicación Actual") {
-                if patient.currentMedication.isEmpty {
-                    Text("Sin medicación registrada")
-                        .foregroundStyle(.secondary)
+                let meds = sortedCurrentMedications
+                if meds.isEmpty {
+                    if patient.currentMedication.isEmpty {
+                        Text("Sin medicación registrada")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(patient.currentMedication)
+                    }
                 } else {
-                    Text(patient.currentMedication)
+                    ForEach(meds) { medication in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(medication.primaryDisplayName)
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+
+                                Text(medication.secondaryDisplayName)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            Button {
+                                infoMedication = medication
+                            } label: {
+                                Image(systemName: "info.circle")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
 
@@ -230,6 +258,18 @@ struct PatientMedicalHistoryView: View {
                 HospitalizationFormView(patient: patient)
             }
         }
+        .sheet(item: $infoMedication) { medication in
+            NavigationStack {
+                MedicationInfoSheetView(medication: medication)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Listo") {
+                                infoMedication = nil
+                            }
+                        }
+                    }
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -238,6 +278,15 @@ struct PatientMedicalHistoryView: View {
         Label(label, systemImage: systemImage)
             .foregroundStyle(isActive ? .primary : .secondary)
             .badge(isActive ? "Sí" : "No")
+    }
+
+    private var sortedCurrentMedications: [Medication] {
+        (patient.currentMedications ?? []).sorted {
+            if $0.principioActivo.caseInsensitiveCompare($1.principioActivo) == .orderedSame {
+                return $0.nombreComercial.localizedCaseInsensitiveCompare($1.nombreComercial) == .orderedAscending
+            }
+            return $0.principioActivo.localizedCaseInsensitiveCompare($1.principioActivo) == .orderedAscending
+        }
     }
 
     private var activeFamilyHistory: [String] {

@@ -42,11 +42,7 @@ struct SessionDetailView: View {
                 Section("Diagnósticos CIE-11") {
                     ForEach(diagnoses) { diagnosis in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(
-                                diagnosis.icdTitleEs.isEmpty
-                                    ? diagnosis.icdTitle
-                                    : diagnosis.icdTitleEs
-                            )
+                            Text(diagnosis.displayTitle)
                             .font(.body)
 
                             HStack(spacing: 8) {
@@ -122,21 +118,13 @@ struct SessionDetailView: View {
     // MARK: - Labels
 
     private var sessionTypeLabel: String {
-        switch session.sessionType {
-        case "presencial": "Presencial"
-        case "videollamada": "Videollamada"
-        case "telefónica": "Telefónica"
-        default: session.sessionType.capitalized
-        }
+        SessionTypeMapping(sessionTypeRawValue: session.sessionType)?.label
+        ?? session.sessionType.capitalized
     }
 
     private var statusLabel: String {
-        switch session.status {
-        case "programada": "Programada"
-        case "completada": "Completada"
-        case "cancelada": "Cancelada"
-        default: session.status.capitalized
-        }
+        SessionStatusMapping(sessionStatusRawValue: session.status)?.label
+        ?? session.status.capitalized
     }
 
     private func diagnosisTypeLabel(_ type: String) -> String {
@@ -150,10 +138,7 @@ struct SessionDetailView: View {
 }
 
 #Preview {
-    let container = try! ModelContainer(
-        for: Professional.self, Patient.self, Session.self, Diagnosis.self, Attachment.self, PriorTreatment.self, Hospitalization.self, AnthropometricRecord.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
+    let container = ModelContainer.preview
     let professional = Professional(fullName: "Dr. Test", licenseNumber: "MN 999", specialty: "Psicología")
     container.mainContext.insert(professional)
 

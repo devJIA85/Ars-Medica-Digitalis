@@ -131,7 +131,7 @@ final class DashboardViewModel {
         sessionsThisMonth = allSessions.filter { $0.sessionDate >= startOfMonth && $0.sessionDate <= now }.count
 
         // Duración promedio de sesiones completadas
-        let completed = allSessions.filter { $0.status == "completada" }
+        let completed = allSessions.filter { $0.sessionStatusValue == .completada }
         if completed.isEmpty {
             averageDurationMinutes = 0
         } else {
@@ -140,11 +140,11 @@ final class DashboardViewModel {
         }
 
         // Tasa de completado: completadas / total (excluyendo programadas futuras)
-        let nonScheduled = allSessions.filter { $0.status != "programada" }
+        let nonScheduled = allSessions.filter { $0.sessionStatusValue != .programada }
         if nonScheduled.isEmpty {
             completionRate = 0
         } else {
-            let completedCount = nonScheduled.filter { $0.status == "completada" }.count
+            let completedCount = nonScheduled.filter { $0.sessionStatusValue == .completada }.count
             completionRate = (Double(completedCount) / Double(nonScheduled.count)) * 100
         }
     }
@@ -223,7 +223,7 @@ final class DashboardViewModel {
             let code = diagnosis.icdCode
             guard !code.isEmpty else { continue }
             // Preferir título en español, fallback a inglés
-            let title = diagnosis.icdTitleEs.isEmpty ? diagnosis.icdTitle : diagnosis.icdTitleEs
+            let title = diagnosis.displayTitle
             let displayLabel = "\(code) — \(title)"
             if let existing = grouped[code] {
                 grouped[code] = (existing.title, existing.count + 1)
@@ -276,12 +276,8 @@ final class DashboardViewModel {
 
     /// Label legible para status de sesión
     private func statusDisplayLabel(_ status: String) -> String {
-        switch status {
-        case "completada": "Completadas"
-        case "cancelada": "Canceladas"
-        case "programada": "Programadas"
-        default: status.capitalized
-        }
+        SessionStatusMapping(sessionStatusRawValue: status)?.pluralLabel
+        ?? status.capitalized
     }
 
     // MARK: - Sesiones por Modalidad
@@ -300,12 +296,10 @@ final class DashboardViewModel {
     }
 
     private func modalityLabelColor(_ type: String) -> (String, Color) {
-        switch type {
-        case "presencial": ("Presencial", .teal)
-        case "videollamada": ("Videollamada", .indigo)
-        case "telefónica": ("Telefónica", .orange)
-        default: (type.capitalized, .secondary)
+        if let mapping = SessionTypeMapping(sessionTypeRawValue: type) {
+            return (mapping.label, mapping.tint)
         }
+        return (type.capitalized, .secondary)
     }
 
     // MARK: - Sesiones por Status
@@ -324,12 +318,10 @@ final class DashboardViewModel {
     }
 
     private func statusLabelColor(_ status: String) -> (String, Color) {
-        switch status {
-        case "completada": ("Completadas", .green)
-        case "cancelada": ("Canceladas", .red)
-        case "programada": ("Programadas", .blue)
-        default: (status.capitalized, .secondary)
+        if let mapping = SessionStatusMapping(sessionStatusRawValue: status) {
+            return (mapping.pluralLabel, mapping.tint)
         }
+        return (status.capitalized, .secondary)
     }
 
     // MARK: - Factores de Estilo de Vida
@@ -395,4 +387,3 @@ final class DashboardViewModel {
         patientGrowth = points
     }
 }
-

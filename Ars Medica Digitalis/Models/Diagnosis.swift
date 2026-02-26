@@ -75,3 +75,40 @@ final class Diagnosis {
         self.patient = patient
     }
 }
+
+extension Diagnosis {
+    /// Título preferido para mostrar en UI/reportes:
+    /// español si existe, sino fallback al título base.
+    var displayTitle: String {
+        icdTitleEs.isEmpty ? icdTitle : icdTitleEs
+    }
+
+    /// Conversión estandarizada a DTO de búsqueda CIE-11 para reutilizar
+    /// en formularios y precargas de diagnósticos.
+    var asSearchResult: ICD11SearchResult {
+        ICD11SearchResult(
+            id: icdURI,
+            theCode: icdCode.isEmpty ? nil : icdCode,
+            title: displayTitle,
+            chapter: nil,
+            score: nil
+        )
+    }
+
+    /// Factory desde un resultado CIE-11 para persistir snapshot clínico.
+    convenience init(
+        from result: ICD11SearchResult,
+        session: Session? = nil,
+        patient: Patient? = nil
+    ) {
+        self.init(
+            icdCode: result.theCode ?? "",
+            icdTitle: result.title,
+            icdTitleEs: result.title,
+            icdURI: result.id,
+            icdVersion: "2024-01",
+            session: session,
+            patient: patient
+        )
+    }
+}

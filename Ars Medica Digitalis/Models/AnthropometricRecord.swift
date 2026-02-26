@@ -39,9 +39,7 @@ final class AnthropometricRecord {
     /// IMC calculado a partir de los valores del registro.
     /// No se persiste porque depende de peso y altura que ya están guardados.
     var bmi: Double? {
-        guard heightCm > 0, weightKg > 0 else { return nil }
-        let heightM = heightCm / 100.0
-        return weightKg / (heightM * heightM)
+        calculateBMI(weightKg: weightKg, heightCm: heightCm)
     }
 
     // MARK: - Init

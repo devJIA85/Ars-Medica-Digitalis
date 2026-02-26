@@ -11,7 +11,7 @@ struct PatientAvatarView: View {
     let firstName: String
     let lastName: String
     let genderHint: String
-    var clinicalStatus: String = "estable"
+    var clinicalStatus: String = ClinicalStatusMapping.estable.rawValue
     var size: CGFloat = 40
 
     var body: some View {
@@ -64,12 +64,7 @@ struct PatientAvatarView: View {
     // MARK: - Color del anillo por estado clínico
 
     private var statusColor: Color {
-        switch clinicalStatus.lowercased() {
-        case "estable": .green
-        case "activo": .orange
-        case "riesgo": .red
-        default: .green
-        }
+        ClinicalStatusMapping(clinicalStatusRawValue: clinicalStatus)?.tint ?? .green
     }
 }
 

@@ -128,6 +128,42 @@ final class CalendarViewModel {
         return days
     }
 
+    /// Devuelve solo la fila (7 celdas) de la semana del día seleccionado.
+    /// Si no hay selección dentro del mes visible, usa hoy (si corresponde) o el día 1.
+    func selectedWeekDays() -> [Int?] {
+        let days = calendarDays()
+        guard !days.isEmpty else { return [] }
+
+        let calendar = Calendar.current
+        let selectedDayInMonth: Int? = {
+            guard let selectedDate else { return nil }
+            guard calendar.isDate(selectedDate, equalTo: displayedMonth, toGranularity: .month) else {
+                return nil
+            }
+            return calendar.component(.day, from: selectedDate)
+        }()
+
+        let todayDayInMonth: Int? = {
+            guard calendar.isDate(Date(), equalTo: displayedMonth, toGranularity: .month) else {
+                return nil
+            }
+            return calendar.component(.day, from: Date())
+        }()
+
+        let targetDay = selectedDayInMonth ?? todayDayInMonth ?? 1
+        guard let dayIndex = days.firstIndex(where: { $0 == targetDay }) else {
+            return Array(days.prefix(7))
+        }
+
+        let weekStart = (dayIndex / 7) * 7
+        let weekEnd = min(weekStart + 7, days.count)
+        var week = Array(days[weekStart..<weekEnd])
+        if week.count < 7 {
+            week += Array(repeating: nil, count: 7 - week.count)
+        }
+        return week
+    }
+
     /// Construye un Date a partir de un número de día en el mes visible.
     func date(forDay day: Int) -> Date {
         let calendar = Calendar.current

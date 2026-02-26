@@ -38,6 +38,9 @@ final class SessionViewModel {
     /// Diagnósticos seleccionados como DTOs de la API.
     /// Se convierten a modelos Diagnosis de SwiftData al guardar la sesión.
     var selectedDiagnoses: [ICD11SearchResult] = []
+    /// Solo se activa cuando el profesional agrega o quita diagnósticos
+    /// manualmente en el formulario.
+    private var didModifyDiagnoses: Bool = false
 
     // MARK: - Init
 
@@ -152,9 +155,10 @@ final class SessionViewModel {
         }
 
         // Sincronizar diagnósticos vigentes del paciente con los de esta sesión.
-        // Si el profesional cambió los diagnósticos en el formulario,
-        // el perfil del paciente refleja el cuadro actualizado.
-        syncActiveDiagnoses(for: patient, in: context)
+        // Solo cuando hubo cambios explícitos en diagnósticos durante esta edición.
+        if didModifyDiagnoses {
+            syncActiveDiagnoses(for: patient, in: context)
+        }
     }
 
     // MARK: - Actualización
@@ -190,7 +194,7 @@ final class SessionViewModel {
         }
 
         // Sincronizar vigentes si esta es la sesión más reciente completada
-        if let patient = session.patient {
+        if didModifyDiagnoses, let patient = session.patient {
             syncActiveDiagnoses(for: patient, in: context)
         }
     }
@@ -223,9 +227,11 @@ final class SessionViewModel {
     func addDiagnosis(_ result: ICD11SearchResult) {
         guard !selectedDiagnoses.contains(where: { $0.id == result.id }) else { return }
         selectedDiagnoses.append(result)
+        didModifyDiagnoses = true
     }
 
     func removeDiagnosis(_ result: ICD11SearchResult) {
         selectedDiagnoses.removeAll { $0.id == result.id }
+        didModifyDiagnoses = true
     }
 }

@@ -19,6 +19,11 @@ struct CalendarView: View {
     @Bindable var viewModel = CalendarViewModel()
 
     @State private var showingNewSession: Bool = false
+    @State private var isCalendarCollapsed: Bool = false
+    @State private var sessionListOffset: CGFloat = 0
+
+    private let collapseThreshold: CGFloat = 24
+    private let expandOverscrollThreshold: CGFloat = -22
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,7 +85,8 @@ struct CalendarView: View {
             weekdayHeader
             calendarGrid
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, isCalendarCollapsed ? 4 : 12)
+        .animation(.easeInOut(duration: 0.22), value: isCalendarCollapsed)
     }
 
     // MARK: - Cabecera de navegación de mes
@@ -154,7 +160,7 @@ struct CalendarView: View {
     }
 
     private var calendarGrid: some View {
-        let days = viewModel.calendarDays()
+        let days = isCalendarCollapsed ? viewModel.selectedWeekDays() : viewModel.calendarDays()
         let sessionCounts = viewModel.sessionCountsByDay
 
         return LazyVGrid(columns: gridColumns, spacing: 2) {
@@ -196,6 +202,9 @@ struct CalendarView: View {
                         ))
                     }
                     .frame(maxHeight: .infinity)
+                    .onAppear {
+                        setCalendarCollapsed(false)
+                    }
                 } else {
                     List {
                         Section {
@@ -220,6 +229,25 @@ struct CalendarView: View {
                             ))
                         }
                     }
+                    .listStyle(.plain)
+                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.contentOffset.y + geometry.contentInsets.top
+                    } action: { _, offset in
+                        sessionListOffset = offset
+                        handleSessionListScroll(offset)
+                    }
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 10)
+                            .onEnded { value in
+                                // Fallback explícito: swipe hacia arriba colapsa siempre.
+                                if value.translation.height < -18 {
+                                    setCalendarCollapsed(true)
+                                } else if value.translation.height > 18, sessionListOffset <= 0 {
+                                    // Expandir solo en gesto hacia abajo cerca del tope.
+                                    setCalendarCollapsed(false)
+                                }
+                            }
+                    )
                 }
             } else {
                 ContentUnavailableView(
@@ -229,6 +257,20 @@ struct CalendarView: View {
                 )
                 .frame(maxHeight: .infinity)
             }
+        }
+    }
+
+    private func handleSessionListScroll(_ offset: CGFloat) {
+        if offset > collapseThreshold, !isCalendarCollapsed {
+            setCalendarCollapsed(true)
+        } else if offset < expandOverscrollThreshold, isCalendarCollapsed {
+            setCalendarCollapsed(false)
+        }
+    }
+
+    private func setCalendarCollapsed(_ collapsed: Bool) {
+        withAnimation(.easeInOut(duration: 0.22)) {
+            isCalendarCollapsed = collapsed
         }
     }
 }

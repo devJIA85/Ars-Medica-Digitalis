@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 @testable import Ars_Medica_Digitalis
 
@@ -72,6 +73,107 @@ struct Ars_Medica_DigitalisTests {
         #expect(viewModel.selectedDiagnoses.first?.theCode == diagnosis.icdCode)
     }
 
+    @Test("SessionViewModel.createSession no borra diagnósticos vigentes sin cambios explícitos")
+    func sessionViewModelCreateSessionKeepsActiveDiagnosesWhenUnchanged() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+
+        let patient = Patient(firstName: "Test", lastName: "Patient")
+        context.insert(patient)
+
+        let activeDiagnosis = Diagnosis(
+            icdCode: "6A70",
+            icdTitle: "Single episode depressive disorder",
+            icdTitleEs: "Trastorno depresivo de episodio único",
+            icdURI: "http://id.who.int/icd/release/11/2024-01/mms/6A70",
+            patient: patient
+        )
+        context.insert(activeDiagnosis)
+        try context.save()
+
+        let viewModel = SessionViewModel()
+        viewModel.chiefComplaint = "Control"
+        viewModel.createSession(for: patient, in: context)
+        try context.save()
+
+        let activeURIs = Set((patient.activeDiagnoses ?? []).map(\.icdURI))
+        #expect(activeURIs == [activeDiagnosis.icdURI])
+    }
+
+    @Test("SessionViewModel.createSession permite limpiar vigentes si el usuario los quita")
+    func sessionViewModelCreateSessionCanClearActiveDiagnosesOnExplicitRemove() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+
+        let patient = Patient(firstName: "Test", lastName: "Patient")
+        context.insert(patient)
+
+        let activeDiagnosis = Diagnosis(
+            icdCode: "6A70",
+            icdTitle: "Single episode depressive disorder",
+            icdTitleEs: "Trastorno depresivo de episodio único",
+            icdURI: "http://id.who.int/icd/release/11/2024-01/mms/6A70",
+            patient: patient
+        )
+        context.insert(activeDiagnosis)
+        try context.save()
+
+        let viewModel = SessionViewModel()
+        viewModel.chiefComplaint = "Control"
+        viewModel.preloadDiagnoses(from: patient)
+        if let preloaded = viewModel.selectedDiagnoses.first {
+            viewModel.removeDiagnosis(preloaded)
+        }
+
+        viewModel.createSession(for: patient, in: context)
+        try context.save()
+
+        #expect((patient.activeDiagnoses ?? []).isEmpty)
+    }
+
+    @Test("SessionViewModel.update no altera vigentes si no se editaron diagnósticos")
+    func sessionViewModelUpdateKeepsActiveDiagnosesWhenDiagnosesUntouched() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+
+        let patient = Patient(firstName: "Test", lastName: "Patient")
+        context.insert(patient)
+
+        let activeDiagnosis = Diagnosis(
+            icdCode: "6A70",
+            icdTitle: "Single episode depressive disorder",
+            icdTitleEs: "Trastorno depresivo de episodio único",
+            icdURI: "http://id.who.int/icd/release/11/2024-01/mms/6A70",
+            patient: patient
+        )
+        context.insert(activeDiagnosis)
+
+        let session = Session(
+            chiefComplaint: "Primera consulta",
+            patient: patient
+        )
+        context.insert(session)
+
+        let sessionDiagnosis = Diagnosis(
+            icdCode: "6A71",
+            icdTitle: "Another diagnosis",
+            icdTitleEs: "Otro diagnóstico",
+            icdURI: "http://id.who.int/icd/release/11/2024-01/mms/6A71",
+            session: session
+        )
+        context.insert(sessionDiagnosis)
+        try context.save()
+
+        let viewModel = SessionViewModel()
+        viewModel.load(from: session)
+        viewModel.notes = "Nota actualizada"
+        viewModel.update(session, in: context)
+        try context.save()
+
+        let activeURIs = Set((patient.activeDiagnoses ?? []).map(\.icdURI))
+        #expect(activeURIs == [activeDiagnosis.icdURI])
+    }
+
     @Test("DashboardViewModel calcula KPIs base de sesiones")
     func dashboardViewModelComputesKPIs() {
         let now = Date()
@@ -126,5 +228,22 @@ struct Ars_Medica_DigitalisTests {
         let calendar = Calendar(identifier: .gregorian)
         let components = DateComponents(year: year, month: month, day: day)
         return calendar.date(from: components) ?? Date()
+    }
+
+    private func makeInMemoryContainer() throws -> ModelContainer {
+        let schema = Schema([
+            Professional.self,
+            Patient.self,
+            Session.self,
+            Diagnosis.self,
+            Attachment.self,
+            PriorTreatment.self,
+            Hospitalization.self,
+            AnthropometricRecord.self,
+            ICD11Entry.self,
+            Medication.self,
+        ])
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try ModelContainer(for: schema, configurations: config)
     }
 }

@@ -191,13 +191,18 @@ actor ICD11Service {
     // MARK: - Gestión de Token (privado)
 
     /// Devuelve un token válido, renovándolo proactivamente si expiró.
+    ///
+    /// Usa switch sobre tupla de opcionales: el compilador verifica exhaustivamente
+    /// que cada combinación (token presente/ausente × expiración presente/ausente)
+    /// esté cubierta. El `where` clause permite incluir la condición de vigencia
+    /// directamente en el pattern match, algo imposible con if-let encadenado.
     private func validToken() async throws -> String {
-        if let token = cachedToken,
-           let expiration = tokenExpiration,
-           expiration > Date() {
+        switch (cachedToken, tokenExpiration) {
+        case let (token?, expiration?) where expiration > Date():
             return token
+        default:
+            return try await fetchNewToken()
         }
-        return try await fetchNewToken()
     }
 
     /// Solicita un nuevo token OAuth2 al servidor de la OMS.

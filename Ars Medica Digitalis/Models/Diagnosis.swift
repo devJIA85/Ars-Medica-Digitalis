@@ -76,7 +76,36 @@ final class Diagnosis {
     }
 }
 
+/// Describe el contexto de pertenencia de un Diagnosis.
+///
+/// Un Diagnosis pertenece a una Session (snapshot histórico) o a un Patient
+/// (diagnóstico vigente editable desde el perfil), pero nunca a ambos a la vez.
+/// Este enum convierte la invariante documentada en los comentarios del modelo
+/// en código que el compilador puede verificar exhaustivamente.
+enum DiagnosisContext {
+    case sessionSnapshot(Session)
+    case activePatientDiagnosis(Patient)
+    /// Estado huérfano — no debería ocurrir en producción.
+    case orphaned
+}
+
 extension Diagnosis {
+    /// El contexto de este diagnóstico, derivado del par de opcionales (session, patient).
+    ///
+    /// Usa switch sobre tupla de opcionales con el patrón `?` para desempaquetar
+    /// y verificar exhaustivamente cada combinación posible. El compilador garantiza
+    /// que no queda ningún caso sin manejar.
+    var context: DiagnosisContext {
+        switch (session, patient) {
+        case let (session?, nil):
+            return .sessionSnapshot(session)
+        case let (nil, patient?):
+            return .activePatientDiagnosis(patient)
+        default:
+            return .orphaned
+        }
+    }
+
     /// Título preferido para mostrar en UI/reportes:
     /// español si existe, sino fallback al título base.
     var displayTitle: String {

@@ -52,8 +52,10 @@ struct WeightTrendChartView: View {
             }
             .frame(height: 180)
 
-            // Resumen: variación total desde el primer registro
-            if let first = sortedRecords.first, let last = sortedRecords.last,
+            // El pattern matching sobre la tupla exige que ambos extremos existan
+            // simultáneamente; el where descarta el caso de registro único donde
+            // first y last serían el mismo elemento y la variación sería cero trivial.
+            if case let (first?, last?) = (sortedRecords.first, sortedRecords.last),
                sortedRecords.count >= 2 {
                 let delta = yValue(for: last) - yValue(for: first)
                 let sign = delta >= 0 ? "+" : ""

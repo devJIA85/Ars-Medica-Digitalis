@@ -704,14 +704,16 @@ private struct SessionRowView: View {
                         .lineLimit(1)
                 }
 
-                if let diagnoses = session.diagnoses, !diagnoses.isEmpty {
-                    Text(
-                        diagnoses
-                            .compactMap { $0.icdCode.isEmpty ? nil : $0.icdCode }
-                            .joined(separator: ", ")
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                // compactMap implica opcionales; icdCode es String no opcional.
+                // filter + map nombra correctamente la operación: se filtra por contenido
+                // vacío, no se desenvuelve ningún opcional.
+                let codes = (session.diagnoses ?? [])
+                    .map(\.icdCode)
+                    .filter { !$0.isEmpty }
+                if !codes.isEmpty {
+                    Text(codes.joined(separator: ", "))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
 

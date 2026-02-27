@@ -15,7 +15,7 @@ final class SessionViewModel {
 
     // MARK: - Campos editables del formulario
 
-    var sessionDate: Date = Date() {
+    var sessionDate: Date = Date().roundedToMinuteInterval(5) {
         didSet {
             // Si la fecha pasa a futuro y el status no fue editado manualmente,
             // cambiar automáticamente a "programada" (y viceversa).

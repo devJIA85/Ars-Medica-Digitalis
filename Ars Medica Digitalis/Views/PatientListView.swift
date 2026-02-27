@@ -163,11 +163,14 @@ private struct PatientFilteredList: View {
                     // que las cards con material floten sobre el fondo limpio
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
             }
         }
-        // Eliminamos modificadores que interfieren con el material translúcido de la TabBar
+        // Fondo transparente para que el contenido flote sobre el degradado
+        // real de la app y el blur de la TabBar funcione correctamente.
+        .scrollContentBackground(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .listStyle(.plain)
     }
 }
@@ -181,81 +184,46 @@ private struct PatientRowView: View {
     var body: some View {
         let summary = rowSummary
 
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                // Avatar circular con iniciales (o foto) y anillo de estado clínico
+        // CardContainer unifica el estilo de celda con PatientDetailView;
+        // reemplaza el LinearGradient manual por el sistema nativo Liquid Glass.
+        CardContainer(style: .flat) {
+            // Jerarquía: avatar (quién) → nombre → subinfo → badges (síntesis)
+            HStack(alignment: .center, spacing: 14) {
                 PatientAvatarView(
                     photoData: patient.photoData,
                     firstName: patient.firstName,
                     lastName: patient.lastName,
                     genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
                     clinicalStatus: patient.clinicalStatus,
-                    size: 44
+                    size: 52
                 )
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(patient.fullName)
-                        .font(.headline)
+                        .font(.title3)
                         .fontWeight(.semibold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
-                    HStack(spacing: 4) {
-                        Text("\(summary.sessionCount) sesión\(summary.sessionCount == 1 ? "" : "es")")
-                        if let latestCompletedSessionDate = summary.latestCompletedSessionDate {
-                            Text("· Última: \(latestCompletedSessionDate.esDayMonthAbbrev())")
+                    Text(subinfoLine(for: summary))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    HStack(spacing: AppSpacing.sm) {
+                        if let dx = summary.primaryDiagnosisCode {
+                            StatusBadge(label: dx, variant: .neutral, systemImage: "stethoscope")
                         }
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 8)
-
-                statusBadge
-            }
-
-            HStack(spacing: 8) {
-                infoPill(
-                    title: "Dx",
-                    value: summary.primaryDiagnosisCode ?? "Sin Dx",
-                    icon: "stethoscope"
-                )
-
-                if let nextScheduledSessionDate = summary.nextScheduledSessionDate {
-                    infoPill(
-                        title: "Próxima",
-                        value: nextScheduledSessionDate.esDayMonthAbbrev(),
-                        icon: "calendar.badge.clock"
-                    )
-                }
-            }
-            .lineLimit(1)
-        }
-        // Card clínica con estilo "liquid glass":
-        // material translúcido, borde de luz y sombra suave.
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.thinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.8),
-                                    Color.white.opacity(0.15)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
+                        StatusBadge(
+                            label: patient.isActive ? "Activo" : "Inactivo",
+                            variant: patient.isActive ? .success : .neutral
                         )
-                )
-                .shadow(color: Color.white.opacity(0.25), radius: 1, x: 0, y: 1)
-                .shadow(color: Color.black.opacity(0.08), radius: 14, x: 0, y: 8)
-        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private var rowSummary: PatientRowSummary {
@@ -303,6 +271,19 @@ private struct PatientRowView: View {
         )
     }
 
+    /// Condensa sesiones, última fecha y próxima cita en una sola línea de subinfo.
+    /// Reemplaza el HStack + infoPills separados para reducir ruido visual.
+    private func subinfoLine(for summary: PatientRowSummary) -> String {
+        var parts = ["\(summary.sessionCount) sesión\(summary.sessionCount == 1 ? "" : "es")"]
+        if let last = summary.latestCompletedSessionDate {
+            parts.append("Última: \(last.esDayMonthAbbrev())")
+        }
+        if let next = summary.nextScheduledSessionDate {
+            parts.append("Próxima: \(next.esDayMonthAbbrev())")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     private func diagnosisCode(from diagnoses: [Diagnosis]?) -> String? {
         let list = diagnoses ?? []
         guard !list.isEmpty else { return nil }
@@ -322,54 +303,6 @@ private struct PatientRowView: View {
         let primaryDiagnosisCode: String?
     }
 
-    @ViewBuilder
-    private func infoPill(title: String, value: String, icon: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Text("\(title):")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Text(value)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            Capsule(style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.55), lineWidth: 0.8)
-                )
-        )
-    }
-
-    private var statusBadge: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(patient.isActive ? Color.green : Color.gray)
-                .frame(width: 7, height: 7)
-
-            Text(patient.isActive ? "Activo" : "Inactivo")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(patient.isActive ? Color.green : Color.secondary)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(
-            Capsule(style: .continuous)
-                .fill(.thinMaterial)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Color.white.opacity(0.65), lineWidth: 0.8)
-                )
-        )
-    }
 }
 
 #Preview {

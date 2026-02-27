@@ -35,6 +35,25 @@ struct ChartTimePoint: Identifiable {
     let series: String
 }
 
+/// Actividad de pacientes por período:
+/// - activos al cierre del bucket temporal
+/// - altas del período
+/// - bajas del período
+struct PatientActivityPoint: Identifiable {
+    let id = UUID()
+    let bucketStart: Date
+    let activePatients: Int
+    let admissions: Int
+    let discharges: Int
+}
+
+enum PatientActivityPeriod: String, CaseIterable {
+    case day = "Día"
+    case week = "Semana"
+    case month = "Mes"
+    case year = "Año"
+}
+
 // MARK: - Período temporal para agrupar sesiones
 
 enum TimePeriod: String, CaseIterable {
@@ -48,23 +67,27 @@ enum TimePeriod: String, CaseIterable {
 @Observable
 final class DashboardViewModel {
 
-    /// Variante que recibe directamente la lista de pacientes activos.
+    /// Variante que recibe directamente la lista de pacientes del profesional
+    /// (activos e inactivos para poder calcular altas/bajas).
     /// Evita depender de la relación inversa `professional.patients` que puede no estar faulted.
-    func loadStatistics(from patients: [Patient]) {
-        totalPatients = patients.count
+    func loadStatistics(from allPatients: [Patient]) {
+        let activePatients = allPatients.filter(\.isActive)
+        allPatientsCache = allPatients
+        totalPatients = activePatients.count
         // Recolectar todas las sesiones una sola vez
-        allSessions = patients.flatMap { $0.sessions ?? [] }
+        allSessions = activePatients.flatMap { $0.sessions ?? [] }
 
         computeKPIs()
-        computeGenderDistribution(patients)
-        computeAgeRangeDistribution(patients)
-        computeTopDiagnoses(patients)
+        computeGenderDistribution(activePatients)
+        computeAgeRangeDistribution(activePatients)
+        computeTopDiagnoses(activePatients)
         recomputeSessionsOverTime()
         computeSessionsByModality()
         computeSessionsByStatus()
-        computeLifestyleFactors(patients)
-        computeFamilyHistoryPrevalence(patients)
-        computePatientGrowth(patients)
+        computeLifestyleFactors(activePatients)
+        computeFamilyHistoryPrevalence(activePatients)
+        computePatientGrowth(activePatients)
+        recomputePatientActivity()
     }
 
     // MARK: - KPIs
@@ -86,6 +109,7 @@ final class DashboardViewModel {
     private(set) var lifestyleFactors: [ChartBar] = []
     private(set) var familyHistoryPrevalence: [ChartBar] = []
     private(set) var patientGrowth: [ChartTimePoint] = []
+    private(set) var patientActivity: [PatientActivityPoint] = []
 
     // MARK: - Picker de período temporal
 
@@ -94,30 +118,40 @@ final class DashboardViewModel {
         didSet { recomputeSessionsOverTime() }
     }
 
+    /// Período del gráfico de actividad de pacientes (altas/bajas/activos)
+    var patientActivityPeriod: PatientActivityPeriod = .month {
+        didSet { recomputePatientActivity() }
+    }
+
     // Cache interna de sesiones para recomputar sin re-traversar todo el grafo
     private var allSessions: [Session] = []
+    // Cache interna de pacientes para recomputar actividad sin recargar todo
+    private var allPatientsCache: [Patient] = []
 
     // MARK: - Carga principal
 
     /// Recorre el grafo completo del profesional y computa todas las estadísticas.
     /// Se llama una vez en .onAppear de DashboardView.
     func loadStatistics(for professional: Professional) {
-        let patients = (professional.patients ?? []).filter { $0.isActive }
-        totalPatients = patients.count
+        let allPatients = professional.patients ?? []
+        let activePatients = allPatients.filter(\.isActive)
+        allPatientsCache = allPatients
+        totalPatients = activePatients.count
 
         // Recolectar todas las sesiones una sola vez
-        allSessions = patients.flatMap { $0.sessions ?? [] }
+        allSessions = activePatients.flatMap { $0.sessions ?? [] }
 
         computeKPIs()
-        computeGenderDistribution(patients)
-        computeAgeRangeDistribution(patients)
-        computeTopDiagnoses(patients)
+        computeGenderDistribution(activePatients)
+        computeAgeRangeDistribution(activePatients)
+        computeTopDiagnoses(activePatients)
         recomputeSessionsOverTime()
         computeSessionsByModality()
         computeSessionsByStatus()
-        computeLifestyleFactors(patients)
-        computeFamilyHistoryPrevalence(patients)
-        computePatientGrowth(patients)
+        computeLifestyleFactors(activePatients)
+        computeFamilyHistoryPrevalence(activePatients)
+        computePatientGrowth(activePatients)
+        recomputePatientActivity()
     }
 
     // MARK: - KPIs
@@ -385,5 +419,80 @@ final class DashboardViewModel {
         }
 
         patientGrowth = points
+    }
+
+    // MARK: - Actividad por período (Altas/Bajas/Activos)
+
+    private func recomputePatientActivity() {
+        computePatientActivity(allPatientsCache, period: patientActivityPeriod)
+    }
+
+    /// Serie temporal para visualizar:
+    /// - altas (createdAt)
+    /// - bajas (deletedAt)
+    /// - pacientes activos al cierre de cada bucket
+    private func computePatientActivity(_ allPatients: [Patient], period: PatientActivityPeriod) {
+        let calendar = Calendar.current
+        guard !allPatients.isEmpty else {
+            patientActivity = []
+            return
+        }
+
+        let earliestCreated = allPatients.map(\.createdAt).min() ?? Date()
+        let latestDeleted = allPatients.compactMap(\.deletedAt).max() ?? Date.distantPast
+        let latestCreated = allPatients.map(\.createdAt).max() ?? Date.distantPast
+        let endReference = max(Date(), latestDeleted, latestCreated)
+
+        let component: Calendar.Component
+        switch period {
+        case .day: component = .day
+        case .week: component = .weekOfYear
+        case .month: component = .month
+        case .year: component = .year
+        }
+
+        guard
+            let startBucket = calendar.dateInterval(of: component, for: earliestCreated)?.start,
+            let endBucket = calendar.dateInterval(of: component, for: endReference)?.start
+        else {
+            patientActivity = []
+            return
+        }
+
+        var cursor = startBucket
+        var points: [PatientActivityPoint] = []
+
+        while cursor <= endBucket {
+            guard let nextBucket = calendar.date(byAdding: component, value: 1, to: cursor) else { break }
+
+            let admissions = allPatients.filter { patient in
+                patient.createdAt >= cursor && patient.createdAt < nextBucket
+            }.count
+
+            let discharges = allPatients.filter { patient in
+                guard let deletedAt = patient.deletedAt else { return false }
+                return deletedAt >= cursor && deletedAt < nextBucket
+            }.count
+
+            // Activos al cierre del bucket (inicio del siguiente).
+            let activeAtBucketClose = allPatients.filter { patient in
+                guard patient.createdAt < nextBucket else { return false }
+                guard let deletedAt = patient.deletedAt else { return true }
+                return deletedAt >= nextBucket
+            }.count
+
+            points.append(
+                PatientActivityPoint(
+                    bucketStart: cursor,
+                    activePatients: activeAtBucketClose,
+                    admissions: admissions,
+                    discharges: discharges
+                )
+            )
+
+            cursor = nextBucket
+        }
+
+        patientActivity = points
     }
 }

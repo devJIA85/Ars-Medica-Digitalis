@@ -17,6 +17,7 @@ struct SessionDetailView: View {
     let professional: Professional
 
     @State private var showingEdit: Bool = false
+    @State private var showingStatusPicker: Bool = false
 
     var body: some View {
         List {
@@ -25,7 +26,18 @@ struct SessionDetailView: View {
                 LabeledContent("Fecha", value: session.sessionDate.formatted(date: .long, time: .shortened))
                 LabeledContent("Modalidad", value: sessionTypeLabel)
                 LabeledContent("Duración", value: "\(session.durationMinutes) min")
-                LabeledContent("Estado", value: statusLabel)
+                LabeledContent("Estado") {
+                    Button {
+                        showingStatusPicker = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: currentStatusMapping.icon)
+                            Text(currentStatusMapping.label)
+                        }
+                        .foregroundStyle(currentStatusMapping.tint)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 if !session.chiefComplaint.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
@@ -113,6 +125,23 @@ struct SessionDetailView: View {
                 SessionFormView(patient: patient, session: session)
             }
         }
+        .confirmationDialog("Cambiar estado", isPresented: $showingStatusPicker, titleVisibility: .visible) {
+            if session.status != SessionStatusMapping.programada.rawValue {
+                Button(SessionStatusMapping.programada.label) {
+                    applyStatusChange(.programada)
+                }
+            }
+            if session.status != SessionStatusMapping.completada.rawValue {
+                Button(SessionStatusMapping.completada.label) {
+                    applyStatusChange(.completada)
+                }
+            }
+            if session.status != SessionStatusMapping.cancelada.rawValue {
+                Button(SessionStatusMapping.cancelada.label, role: .destructive) {
+                    applyStatusChange(.cancelada)
+                }
+            }
+        }
     }
 
     // MARK: - Labels
@@ -122,9 +151,15 @@ struct SessionDetailView: View {
         ?? session.sessionType.capitalized
     }
 
-    private var statusLabel: String {
-        SessionStatusMapping(sessionStatusRawValue: session.status)?.label
-        ?? session.status.capitalized
+    // MARK: - Status
+
+    private var currentStatusMapping: SessionStatusMapping {
+        SessionStatusMapping(sessionStatusRawValue: session.status) ?? .completada
+    }
+
+    private func applyStatusChange(_ newStatus: SessionStatusMapping) {
+        session.status = newStatus.rawValue
+        session.updatedAt = Date()
     }
 
     private func diagnosisTypeLabel(_ type: String) -> String {

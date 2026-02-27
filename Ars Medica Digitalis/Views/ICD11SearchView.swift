@@ -17,6 +17,7 @@ struct ICD11SearchView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var viewModel = ICD11SearchViewModel()
 
@@ -50,10 +51,21 @@ struct ICD11SearchView: View {
             }
         }
         .navigationTitle("Buscar CIE-11")
-        .searchable(text: $searchText, prompt: "Ej: depresión, fractura, diabetes...")
+        .searchable(
+            text: $searchText,
+            placement: searchPlacement,
+            prompt: "Ej: depresión, fractura, diabetes..."
+        )
         .onChange(of: searchText) { _, newValue in
             viewModel.search(query: newValue, context: modelContext)
         }
+    }
+
+    private var searchPlacement: SearchFieldPlacement {
+        if #available(iOS 26.0, *) {
+            return .toolbar
+        }
+        return .automatic
     }
 
     // MARK: - Badge Offline
@@ -86,17 +98,27 @@ struct ICD11SearchView: View {
     @ViewBuilder
     private func diagnosisRow(_ result: ICD11SearchResult) -> some View {
         let isAlreadySelected = alreadySelected.contains { $0.id == result.id }
+        let chapterColor = chapterColor(for: result.chapter)
+        let relevance = relevanceBadge(for: result.score)
 
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(result.title)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(titleColor(for: result.chapter))
 
-                if let code = result.theCode {
-                    Text(code)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    if let code = result.theCode, !code.isEmpty {
+                        chip(text: code, color: chapterColor)
+                    }
+
+                    if let chapter = result.chapter, !chapter.isEmpty {
+                        chip(text: "Cap. \(chapter)", color: chapterColor)
+                    }
+
+                    if let relevance {
+                        chip(text: relevance.label, color: relevance.color)
+                    }
                 }
             }
 
@@ -108,6 +130,43 @@ struct ICD11SearchView: View {
             }
         }
         .contentShape(Rectangle())
+    }
+
+    private func chip(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.14), in: Capsule())
+    }
+
+    private func chapterColor(for chapter: String?) -> Color {
+        guard let chapter, !chapter.isEmpty else { return .blue }
+
+        let palette: [Color] = [.blue, .teal, .green, .mint, .indigo, .cyan, .orange, .pink]
+        let hash = chapter.unicodeScalars.reduce(into: 0) { partialResult, scalar in
+            partialResult += Int(scalar.value)
+        }
+        return palette[hash % palette.count]
+    }
+
+    private func titleColor(for chapter: String?) -> Color {
+        guard let chapter, !chapter.isEmpty else { return .primary }
+        let base = chapterColor(for: chapter)
+        return base.opacity(colorScheme == .dark ? 0.95 : 0.9)
+    }
+
+    private func relevanceBadge(for score: Double?) -> (label: String, color: Color)? {
+        guard let score else { return nil }
+
+        if score >= 0.8 {
+            return ("Alta relevancia", .green)
+        } else if score >= 0.5 {
+            return ("Relevancia media", .orange)
+        } else {
+            return ("Relevancia baja", .gray)
+        }
     }
 
     // MARK: - Error

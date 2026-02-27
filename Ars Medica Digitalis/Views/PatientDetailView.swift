@@ -28,11 +28,11 @@ struct PatientDetailView: View {
             VStack(spacing: 20) {
                 ProfileHeaderView(patient: patient)
 
+                ClinicalSummaryView(patient: patient)
+
                 PersonalDataCard(patient: patient)
 
-                if hasMedicalCoverageData {
-                    MedicalCoverageCard(patient: patient)
-                }
+                MedicalHistoryCard(patient: patient, professional: professional)
 
                 if hasContactData {
                     ContactCard(patient: patient, emergencyContactSummary: emergencyContactSummary)
@@ -45,8 +45,6 @@ struct PatientDetailView: View {
                     onAddDiagnosis: addActiveDiagnosis,
                     onRemoveDiagnosis: removeActiveDiagnosis
                 )
-
-                MedicalHistoryCard(patient: patient, professional: professional)
 
                 SessionsCard(
                     patient: patient,
@@ -67,9 +65,10 @@ struct PatientDetailView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 18)
+            .backgroundExtensionEffect()
         }
         .scrollContentBackground(.hidden)
-        .background(Color(.systemBackground))
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .navigationTitle(patient.fullName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -139,12 +138,6 @@ struct PatientDetailView: View {
 
     // MARK: - Helpers
 
-    private var hasMedicalCoverageData: Bool {
-        !patient.healthInsurance.isEmpty
-        || !patient.insuranceMemberNumber.isEmpty
-        || !patient.insurancePlan.isEmpty
-    }
-
     private var hasContactData: Bool {
         !patient.email.isEmpty
         || !patient.phoneNumber.isEmpty
@@ -205,7 +198,7 @@ private struct ProfileHeaderView: View {
     let patient: Patient
 
     var body: some View {
-        CardShell(hierarchy: .primary) {
+        CardContainer(style: .elevated) {
             HStack(alignment: .center, spacing: 16) {
                 PatientAvatarView(
                     photoData: patient.photoData,
@@ -222,6 +215,12 @@ private struct ProfileHeaderView: View {
                     Text(headerSubtitle)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    // Próxima cita como señal contextual de actividad clínica inmediata
+                    if let next = nextAppointmentDate {
+                        Label("Próxima: \(next.esDayMonthAbbrev())", systemImage: "calendar.badge.clock")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -235,6 +234,92 @@ private struct ProfileHeaderView: View {
         }
         return "\(patient.age) años"
     }
+
+    private var nextAppointmentDate: Date? {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (patient.sessions ?? [])
+            .filter { $0.sessionStatusValue == .programada && $0.sessionDate >= today }
+            .map(\.sessionDate)
+            .min()
+    }
+}
+
+// MARK: - Resumen Clínico
+
+private struct ClinicalSummaryView: View {
+    let patient: Patient
+
+    var body: some View {
+        CardContainer(style: .flat) {
+            HStack(spacing: 0) {
+                clinicalStatChip(
+                value: "\(patient.activeDiagnoses?.count ?? 0)",
+                label: "Dx activos",
+                icon: "stethoscope",
+                accent: .blue
+                )
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                clinicalStatChip(
+                value: "\(medicationCount)",
+                label: "Medicación",
+                icon: "pills.fill",
+                accent: .purple
+                )
+
+                Divider()
+                    .padding(.vertical, 8)
+
+                clinicalStatChip(
+                value: bmiDisplayValue,
+                label: "IMC",
+                icon: "scalemass.fill",
+                accent: bmiColor
+                )
+            }
+        }
+    }
+
+    private func clinicalStatChip(value: String, label: String, icon: String, accent: Color) -> some View {
+        VStack(spacing: 8) {
+            Text(value)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(accent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Label(label, systemImage: icon)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .labelStyle(.titleAndIcon)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, minHeight: 92)
+        .padding(.horizontal, 4)
+        .contentShape(Rectangle())
+    }
+
+    // Contabiliza medicamentos estructurados del vademécum; si no hay,
+    // detecta si existe texto libre como indicador de al menos 1 medicamento.
+    private var medicationCount: Int {
+        let structured = patient.currentMedications?.count ?? 0
+        if structured == 0 && !patient.currentMedication.isEmpty { return 1 }
+        return structured
+    }
+
+    private var bmiDisplayValue: String {
+        guard let bmi = patient.bmi else { return "–" }
+        return String(format: "%.1f", bmi)
+    }
+
+    private var bmiColor: Color {
+        guard let bmi = patient.bmi, let cat = BMICategory(bmi: bmi) else { return .secondary }
+        return cat.color
+    }
 }
 
 // MARK: - Cards
@@ -242,8 +327,11 @@ private struct ProfileHeaderView: View {
 private struct PersonalDataCard: View {
     let patient: Patient
 
+    @State private var isExpanded: Bool = false
+
     var body: some View {
-        CardShell(title: "Datos Personales", systemImage: "person.text.rectangle") {
+        CardContainer(style: .flat) {
+            DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: 12) {
                 DataRowView(
                     icon: "calendar",
@@ -314,42 +402,40 @@ private struct PersonalDataCard: View {
                         value: patient.maritalStatus.capitalized
                     )
                 }
+
+                // Subsección de cobertura: agrupa datos de obra social junto
+                // con los datos personales para reducir tarjetas independientes
+                if hasCoverageData {
+                    Divider()
+                        .padding(.vertical, 4)
+                    Text("Cobertura Médica")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !patient.healthInsurance.isEmpty {
+                        DataRowView(icon: "cross.case.fill", title: "Obra Social", value: patient.healthInsurance)
+                    }
+                    if !patient.insuranceMemberNumber.isEmpty {
+                        DataRowView(icon: "number", title: "Nº Afiliado", value: patient.insuranceMemberNumber)
+                    }
+                    if !patient.insurancePlan.isEmpty {
+                        DataRowView(icon: "doc.text", title: "Plan", value: patient.insurancePlan)
+                    }
+                }
             }
+            .padding(.top, AppSpacing.sm)
+        } label: {
+            Label("Datos Personales", systemImage: "person.text.rectangle")
+                .font(.headline)
+                .foregroundStyle(.primary)
+        }
         }
     }
-}
 
-private struct MedicalCoverageCard: View {
-    let patient: Patient
-
-    var body: some View {
-        CardShell(title: "Cobertura Médica", systemImage: "cross.case") {
-            VStack(spacing: 12) {
-                if !patient.healthInsurance.isEmpty {
-                    DataRowView(
-                        icon: "cross.case.fill",
-                        title: "Obra Social",
-                        value: patient.healthInsurance
-                    )
-                }
-
-                if !patient.insuranceMemberNumber.isEmpty {
-                    DataRowView(
-                        icon: "number",
-                        title: "Nº Afiliado",
-                        value: patient.insuranceMemberNumber
-                    )
-                }
-
-                if !patient.insurancePlan.isEmpty {
-                    DataRowView(
-                        icon: "doc.text",
-                        title: "Plan",
-                        value: patient.insurancePlan
-                    )
-                }
-            }
-        }
+    private var hasCoverageData: Bool {
+        !patient.healthInsurance.isEmpty
+        || !patient.insuranceMemberNumber.isEmpty
+        || !patient.insurancePlan.isEmpty
     }
 }
 
@@ -358,7 +444,7 @@ private struct ContactCard: View {
     let emergencyContactSummary: String
 
     var body: some View {
-        CardShell(title: "Contacto", systemImage: "person.crop.circle.badge.checkmark") {
+        CardContainer(title: "Contacto", systemImage: "person.crop.circle.badge.checkmark") {
             VStack(spacing: 12) {
                 if !patient.email.isEmpty {
                     DataRowView(icon: "envelope", title: "Email", value: patient.email)
@@ -381,14 +467,22 @@ private struct ContactCard: View {
 }
 
 private struct DiagnosesCard: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
+
     let patient: Patient
     let diagnoses: [Diagnosis]
     let activeDiagnosesAsDTO: [ICD11SearchResult]
     let onAddDiagnosis: (ICD11SearchResult) -> Void
     let onRemoveDiagnosis: (Diagnosis) -> Void
 
+    // Diagnósticos vigentes arrancan expandidos por ser la sección más consultada
+    @State private var isExpanded: Bool = true
+    @State private var chapterByURI: [String: String] = [:]
+
     var body: some View {
-        CardShell(title: "Diagnósticos Vigentes", systemImage: "stethoscope") {
+        CardContainer(style: .flat) {
+            DisclosureGroup(isExpanded: $isExpanded) {
             VStack(spacing: 10) {
                 if diagnoses.isEmpty {
                     Text("Sin diagnósticos vigentes")
@@ -397,32 +491,57 @@ private struct DiagnosesCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     ForEach(diagnoses) { diagnosis in
-                        HStack(alignment: .top, spacing: 10) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(diagnosisTitle(for: diagnosis))
-                                    .font(.body)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                        let chapter = chapterCode(for: diagnosis)
+                        let accent = chapterColor(for: chapter)
 
-                                if !diagnosis.icdCode.isEmpty {
-                                    Text(diagnosis.icdCode)
+                        HStack(alignment: .top, spacing: 12) {
+                            Rectangle()
+                                .fill(accent.opacity(0.85))
+                                .frame(width: 4)
+                                .clipShape(Capsule())
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text(diagnosisTitle(for: diagnosis))
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(titleColor(for: chapter))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Button(role: .destructive) {
+                                        onRemoveDiagnosis(diagnosis)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+
+                                HStack(spacing: 8) {
+                                    diagnosisMetaPill(
+                                        text: diagnosisTypeLabel(for: diagnosis),
+                                        icon: "stethoscope"
+                                    )
+
+                                    diagnosisMetaPill(
+                                        text: diagnosis.diagnosedAt.esShortDateAbbrev(),
+                                        icon: "calendar"
+                                    )
+                                }
+
+                                if !diagnosis.clinicalNotes.trimmed.isEmpty {
+                                    Text(diagnosis.clinicalNotes)
                                         .font(.footnote)
                                         .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(.regularMaterial, in: Capsule())
+                                        .lineLimit(2)
                                 }
                             }
-
-                            Button(role: .destructive) {
-                                onRemoveDiagnosis(diagnosis)
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                            }
-                            .buttonStyle(.plain)
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(accent.opacity(0.16), lineWidth: 1)
+                        )
                     }
                 }
 
@@ -440,11 +559,87 @@ private struct DiagnosesCard: View {
                         .padding(.top, 2)
                 }
             }
+            .padding(.top, AppSpacing.sm)
+        } label: {
+            Label("Diagnósticos Vigentes", systemImage: "stethoscope")
+                .font(.headline)
+                .foregroundStyle(.primary)
+        }
+        }
+        .task(id: diagnosesChapterCacheKey) {
+            refreshChapterCache()
         }
     }
 
     private func diagnosisTitle(for diagnosis: Diagnosis) -> String {
         diagnosis.displayTitle
+    }
+
+    @ViewBuilder
+    private func diagnosisMetaPill(text: String, icon: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.regularMaterial, in: Capsule())
+    }
+
+    private func diagnosisTypeLabel(for diagnosis: Diagnosis) -> String {
+        switch diagnosis.diagnosisType.lowercased() {
+        case "principal":
+            return "Principal"
+        case "secundario":
+            return "Secundario"
+        case "diferencial":
+            return "Diferencial"
+        default:
+            return diagnosis.diagnosisType.capitalized
+        }
+    }
+
+    private var diagnosesChapterCacheKey: String {
+        diagnoses
+            .map(\.icdURI)
+            .filter { !$0.isEmpty }
+            .sorted()
+            .joined(separator: "|")
+    }
+
+    private func refreshChapterCache() {
+        let uris = Set(diagnoses.map(\.icdURI).filter { !$0.isEmpty })
+        guard !uris.isEmpty else {
+            chapterByURI = [:]
+            return
+        }
+
+        let predicate = #Predicate<ICD11Entry> { entry in
+            uris.contains(entry.uri)
+        }
+        let descriptor = FetchDescriptor<ICD11Entry>(predicate: predicate)
+        let entries = (try? modelContext.fetch(descriptor)) ?? []
+        chapterByURI = Dictionary(uniqueKeysWithValues: entries.map { ($0.uri, $0.chapterCode) })
+    }
+
+    private func chapterCode(for diagnosis: Diagnosis) -> String? {
+        let chapter = chapterByURI[diagnosis.icdURI] ?? ""
+        return chapter.isEmpty ? nil : chapter
+    }
+
+    private func chapterColor(for chapter: String?) -> Color {
+        guard let chapter, !chapter.isEmpty else { return .blue }
+
+        let palette: [Color] = [.blue, .teal, .green, .mint, .indigo, .cyan, .orange, .pink]
+        let hash = chapter.unicodeScalars.reduce(into: 0) { partialResult, scalar in
+            partialResult += Int(scalar.value)
+        }
+        return palette[hash % palette.count]
+    }
+
+    private func titleColor(for chapter: String?) -> Color {
+        guard let chapter, !chapter.isEmpty else { return .primary }
+        let base = chapterColor(for: chapter)
+        return base.opacity(colorScheme == .dark ? 0.95 : 0.9)
     }
 }
 
@@ -453,51 +648,24 @@ private struct MedicalHistoryCard: View {
     let professional: Professional
 
     var body: some View {
-        CardShell(title: "Historia Clínica", systemImage: "heart.text.clipboard") {
-            NavigationLink {
-                PatientMedicalHistoryView(patient: patient, professional: professional)
-            } label: {
+        NavigationLink {
+            PatientMedicalHistoryView(patient: patient, professional: professional)
+        } label: {
+            CardContainer(style: .flat) {
                 HStack(spacing: 12) {
-                    Image(systemName: "list.clipboard")
-                        .symbolRenderingMode(.hierarchical)
+                    Label("Historia Clínica", systemImage: "heart.text.clipboard")
+                        .font(.headline)
                         .foregroundStyle(.tint)
-                        .frame(width: 24)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Ver Historia Clínica")
-                            .font(.body)
-                        Text(summary)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
 
                     Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.primary)
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .buttonStyle(.plain)
         }
-    }
-
-    private var summary: String {
-        var parts: [String] = []
-
-        if !patient.medicalRecordNumber.isEmpty {
-            parts.append(patient.medicalRecordNumber)
-        }
-
-        if let bmi = patient.bmi {
-            parts.append("IMC \(String(format: "%.1f", bmi))")
-        }
-
-        if !patient.currentMedication.isEmpty {
-            parts.append(patient.currentMedication)
-        }
-
-        return parts.isEmpty ? "Sin resumen clínico disponible" : parts.joined(separator: " · ")
+        .buttonStyle(.plain)
     }
 }
 
@@ -511,8 +679,26 @@ private struct SessionsCard: View {
     }
 
     var body: some View {
-        CardShell(title: "Sesiones", systemImage: "clock.arrow.circlepath") {
+        CardContainer(style: .flat) {
             VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    Label("Sesiones", systemImage: "clock.arrow.circlepath")
+                        .font(.title3.bold())
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        onCreateSession()
+                    } label: {
+                        Label("Nueva Sesión", systemImage: "plus")
+                            .labelStyle(.iconOnly)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .accessibilityLabel("Nueva Sesión")
+                }
+
                 if sortedSessions.isEmpty {
                     Text("Sin sesiones. Creá la primera sesión para este paciente.")
                         .font(.footnote)
@@ -532,15 +718,6 @@ private struct SessionsCard: View {
                         .buttonStyle(.plain)
                     }
                 }
-
-                Button {
-                    onCreateSession()
-                } label: {
-                    Label("Nueva Sesión", systemImage: "plus.circle")
-                        .font(.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 2)
-                }
             }
         }
     }
@@ -550,18 +727,25 @@ private struct AuditInfoCard: View {
     let patient: Patient
 
     var body: some View {
-        CardShell(title: "Información", systemImage: "info.circle") {
-            VStack(spacing: 12) {
+        CardContainer(style: .flat) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Información", systemImage: "info.circle")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                VStack(spacing: 8) {
                 DataRowView(
                     icon: "calendar.badge.clock",
                     title: "Creado",
-                    value: patient.createdAt.esShortDate()
+                    value: patient.createdAt.esShortDate(),
+                    compact: true
                 )
 
                 DataRowView(
                     icon: "pencil.and.outline",
                     title: "Modificado",
-                    value: patient.updatedAt.esShortDateTime()
+                    value: patient.updatedAt.esShortDateTime(),
+                    compact: true
                 )
 
                 if !patient.isActive, let deletedAt = patient.deletedAt {
@@ -569,8 +753,10 @@ private struct AuditInfoCard: View {
                         icon: "person.crop.circle.badge.xmark",
                         title: "Fecha de baja",
                         value: deletedAt.esShortDateTime(),
-                        valueStyle: .red
+                        valueStyle: .red,
+                        compact: true
                     )
+                }
                 }
             }
         }
@@ -583,7 +769,7 @@ private struct PatientActionsCard: View {
     let onRestore: () -> Void
 
     var body: some View {
-        CardShell(title: "Acciones", systemImage: "slider.horizontal.3") {
+        CardContainer(title: "Acciones", systemImage: "slider.horizontal.3") {
             Group {
                 if isActive {
                     Button(role: .destructive) {
@@ -614,20 +800,22 @@ private struct DataRowView: View {
     let title: String
     let value: String
     var valueStyle: Color = .primary
+    var compact: Bool = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: compact ? 8 : 12) {
             Image(systemName: icon)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.secondary)
-                .frame(width: 24)
+                .font(compact ? .caption : .body)
+                .frame(width: compact ? 18 : 24)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: compact ? 1 : 2) {
                 Text(title)
-                    .font(.footnote)
+                    .font(compact ? .caption2 : .footnote)
                     .foregroundStyle(.secondary)
                 Text(value)
-                    .font(.body)
+                    .font(compact ? .footnote : .body)
                     .foregroundStyle(valueStyle)
             }
 
@@ -636,56 +824,6 @@ private struct DataRowView: View {
     }
 }
 
-private struct CardShell<Content: View>: View {
-
-    enum Hierarchy {
-        case primary
-        case secondary
-    }
-
-    var title: String? = nil
-    var systemImage: String? = nil
-    var hierarchy: Hierarchy = .secondary
-    @ViewBuilder var content: Content
-
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: hierarchy == .primary ? 20 : 18, style: .continuous)
-    }
-
-    var body: some View {
-        GlassEffectContainer {
-            VStack(alignment: .leading, spacing: 12) {
-                if let title {
-                    Label {
-                        Text(title)
-                            .font(.title3.bold())
-                    } icon: {
-                        if let systemImage {
-                            Image(systemName: systemImage)
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                content
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                hierarchy == .primary ? .regularMaterial : .thinMaterial,
-                in: shape
-            )
-        }
-        .glassEffect(hierarchy == .primary ? .regular : .clear, in: shape)
-        .clipShape(shape)
-        .shadow(
-            color: .black.opacity(hierarchy == .primary ? 0.10 : 0.08),
-            radius: hierarchy == .primary ? 10 : 8,
-            y: hierarchy == .primary ? 4 : 2
-        )
-    }
-}
 
 private struct SessionRowView: View {
 
@@ -708,21 +846,24 @@ private struct SessionRowView: View {
                 // filter + map nombra correctamente la operación: se filtra por contenido
                 // vacío, no se desenvuelve ningún opcional.
                 let codes = (session.diagnoses ?? [])
-                    .map(\.icdCode)
+                    .map(\.displayTitle)
                     .filter { !$0.isEmpty }
                 if !codes.isEmpty {
-                    Text(codes.joined(separator: ", "))
+                    let preview = codes.prefix(2).joined(separator: " · ")
+                    let extra = codes.count > 2 ? " +\(codes.count - 2)" : ""
+                    Text("Dx: \(preview)\(extra)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
 
             Spacer(minLength: 0)
 
-            SessionTypeBadge(
+            StatusBadge(
                 label: sessionTypeLabel,
-                systemImage: sessionTypeIcon,
-                tint: sessionTypeTint
+                variant: .custom(sessionTypeTint),
+                systemImage: sessionTypeIcon
             )
         }
         .padding(12)
@@ -747,24 +888,6 @@ private struct SessionRowView: View {
     }
 }
 
-private struct SessionTypeBadge: View {
-    let label: String
-    let systemImage: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: systemImage)
-                .font(.footnote.weight(.semibold))
-            Text(label)
-                .font(.footnote.weight(.semibold))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(.regularMaterial, in: Capsule())
-    }
-}
 
 private struct PDFExportShareView: View {
 

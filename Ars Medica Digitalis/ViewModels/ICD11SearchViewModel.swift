@@ -106,7 +106,7 @@ final class ICD11SearchViewModel {
                 id: entry.uri,
                 theCode: entry.code,
                 title: entry.title,
-                chapter: nil,
+                chapter: entry.chapterCode.isEmpty ? nil : entry.chapterCode,
                 score: nil
             )
         }

@@ -25,6 +25,8 @@ struct SessionFormView: View {
     let initialDate: Date?
 
     @Bindable var viewModel: SessionViewModel
+    @State private var conflictingSessions: [Session] = []
+    @State private var showingConflictAlert = false
 
     private var isEditing: Bool { session != nil }
 
@@ -176,6 +178,18 @@ struct SessionFormView: View {
                 .disabled(!viewModel.canSave)
             }
         }
+        .alert(
+            "Conflicto de turno",
+            isPresented: $showingConflictAlert
+        ) {
+            Button("Cancelar", role: .cancel) {}
+            Button("Guardar igual") {
+                persistSession()
+                dismiss()
+            }
+        } message: {
+            Text(conflictAlertMessage)
+        }
         .onAppear {
             if let session {
                 viewModel.load(from: session)
@@ -220,7 +234,10 @@ struct SessionFormView: View {
 
     private var selectedMinuteBinding: Binding<Int> {
         Binding(
-            get: { Calendar.current.component(.minute, from: viewModel.sessionDate) },
+            get: {
+                let minute = Calendar.current.component(.minute, from: viewModel.sessionDate)
+                return (minute / 5) * 5
+            },
             set: { newMinute in
                 let calendar = Calendar.current
                 var comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: viewModel.sessionDate)
@@ -234,12 +251,56 @@ struct SessionFormView: View {
     // MARK: - Acciones
 
     private func save() {
+        let conflicts = conflictingSessionsForSelectedDate()
+        if !conflicts.isEmpty {
+            conflictingSessions = conflicts
+            showingConflictAlert = true
+            return
+        }
+
+        persistSession()
+        dismiss()
+    }
+
+    private func persistSession() {
         if let session {
             viewModel.update(session, in: modelContext)
         } else {
             viewModel.createSession(for: patient, in: modelContext)
         }
-        dismiss()
+    }
+
+    private func conflictingSessionsForSelectedDate() -> [Session] {
+        // Si la sesión actual queda cancelada, no se valida conflicto de agenda.
+        guard viewModel.status != SessionStatusMapping.cancelada.rawValue else { return [] }
+
+        let descriptor = FetchDescriptor<Session>()
+        let allSessions = (try? modelContext.fetch(descriptor)) ?? []
+        let currentSessionID = session?.id
+
+        return allSessions.filter { existing in
+            if let currentSessionID, existing.id == currentSessionID {
+                return false
+            }
+            guard existing.status != SessionStatusMapping.cancelada.rawValue else {
+                return false
+            }
+            return Calendar.current.isDate(existing.sessionDate, equalTo: viewModel.sessionDate, toGranularity: .minute)
+        }
+    }
+
+    private var conflictAlertMessage: String {
+        let when = viewModel.sessionDate.formatted(date: .abbreviated, time: .shortened)
+        guard let first = conflictingSessions.first else {
+            return "Ya existe otro turno asignado en ese horario."
+        }
+
+        if conflictingSessions.count == 1 {
+            let patientName = first.patient?.fullName ?? "otro paciente"
+            return "Ya existe un turno para \(patientName) en \(when)."
+        }
+
+        return "Ya existen \(conflictingSessions.count) turnos asignados en \(when)."
     }
 }
 

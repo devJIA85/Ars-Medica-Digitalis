@@ -29,12 +29,11 @@ struct CalendarView: View {
         VStack(spacing: 0) {
             calendarSection
 
-            Divider()
-                .padding(.horizontal)
-
             sessionListForSelectedDay
         }
         .navigationTitle("Calendario")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationSubtitle(monthYearText)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -85,12 +84,13 @@ struct CalendarView: View {
             weekdayHeader
             calendarGrid
         }
-        .padding(.bottom, isCalendarCollapsed ? 4 : 12)
+        .padding(.bottom, isCalendarCollapsed ? 8 : 20)
         .animation(.easeInOut(duration: 0.22), value: isCalendarCollapsed)
     }
 
     // MARK: - Cabecera de navegación de mes
 
+    // El mes se muestra en el navigationSubtitle; aquí solo los botones de navegación.
     private var monthNavigationHeader: some View {
         HStack {
             Button {
@@ -103,13 +103,6 @@ struct CalendarView: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
-
-            Spacer()
-
-            Text(monthYearText)
-                .font(.title3)
-                .fontWeight(.bold)
-                .contentTransition(.numericText())
 
             Spacer()
 
@@ -188,75 +181,84 @@ struct CalendarView: View {
 
     // MARK: - Lista de sesiones del día seleccionado
 
+    @ViewBuilder
     private var sessionListForSelectedDay: some View {
         let sessions = viewModel.sessionsForSelectedDate
 
-        return Group {
-            if let selectedDate = viewModel.selectedDate {
-                if sessions.isEmpty {
-                    ContentUnavailableView {
-                        Label("Sin sesiones", systemImage: "calendar.badge.exclamationmark")
-                    } description: {
+        if let selectedDate = viewModel.selectedDate {
+            if sessions.isEmpty {
+                ContentUnavailableView {
+                    Label("Sin sesiones", systemImage: "calendar.badge.exclamationmark")
+                } description: {
+                    Text(selectedDate.formatted(
+                        Date.FormatStyle.dateTime.weekday(.wide).day().month(.abbreviated).locale(Locale(identifier: "es_AR"))
+                    ))
+                }
+                .frame(maxHeight: .infinity)
+                .onAppear {
+                    setCalendarCollapsed(false)
+                }
+            } else {
+                List {
+                    Section {
+                        ForEach(sessions) { session in
+                            if let patient = session.patient {
+                                NavigationLink {
+                                    SessionDetailView(
+                                        session: session,
+                                        patient: patient,
+                                        professional: professional
+                                    )
+                                } label: {
+                                    CalendarSessionRow(session: session)
+                                }
+                            } else {
+                                CalendarSessionRow(session: session)
+                            }
+                        }
+                        // Filas flotantes sobre fondo glass de la app
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                    } header: {
                         Text(selectedDate.formatted(
                             Date.FormatStyle.dateTime.weekday(.wide).day().month(.abbreviated).locale(Locale(identifier: "es_AR"))
                         ))
                     }
-                    .frame(maxHeight: .infinity)
-                    .onAppear {
-                        setCalendarCollapsed(false)
-                    }
-                } else {
-                    List {
-                        Section {
-                            ForEach(sessions) { session in
-                                if let patient = session.patient {
-                                    NavigationLink {
-                                        SessionDetailView(
-                                            session: session,
-                                            patient: patient,
-                                            professional: professional
-                                        )
-                                    } label: {
-                                        CalendarSessionRow(session: session)
-                                    }
-                                } else {
-                                    CalendarSessionRow(session: session)
-                                }
-                            }
-                        } header: {
-                            Text(selectedDate.formatted(
-                                Date.FormatStyle.dateTime.weekday(.wide).day().month(.abbreviated).locale(Locale(identifier: "es_AR"))
-                            ))
-                        }
-                    }
-                    .listStyle(.plain)
-                    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .scrollEdgeEffectStyle(.soft, for: .all)
+                .onScrollGeometryChange(
+                    for: CGFloat.self,
+                    of: { geometry in
                         geometry.contentOffset.y + geometry.contentInsets.top
-                    } action: { _, offset in
+                    },
+                    action: { _, offset in
                         sessionListOffset = offset
                         handleSessionListScroll(offset)
                     }
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 10)
-                            .onEnded { value in
-                                // Fallback explícito: swipe hacia arriba colapsa siempre.
-                                if value.translation.height < -18 {
-                                    setCalendarCollapsed(true)
-                                } else if value.translation.height > 18, sessionListOffset <= 0 {
-                                    // Expandir solo en gesto hacia abajo cerca del tope.
-                                    setCalendarCollapsed(false)
-                                }
-                            }
-                    )
-                }
-            } else {
-                ContentUnavailableView(
-                    "Seleccioná un día",
-                    systemImage: "calendar",
-                    description: Text("Tocá un día para ver sus sesiones.")
                 )
-                .frame(maxHeight: .infinity)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 10)
+                        .onEnded { value in
+                            // Fallback explícito: swipe hacia arriba colapsa siempre.
+                            if value.translation.height < -18 {
+                                setCalendarCollapsed(true)
+                            } else if value.translation.height > 18, sessionListOffset <= 0 {
+                                // Expandir solo en gesto hacia abajo cerca del tope.
+                                setCalendarCollapsed(false)
+                            }
+                        }
+                )
             }
+        } else {
+            ContentUnavailableView(
+                "Seleccioná un día",
+                systemImage: "calendar",
+                description: Text("Tocá un día para ver sus sesiones.")
+            )
+            .frame(maxHeight: .infinity)
         }
     }
 
@@ -287,10 +289,18 @@ private struct CalendarDayCell: View {
     var body: some View {
         VStack(spacing: 3) {
             ZStack {
-                // Fondo circular
+                // Fondo circular: el día seleccionado es ligeramente más grande
+                // y proyecta una sombra acent para mayor protagonismo visual.
                 Circle()
                     .fill(backgroundColor)
-                    .frame(width: 36, height: 36)
+                    .frame(
+                        width: isSelected ? 38 : 36,
+                        height: isSelected ? 38 : 36
+                    )
+                    .shadow(
+                        color: isSelected ? .accentColor.opacity(0.35) : .clear,
+                        radius: 5, y: 2
+                    )
 
                 // Anillo de hoy cuando no está seleccionado
                 if isToday && !isSelected {
@@ -339,50 +349,51 @@ private struct CalendarSessionRow: View {
     let session: Session
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Hora a la izquierda
-            Text(session.sessionDate.esShortTime())
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .monospacedDigit()
-                .frame(width: 52, alignment: .leading)
-
-            // Barra lateral de color según status
-            RoundedRectangle(cornerRadius: 2)
-                .fill(statusColor)
-                .frame(width: 3, height: 36)
-
-            // Contenido principal
-            VStack(alignment: .leading, spacing: 2) {
-                Text(session.patient?.fullName ?? "Sin paciente")
+        CardContainer(style: .flat) {
+            HStack(spacing: 12) {
+                // Hora a la izquierda
+                Text(session.sessionDate.esShortTime())
                     .font(.subheadline)
-                    .fontWeight(.medium)
+                    .fontWeight(.semibold)
+                    .monospacedDigit()
+                    .frame(width: 52, alignment: .leading)
 
-                HStack(spacing: 6) {
-                    Label(modalityLabel, systemImage: modalityIcon)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                // Barra lateral de color según status
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(statusColor)
+                    .frame(width: 3, height: 36)
 
-                    if !session.chiefComplaint.isEmpty {
-                        Text("·")
-                            .foregroundStyle(.secondary)
+                // Contenido principal
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.patient?.fullName ?? "Sin paciente")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
 
-                        Text(session.chiefComplaint)
+                    HStack(spacing: 6) {
+                        Label(modalityLabel, systemImage: modalityIcon)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+
+                        if !session.chiefComplaint.isEmpty {
+                            Text("·")
+                                .foregroundStyle(.secondary)
+
+                            Text(session.chiefComplaint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
                 }
+
+                Spacer()
+
+                // Ícono de status a la derecha
+                Image(systemName: statusIcon)
+                    .font(.caption)
+                    .foregroundStyle(statusColor)
             }
-
-            Spacer()
-
-            // Ícono de status a la derecha
-            Image(systemName: statusIcon)
-                .font(.caption)
-                .foregroundStyle(statusColor)
         }
-        .padding(.vertical, 4)
     }
 
     private var statusColor: Color {

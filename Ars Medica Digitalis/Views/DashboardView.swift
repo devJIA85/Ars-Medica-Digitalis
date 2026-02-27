@@ -23,7 +23,7 @@ struct DashboardView: View {
         self.professional = professional
         let id = professional.id
         _patients = Query(
-            filter: #Predicate<Patient> { $0.professional?.id == id && $0.deletedAt == nil }
+            filter: #Predicate<Patient> { $0.professional?.id == id }
         )
     }
 
@@ -38,10 +38,17 @@ struct DashboardView: View {
                 )
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 20) {
+                    LazyVStack(spacing: 16) {
 
                         // MARK: - KPI Cards
                         kpiSection
+
+                        // MARK: - Actividad de Pacientes (Activos + Altas + Bajas)
+                        if !viewModel.patientActivity.isEmpty {
+                            chartSection("Actividad de Pacientes", systemImage: "person.3.sequence") {
+                                patientActivityChart
+                            }
+                        }
 
                         // MARK: - Distribución por Género
                         if !viewModel.genderDistribution.isEmpty {
@@ -101,9 +108,12 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
+                    .backgroundExtensionEffect()
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .navigationTitle("Dashboard")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: refreshToken) {
@@ -114,39 +124,48 @@ struct DashboardView: View {
     // MARK: - KPI Cards
 
     private var kpiSection: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12)
-        ], spacing: 12) {
-            KPICard(
-                title: "Pacientes",
-                value: "\(viewModel.totalPatients)",
-                systemImage: "person.2",
-                color: .blue
-            )
-            KPICard(
-                title: "Sesiones del Mes",
-                value: "\(viewModel.sessionsThisMonth)",
-                systemImage: "calendar",
-                color: .green
-            )
-            KPICard(
-                title: "Duración Promedio",
-                value: "\(Int(viewModel.averageDurationMinutes)) min",
-                systemImage: "clock",
-                color: .orange
-            )
-            KPICard(
-                title: "Tasa Completado",
-                value: String(format: "%.0f%%", viewModel.completionRate),
-                systemImage: "checkmark.circle",
-                color: .purple
-            )
+        CardContainer(style: .flat) {
+            SectionContainer(title: "Resumen de la práctica", systemImage: "heart.text.square") {
+                VStack(spacing: 0) {
+                    HealthMetricRow(
+                        title: "Pacientes activos",
+                        value: "\(viewModel.totalPatients)",
+                        systemImage: "person.2.fill",
+                        color: .blue
+                    )
+                    Divider()
+                    HealthMetricRow(
+                        title: "Sesiones del mes",
+                        value: "\(viewModel.sessionsThisMonth)",
+                        systemImage: "calendar",
+                        color: .green
+                    )
+                    Divider()
+                    HealthMetricRow(
+                        title: "Duración promedio",
+                        value: "\(Int(viewModel.averageDurationMinutes)) min",
+                        systemImage: "clock.fill",
+                        color: .orange
+                    )
+                    Divider()
+                    HealthMetricRow(
+                        title: "Tasa completado",
+                        value: String(format: "%.0f%%", viewModel.completionRate),
+                        systemImage: "checkmark.circle.fill",
+                        color: .purple
+                    )
+                }
+                .padding(.top, 2)
+            }
         }
     }
 
     private var refreshToken: String {
         let patientCount = patients.count
+        let deletedPatients = patients.filter { $0.deletedAt != nil }.count
+        let latestPatientUpdate = patients
+            .map(\.updatedAt.timeIntervalSince1970)
+            .max() ?? 0
         let latestSessionUpdate = patients
             .flatMap { $0.sessions ?? [] }
             .map(\.updatedAt.timeIntervalSince1970)
@@ -155,7 +174,7 @@ struct DashboardView: View {
             .flatMap { $0.activeDiagnoses ?? [] }
             .count
 
-        return "\(patientCount)-\(latestSessionUpdate)-\(activeDiagnosisCount)"
+        return "\(patientCount)-\(deletedPatients)-\(latestPatientUpdate)-\(latestSessionUpdate)-\(activeDiagnosisCount)"
     }
 
     // MARK: - Género (Donut)
@@ -372,6 +391,142 @@ struct DashboardView: View {
         .frame(height: 180)
     }
 
+    // MARK: - Actividad de Pacientes (barras + línea)
+
+    private var patientActivityChart: some View {
+        VStack(spacing: 12) {
+            Picker("Período", selection: $viewModel.patientActivityPeriod) {
+                ForEach(PatientActivityPeriod.allCases, id: \.self) { period in
+                    Text(patientActivityPickerLabel(period)).tag(period)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Chart {
+                ForEach(viewModel.patientActivity) { point in
+                    BarMark(
+                        x: .value("Período", point.bucketStart, unit: patientActivityCalendarUnit),
+                        y: .value("Altas", point.admissions),
+                        width: .ratio(0.45)
+                    )
+                    .position(by: .value("Tipo", "Altas"))
+                    .foregroundStyle(Color.green.gradient)
+                    .annotation(position: .top) {
+                        if point.admissions > 0 {
+                            Text("\(point.admissions)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    BarMark(
+                        x: .value("Período", point.bucketStart, unit: patientActivityCalendarUnit),
+                        y: .value("Bajas", point.discharges),
+                        width: .ratio(0.45)
+                    )
+                    .position(by: .value("Tipo", "Bajas"))
+                    .foregroundStyle(Color.red.opacity(0.75))
+                    .annotation(position: .top) {
+                        if point.discharges > 0 {
+                            Text("\(point.discharges)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    LineMark(
+                        x: .value("Período", point.bucketStart, unit: patientActivityCalendarUnit),
+                        y: .value("Activos", point.activePatients)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(.blue)
+
+                    PointMark(
+                        x: .value("Período", point.bucketStart, unit: patientActivityCalendarUnit),
+                        y: .value("Activos", point.activePatients)
+                    )
+                    .foregroundStyle(.blue)
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: patientActivityDesiredTicks)) { value in
+                    AxisGridLine()
+                    AxisTick()
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(patientActivityAxisLabel(for: date))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading)
+            }
+            .frame(height: 220)
+
+            HStack(spacing: 16) {
+                chartMiniLegendItem("Activos", color: .blue)
+                chartMiniLegendItem("Altas", color: .green)
+                chartMiniLegendItem("Bajas", color: .red)
+            }
+        }
+    }
+
+    private var patientActivityCalendarUnit: Calendar.Component {
+        switch viewModel.patientActivityPeriod {
+        case .day: return .day
+        case .week: return .weekOfYear
+        case .month: return .month
+        case .year: return .year
+        }
+    }
+
+    private var patientActivityDesiredTicks: Int {
+        switch viewModel.patientActivityPeriod {
+        case .day: return 7
+        case .week: return 8
+        case .month: return 6
+        case .year: return 6
+        }
+    }
+
+    private func patientActivityPickerLabel(_ period: PatientActivityPeriod) -> String {
+        switch period {
+        case .day: return "Día"
+        case .week: return "Sem"
+        case .month: return "Mes"
+        case .year: return "Año"
+        }
+    }
+
+    private func patientActivityAxisLabel(for date: Date) -> String {
+        let locale = Locale(identifier: "es_AR")
+        switch viewModel.patientActivityPeriod {
+        case .day:
+            return date.formatted(
+                Date.FormatStyle()
+                    .day(.twoDigits)
+                    .month(.abbreviated)
+                    .locale(locale)
+            )
+        case .week:
+            let week = Calendar.current.component(.weekOfYear, from: date)
+            return "S\(week)"
+        case .month:
+            return date.formatted(
+                Date.FormatStyle()
+                    .month(.abbreviated)
+                    .locale(locale)
+            )
+        case .year:
+            return date.formatted(
+                Date.FormatStyle()
+                    .year(.defaultDigits)
+                    .locale(locale)
+            )
+        }
+    }
+
     // MARK: - Componentes reutilizables
 
     /// Wrapper para cada sección de gráfico con fondo material y header
@@ -380,14 +535,11 @@ struct DashboardView: View {
         systemImage: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-
-            content()
+        CardContainer(style: .flat) {
+            SectionContainer(title: title, systemImage: systemImage) {
+                content()
+            }
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// Leyenda horizontal para donut charts
@@ -406,38 +558,49 @@ struct DashboardView: View {
             }
         }
     }
+
+    private func chartMiniLegendItem(_ label: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
 }
 
-// MARK: - KPI Card
-
-/// Tarjeta compacta para mostrar un KPI principal del dashboard
-private struct KPICard: View {
-
+private struct HealthMetricRow: View {
     let title: String
     let value: String
     let systemImage: String
     let color: Color
 
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.title2)
-                .foregroundStyle(color)
-
-            Text(value)
-                .font(.title.bold())
-                .foregroundStyle(.primary)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.12))
+                    .frame(width: 30, height: 30)
+                Image(systemName: systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color)
+            }
 
             Text(title)
-                .font(.caption)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            Spacer(minLength: 0)
+
+            Text(value)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .minimumScaleFactor(0.8)
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 8)
     }
 }
 
@@ -453,4 +616,3 @@ private struct KPICard: View {
         )
     }
 }
-

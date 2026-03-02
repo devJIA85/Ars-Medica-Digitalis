@@ -18,6 +18,9 @@ struct SessionDetailView: View {
 
     @State private var showingEdit: Bool = false
     @State private var showingStatusPicker: Bool = false
+    @State private var showAllDiagnoses = false
+
+    private static let diagnosisVisibleLimit = 3
 
     var body: some View {
         List {
@@ -51,11 +54,16 @@ struct SessionDetailView: View {
 
             // MARK: - Diagnósticos CIE-11
             if let diagnoses = session.diagnoses, !diagnoses.isEmpty {
-                Section("Diagnósticos CIE-11") {
-                    ForEach(diagnoses) { diagnosis in
+                Section {
+                    let visible = showAllDiagnoses
+                        ? diagnoses
+                        : Array(diagnoses.prefix(Self.diagnosisVisibleLimit))
+
+                    ForEach(visible) { diagnosis in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(diagnosis.displayTitle)
-                            .font(.body)
+                                .font(.body)
+                                .lineLimit(2)
 
                             HStack(spacing: 8) {
                                 if !diagnosis.icdCode.isEmpty {
@@ -79,6 +87,34 @@ struct SessionDetailView: View {
                             }
                         }
                         .padding(.vertical, 2)
+                    }
+
+                    let hiddenCount = diagnoses.count - Self.diagnosisVisibleLimit
+                    if hiddenCount > 0 {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showAllDiagnoses.toggle()
+                            }
+                        } label: {
+                            Label(
+                                showAllDiagnoses
+                                    ? "Mostrar menos"
+                                    : "Ver \(hiddenCount) diagnóstico\(hiddenCount == 1 ? "" : "s") más",
+                                systemImage: showAllDiagnoses ? "chevron.up" : "chevron.down"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(.tint)
+                        }
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Text("Diagnósticos CIE-11")
+                        Text("\(diagnoses.count)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor, in: Capsule())
                     }
                 }
             }
@@ -113,11 +149,18 @@ struct SessionDetailView: View {
             }
         }
         .navigationTitle("Sesión")
+        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Editar") {
+                Button {
                     showingEdit = true
+                } label: {
+                    Image(systemName: "square.and.pencil")
                 }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Editar sesión")
             }
         }
         .sheet(isPresented: $showingEdit) {

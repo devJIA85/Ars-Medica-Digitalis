@@ -78,6 +78,9 @@ struct PatientMedicalHistoryView: View {
 
             // MARK: - Antropometría
             Section("Antropometría") {
+                let records = patient.anthropometricRecords ?? []
+                let latestMeasurementDate = records.map(\.recordDate).max()
+
                 if patient.weightKg > 0 {
                     LabeledContent("Peso", value: "\(String(format: "%.1f", patient.weightKg)) kg")
                 }
@@ -90,11 +93,13 @@ struct PatientMedicalHistoryView: View {
 
                 // Gauge visual del IMC — reemplaza el badge de texto
                 if let bmi = patient.bmi {
-                    BMIGaugeView(bmiValue: bmi)
+                    BMIGaugeView(
+                        bmiValue: bmi,
+                        lastMeasurementDate: latestMeasurementDate
+                    )
                 }
 
                 // Tendencia temporal: solo si hay 2+ registros históricos
-                let records = patient.anthropometricRecords ?? []
                 if records.count >= 2 {
                     WeightTrendChartView(records: records)
                 } else if records.count == 1 {
@@ -170,15 +175,21 @@ struct PatientMedicalHistoryView: View {
                     Text("Sin tratamientos previos registrados")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(treatments.sorted(by: { $0.createdAt > $1.createdAt })) { treatment in
+                    let sortedTreatments = treatments.sorted(by: { $0.createdAt > $1.createdAt })
+                    ForEach(Array(sortedTreatments.enumerated()), id: \.element.id) { index, treatment in
                         NavigationLink {
                             PriorTreatmentFormView(patient: patient, treatment: treatment)
                         } label: {
-                            PriorTreatmentRow(treatment: treatment)
+                            PriorTreatmentRow(
+                                treatment: treatment,
+                                isFirst: index == 0,
+                                isLast: index == sortedTreatments.count - 1
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete { indexSet in
-                        deleteTreatments(at: indexSet, from: treatments.sorted(by: { $0.createdAt > $1.createdAt }))
+                        deleteTreatments(at: indexSet, from: sortedTreatments)
                     }
                 }
 
@@ -197,15 +208,21 @@ struct PatientMedicalHistoryView: View {
                     Text("Sin internaciones previas registradas")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(hospitalizations.sorted(by: { $0.admissionDate > $1.admissionDate })) { hosp in
+                    let sortedHospitalizations = hospitalizations.sorted(by: { $0.admissionDate > $1.admissionDate })
+                    ForEach(Array(sortedHospitalizations.enumerated()), id: \.element.id) { index, hosp in
                         NavigationLink {
                             HospitalizationFormView(patient: patient, hospitalization: hosp)
                         } label: {
-                            HospitalizationRow(hospitalization: hosp)
+                            HospitalizationRow(
+                                hospitalization: hosp,
+                                isFirst: index == 0,
+                                isLast: index == sortedHospitalizations.count - 1
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete { indexSet in
-                        deleteHospitalizations(at: indexSet, from: hospitalizations.sorted(by: { $0.admissionDate > $1.admissionDate }))
+                        deleteHospitalizations(at: indexSet, from: sortedHospitalizations)
                     }
                 }
 
@@ -218,11 +235,17 @@ struct PatientMedicalHistoryView: View {
             }
         }
         .navigationTitle("Historia Clínica")
+        .scrollContentBackground(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Editar") {
+                Button {
                     showingEditForm = true
+                } label: {
+                    Image(systemName: "square.and.pencil")
                 }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Editar historia clínica")
             }
         }
         .sheet(isPresented: $showingEditForm) {
@@ -317,28 +340,45 @@ struct PatientMedicalHistoryView: View {
 
 private struct PriorTreatmentRow: View {
     let treatment: PriorTreatment
+    let isFirst: Bool
+    let isLast: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(treatmentTypeLabel)
-                .font(.body)
-                .fontWeight(.medium)
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            TimelineIndicator(isFirst: isFirst, isLast: isLast)
 
-            HStack(spacing: 8) {
-                if !treatment.durationDescription.isEmpty {
-                    Text(treatment.durationDescription)
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text(treatment.createdAt.esShortDateAbbrev())
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+
+                Text(treatmentTypeLabel)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: AppSpacing.sm) {
+                    if !treatment.durationDescription.trimmed.isEmpty {
+                        Text(treatment.durationDescription)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    treatmentBadge
+                }
+
+                if !treatment.observations.trimmed.isEmpty {
+                    Text(treatment.observations)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-                if !treatment.outcome.isEmpty {
-                    Text(outcomeLabel)
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
+                        .lineLimit(2)
                 }
             }
         }
+        .padding(.vertical, AppSpacing.xs)
     }
 
     private var treatmentTypeLabel: String {
@@ -356,7 +396,26 @@ private struct PriorTreatmentRow: View {
         case "abandono": "Abandono"
         case "derivación": "Derivación"
         case "en curso": "En curso"
-        default: treatment.outcome.capitalized
+        default: treatment.outcome.trimmed.isEmpty ? "Registrado" : treatment.outcome.capitalized
+        }
+    }
+
+    private var treatmentBadge: some View {
+        Text(outcomeLabel)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(outcomeTint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(outcomeTint.opacity(0.14), in: Capsule())
+    }
+
+    private var outcomeTint: Color {
+        switch treatment.outcome {
+        case "alta": .green
+        case "abandono": .orange
+        case "derivación": .blue
+        case "en curso": .indigo
+        default: .secondary
         }
     }
 }
@@ -365,26 +424,72 @@ private struct PriorTreatmentRow: View {
 
 private struct HospitalizationRow: View {
     let hospitalization: Hospitalization
+    let isFirst: Bool
+    let isLast: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(hospitalization.admissionDate.formatted(date: .abbreviated, time: .omitted))
-                .font(.body)
-                .fontWeight(.medium)
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            TimelineIndicator(isFirst: isFirst, isLast: isLast)
 
-            HStack(spacing: 8) {
-                if !hospitalization.durationDescription.isEmpty {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text(hospitalization.admissionDate.esShortDateAbbrev())
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+
+                HStack(spacing: AppSpacing.sm) {
+                    Text("Internación")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 0)
+
+                    Text("Previa")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.quaternary.opacity(0.7), in: Capsule())
+                }
+
+                if !hospitalization.durationDescription.trimmed.isEmpty {
                     Text(hospitalization.durationDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if !hospitalization.observations.isEmpty {
+                if !hospitalization.observations.trimmed.isEmpty {
                     Text(hospitalization.observations)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
             }
         }
+        .padding(.vertical, AppSpacing.xs)
+    }
+}
+
+private struct TimelineIndicator: View {
+    let isFirst: Bool
+    let isLast: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(.quaternary)
+                .frame(width: 2, height: isFirst ? 0 : 10)
+                .opacity(isFirst ? 0 : 1)
+
+            Circle()
+                .fill(.secondary.opacity(0.7))
+                .frame(width: 8, height: 8)
+
+            Rectangle()
+                .fill(.quaternary)
+                .frame(width: 2)
+                .frame(minHeight: isLast ? 0 : 24, maxHeight: .infinity)
+                .opacity(isLast ? 0 : 1)
+        }
+        .frame(width: 12)
     }
 }

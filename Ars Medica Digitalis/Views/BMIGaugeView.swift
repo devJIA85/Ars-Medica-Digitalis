@@ -2,117 +2,227 @@
 //  BMIGaugeView.swift
 //  Ars Medica Digitalis
 //
-//  Gauge visual del IMC usando Swift Charts.
-//  Muestra el valor del paciente posicionado dentro
-//  de los rangos de clasificación de la OMS:
-//  bajo peso (<18.5), normal (18.5–25), sobrepeso (25–30), obesidad (≥30).
+//  Visualización de IMC con jerarquía fuerte y barra refinada.
 //
 
 import SwiftUI
-import Charts
 
 struct BMIGaugeView: View {
 
+    private struct BMISegment: Identifiable {
+        let id: String
+        let start: Double
+        let end: Double
+        let color: Color
+    }
+
     let bmiValue: Double
+    var lastMeasurementDate: Date? = nil
+
+    private let minVisibleBMI: Double = 10
+    private let maxVisibleBMI: Double = 45
+    private let thresholds: [Double] = [18.5, 25, 30]
+
+    private var segments: [BMISegment] {
+        [
+            BMISegment(
+                id: "underweight",
+                start: 10,
+                end: 18.5,
+                color: .orange.opacity(0.24)
+            ),
+            BMISegment(
+                id: "normal",
+                start: 18.5,
+                end: 25,
+                color: .mint.opacity(0.24)
+            ),
+            BMISegment(
+                id: "overweight",
+                start: 25,
+                end: 30,
+                color: .yellow.opacity(0.22)
+            ),
+            BMISegment(
+                id: "obesity",
+                start: 30,
+                end: 45,
+                color: .red.opacity(0.20)
+            )
+        ]
+    }
 
     var body: some View {
-        VStack(spacing: 8) {
-            // Valor prominente con categoría
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(String(format: "%.1f", bmiValue))
-                    .font(.title2.bold())
-                    .foregroundStyle(bmiColor)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            header
+            refinedBar
+            thresholdScale
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, AppSpacing.sm)
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                .stroke(.white.opacity(0.18), lineWidth: 0.8)
+        )
+    }
 
-                Text(bmiCategory)
-                    .font(.caption)
-                    .foregroundStyle(bmiColor)
-            }
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Text("IMC")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-            // Barra horizontal segmentada con indicador del valor actual.
-            // Cada segmento corresponde a un rango OMS con color semántico.
-            Chart {
-                // Bajo peso: 10–18.5
-                BarMark(
-                    xStart: .value("Inicio", 10),
-                    xEnd: .value("Fin", 18.5),
-                    y: .value("IMC", "IMC")
-                )
-                .foregroundStyle(.orange.opacity(0.3))
+                HStack(alignment: .firstTextBaseline, spacing: AppSpacing.sm) {
+                    Text(String(format: "%.1f", bmiValue))
+                        .font(.system(size: 40, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
 
-                // Normal: 18.5–25
-                BarMark(
-                    xStart: .value("Inicio", 18.5),
-                    xEnd: .value("Fin", 25),
-                    y: .value("IMC", "IMC")
-                )
-                .foregroundStyle(.green.opacity(0.3))
-
-                // Sobrepeso: 25–30
-                BarMark(
-                    xStart: .value("Inicio", 25),
-                    xEnd: .value("Fin", 30),
-                    y: .value("IMC", "IMC")
-                )
-                .foregroundStyle(.orange.opacity(0.3))
-
-                // Obesidad: 30–45
-                BarMark(
-                    xStart: .value("Inicio", 30),
-                    xEnd: .value("Fin", 45),
-                    y: .value("IMC", "IMC")
-                )
-                .foregroundStyle(.red.opacity(0.3))
-
-                // Indicador del valor actual del paciente
-                RuleMark(x: .value("IMC Actual", clampedBMI))
-                    .lineStyle(StrokeStyle(lineWidth: 3))
-                    .foregroundStyle(bmiColor)
-                    .annotation(position: .top) {
-                        Image(systemName: "arrowtriangle.down.fill")
-                            .font(.caption2)
-                            .foregroundStyle(bmiColor)
-                    }
-            }
-            .chartXScale(domain: 10...45)
-            .chartYAxis(.hidden)
-            .chartXAxis {
-                AxisMarks(values: [18.5, 25, 30]) { _ in
-                    AxisValueLabel()
-                    AxisGridLine()
+                    Text(bmiCategory)
+                        .font(.headline)
+                        .foregroundStyle(markerColor)
                 }
             }
-            .frame(height: 40)
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Última medición")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                Text(lastMeasurementLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.vertical, 4)
     }
 
-    // MARK: - Helpers
+    private var refinedBar: some View {
+        GeometryReader { proxy in
+            let totalWidth = max(proxy.size.width, 1)
+            let markerX = markerPosition(totalWidth: totalWidth)
 
-    /// Clampea el IMC al rango visible del gráfico
-    /// para que el indicador no se salga del área de dibujo
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    ForEach(segments) { segment in
+                        Rectangle()
+                            .fill(segment.color)
+                            .frame(
+                                width: segmentWidth(segment, totalWidth: totalWidth),
+                                height: 12
+                            )
+                    }
+                }
+                .clipShape(Capsule())
+
+                ForEach(thresholds, id: \.self) { threshold in
+                    Rectangle()
+                        .fill(.white.opacity(0.35))
+                        .frame(width: 1, height: 12)
+                        .offset(x: thresholdOffset(threshold, totalWidth: totalWidth))
+                }
+
+                Circle()
+                    .fill(.background)
+                    .overlay(
+                        Circle()
+                            .stroke(markerColor, lineWidth: 2)
+                    )
+                    .frame(width: 14, height: 14)
+                    .offset(
+                        x: clamped(
+                            markerX - 7,
+                            lower: 0,
+                            upper: max(totalWidth - 14, 0)
+                        )
+                    )
+                    .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+            }
+        }
+        .frame(height: 14)
+    }
+
+    private var thresholdScale: some View {
+        GeometryReader { proxy in
+            let totalWidth = max(proxy.size.width, 1)
+
+            ZStack(alignment: .leading) {
+                ForEach(thresholds, id: \.self) { threshold in
+                    Text(String(format: threshold == floor(threshold) ? "%.0f" : "%.1f", threshold))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .position(
+                            x: thresholdOffset(threshold, totalWidth: totalWidth),
+                            y: 8
+                        )
+                }
+            }
+        }
+        .frame(height: 14)
+    }
+
+    private func segmentWidth(_ segment: BMISegment, totalWidth: CGFloat) -> CGFloat {
+        let span = maxVisibleBMI - minVisibleBMI
+        let segmentSpan = max(segment.end - segment.start, 0.1)
+        return totalWidth * CGFloat(segmentSpan / span)
+    }
+
+    private func thresholdOffset(_ threshold: Double, totalWidth: CGFloat) -> CGFloat {
+        let normalized = (threshold - minVisibleBMI) / (maxVisibleBMI - minVisibleBMI)
+        return totalWidth * CGFloat(normalized)
+    }
+
+    private func markerPosition(totalWidth: CGFloat) -> CGFloat {
+        let normalized = (clampedBMI - minVisibleBMI) / (maxVisibleBMI - minVisibleBMI)
+        return totalWidth * CGFloat(normalized)
+    }
+
+    private func clamped(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
+        min(max(value, lower), upper)
+    }
+
     private var clampedBMI: Double {
-        min(max(bmiValue, 10), 45)
+        min(max(bmiValue, minVisibleBMI), maxVisibleBMI)
     }
 
-    /// Color según clasificación OMS
-    private var bmiColor: Color {
-        BMICategory(bmi: bmiValue)?.color ?? .secondary
+    private var markerColor: Color {
+        switch BMICategory(bmi: bmiValue) {
+        case .underweight:
+            return .orange.opacity(0.75)
+        case .normal:
+            return .mint.opacity(0.80)
+        case .overweight:
+            return .yellow.opacity(0.80)
+        case .obesity:
+            return .red.opacity(0.70)
+        case .none:
+            return .secondary
+        }
     }
 
-    /// Categoría textual según clasificación OMS
     private var bmiCategory: String {
         BMICategory(bmi: bmiValue)?.label ?? "Sin categoría"
     }
+
+    private var lastMeasurementLabel: String {
+        guard let lastMeasurementDate else { return "Sin registro" }
+        return lastMeasurementDate.esShortDateAbbrev()
+    }
 }
 
-// MARK: - Preview
-
 #Preview("Rangos IMC") {
-    VStack(spacing: 24) {
-        BMIGaugeView(bmiValue: 17.0)
-        BMIGaugeView(bmiValue: 22.5)
+    VStack(spacing: AppSpacing.lg) {
+        BMIGaugeView(bmiValue: 17.0, lastMeasurementDate: .now)
+        BMIGaugeView(bmiValue: 22.5, lastMeasurementDate: .now.addingTimeInterval(-86_400 * 9))
         BMIGaugeView(bmiValue: 27.3)
-        BMIGaugeView(bmiValue: 35.0)
+        BMIGaugeView(bmiValue: 35.0, lastMeasurementDate: .now.addingTimeInterval(-86_400 * 33))
     }
     .padding()
 }

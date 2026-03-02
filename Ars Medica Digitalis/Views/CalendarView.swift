@@ -37,13 +37,14 @@ struct CalendarView: View {
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(.smooth(duration: 0.30)) {
                         viewModel.goToToday()
                     }
                     viewModel.loadSessions(in: modelContext)
                 } label: {
                     Text("Hoy")
                 }
+                .buttonStyle(.glass)
             }
 
             ToolbarItem(placement: .primaryAction) {
@@ -52,6 +53,8 @@ struct CalendarView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Nueva sesión")
             }
         }
         .sheet(isPresented: $showingNewSession, onDismiss: {
@@ -85,7 +88,7 @@ struct CalendarView: View {
             calendarGrid
         }
         .padding(.bottom, isCalendarCollapsed ? 8 : 20)
-        .animation(.easeInOut(duration: 0.22), value: isCalendarCollapsed)
+        .animation(.smooth(duration: 0.22), value: isCalendarCollapsed)
     }
 
     // MARK: - Cabecera de navegación de mes
@@ -94,7 +97,7 @@ struct CalendarView: View {
     private var monthNavigationHeader: some View {
         HStack {
             Button {
-                withAnimation(.easeInOut(duration: 0.3)) {
+                withAnimation(.smooth(duration: 0.30)) {
                     viewModel.goToPreviousMonth()
                 }
             } label: {
@@ -107,7 +110,7 @@ struct CalendarView: View {
             Spacer()
 
             Button {
-                withAnimation(.easeInOut(duration: 0.3)) {
+                withAnimation(.smooth(duration: 0.30)) {
                     viewModel.goToNextMonth()
                 }
             } label: {
@@ -166,7 +169,7 @@ struct CalendarView: View {
                         sessionCount: sessionCounts[day, default: 0]
                     )
                     .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(.smooth(duration: 0.20)) {
                             viewModel.selectedDate = viewModel.date(forDay: day)
                         }
                     }
@@ -271,7 +274,7 @@ struct CalendarView: View {
     }
 
     private func setCalendarCollapsed(_ collapsed: Bool) {
-        withAnimation(.easeInOut(duration: 0.22)) {
+        withAnimation(.smooth(duration: 0.22)) {
             isCalendarCollapsed = collapsed
         }
     }

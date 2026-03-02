@@ -27,6 +27,10 @@ struct SessionFormView: View {
     @Bindable var viewModel: SessionViewModel
     @State private var conflictingSessions: [Session] = []
     @State private var showingConflictAlert = false
+    @State private var showAllDiagnoses = false
+
+    /// Límite de diagnósticos visibles cuando la lista está colapsada.
+    private static let diagnosisVisibleLimit = 3
 
     private var isEditing: Bool { session != nil }
 
@@ -113,12 +117,14 @@ struct SessionFormView: View {
             }
 
             // MARK: - Diagnósticos CIE-11
-            Section("Diagnósticos CIE-11") {
-                ForEach(viewModel.selectedDiagnoses) { diagnosis in
+            Section {
+                // Filas visibles según estado colapsado/expandido
+                ForEach(visibleDiagnoses) { diagnosis in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(diagnosis.title)
                                 .font(.body)
+                                .lineLimit(2)
                             if let code = diagnosis.theCode {
                                 Text(code)
                                     .font(.caption)
@@ -138,6 +144,27 @@ struct SessionFormView: View {
                     }
                 }
 
+                // Botón expandir/colapsar — solo visible cuando hay más del límite
+                let hiddenCount = viewModel.selectedDiagnoses.count - Self.diagnosisVisibleLimit
+                if hiddenCount > 0 {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showAllDiagnoses.toggle()
+                        }
+                    } label: {
+                        Label(
+                            showAllDiagnoses
+                                ? "Mostrar menos"
+                                : "Ver \(hiddenCount) diagnóstico\(hiddenCount == 1 ? "" : "s") más",
+                            systemImage: showAllDiagnoses
+                                ? "chevron.up"
+                                : "chevron.down"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.tint)
+                    }
+                }
+
                 NavigationLink {
                     ICD11SearchView(
                         alreadySelected: viewModel.selectedDiagnoses,
@@ -148,6 +175,19 @@ struct SessionFormView: View {
                 } label: {
                     Label("Agregar Diagnóstico", systemImage: "plus.circle")
                         .foregroundStyle(.tint)
+                }
+            } header: {
+                // Badge de conteo junto al título para visibilidad rápida
+                HStack(spacing: 6) {
+                    Text("Diagnósticos CIE-11")
+                    if !viewModel.selectedDiagnoses.isEmpty {
+                        Text("\(viewModel.selectedDiagnoses.count)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor, in: Capsule())
+                    }
                 }
             }
 
@@ -201,6 +241,15 @@ struct SessionFormView: View {
                 viewModel.preloadDiagnoses(from: patient)
             }
         }
+    }
+
+    // MARK: - Helpers diagnósticos
+
+    /// Diagnósticos visibles según estado expandido/colapsado.
+    private var visibleDiagnoses: [ICD11SearchResult] {
+        showAllDiagnoses
+            ? viewModel.selectedDiagnoses
+            : Array(viewModel.selectedDiagnoses.prefix(Self.diagnosisVisibleLimit))
     }
 
     private var sessionDateBinding: Binding<Date> {

@@ -40,7 +40,7 @@ struct SplashView: View {
             .padding(.horizontal, 28)
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+            withAnimation(.smooth(duration: 1.1).repeatForever(autoreverses: true)) {
                 pulse = true
             }
         }

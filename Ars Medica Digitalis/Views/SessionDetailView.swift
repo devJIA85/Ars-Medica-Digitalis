@@ -21,7 +21,6 @@ struct SessionDetailView: View {
     @State private var viewModel = SessionViewModel()
     @State private var showingEdit: Bool = false
     @State private var showingStatusPicker: Bool = false
-    @State private var showingPaymentFlow: Bool = false
     @State private var showAllDiagnoses = false
     @State private var sessionActionErrorMessage: String?
     @State private var completionDraft: CompletionDraft?
@@ -198,13 +197,11 @@ struct SessionDetailView: View {
                 SessionFormView(patient: patient, session: session)
             }
         }
-        .sheet(isPresented: $showingPaymentFlow) {
-            if let completionDraft {
-                PaymentFlowView(draft: completionDraft) { paymentIntent in
-                    // La ejecución real se mantiene en el ViewModel para que
-                    // completar y registrar Payment sigan un único camino.
-                    try viewModel.completeSession(session, in: modelContext, paymentIntent: paymentIntent)
-                }
+        .sheet(item: $completionDraft) { draft in
+            PaymentFlowView(draft: draft, onCancel: {}) { paymentIntent in
+                // La ejecución real se mantiene en el ViewModel para que
+                // completar y registrar Payment sigan un único camino.
+                try viewModel.completeSession(session, in: modelContext, paymentIntent: paymentIntent)
             }
         }
         .confirmationDialog("Cambiar estado", isPresented: $showingStatusPicker, titleVisibility: .visible) {
@@ -280,7 +277,7 @@ struct SessionDetailView: View {
             return "Cortesía"
         }
 
-        return session.financialSessionType?.name ?? "Sin definir"
+        return viewModel.effectiveFinancialSessionTypeName(for: session) ?? "Sin definir"
     }
 
     private var paymentStateLabel: String {
@@ -311,7 +308,6 @@ struct SessionDetailView: View {
     @MainActor
     private func openCompletionFlow() {
         completionDraft = viewModel.preparePaymentFlow(for: session)
-        showingPaymentFlow = true
     }
 
     private var sessionActionErrorBinding: Binding<Bool> {

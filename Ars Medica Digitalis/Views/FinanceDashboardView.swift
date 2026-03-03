@@ -84,16 +84,13 @@ struct FinanceDashboardView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             ForEach(viewModel.debtByPatient) { summary in
-                                if let professional = summary.patient.professional {
-                                    NavigationLink {
-                                        PatientDetailView(
-                                            patient: summary.patient,
-                                            professional: professional
-                                        )
-                                    } label: {
-                                        debtRow(summary)
-                                    }
-                                } else {
+                                NavigationLink {
+                                    PatientDebtSettlementView(
+                                        patient: summary.patient,
+                                        context: modelContext,
+                                        preferredCurrencyCode: viewModel.selectedCurrency
+                                    )
+                                } label: {
                                     debtRow(summary)
                                 }
                             }

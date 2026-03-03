@@ -25,6 +25,16 @@ final class Professional {
     // Configuración regional para la API CIE-11 (Accept-Language header)
     var preferredLanguage: String = "es"
 
+    // Moneda administrativa sugerida para pacientes nuevos.
+    // Se guarda a nivel Professional para sembrar el alta inicial sin obligar
+    // a repetir la misma elección en cada paciente recién creado.
+    var defaultPatientCurrencyCode: String = ""
+
+    // Tipo facturable sugerido para nuevas sesiones.
+    // Se resuelve por UUID para evitar acoplar el Professional a una relación
+    // extra y poder usarlo como preferencia liviana de captura.
+    var defaultFinancialSessionTypeID: UUID? = nil
+
     // Trazabilidad: auditoría clínica y resolución de conflictos de sincronización
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
@@ -55,6 +65,8 @@ final class Professional {
         specialty: String = "",
         email: String = "",
         preferredLanguage: String = "es",
+        defaultPatientCurrencyCode: String = "",
+        defaultFinancialSessionTypeID: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         patients: [Patient]? = [],
@@ -67,6 +79,8 @@ final class Professional {
         self.specialty = specialty
         self.email = email
         self.preferredLanguage = preferredLanguage
+        self.defaultPatientCurrencyCode = defaultPatientCurrencyCode
+        self.defaultFinancialSessionTypeID = defaultFinancialSessionTypeID
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.patients = patients

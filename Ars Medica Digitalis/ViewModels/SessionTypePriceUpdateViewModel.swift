@@ -93,7 +93,10 @@ final class SessionTypePriceUpdateViewModel {
             throw SessionTypePriceUpdateError.missingCurrency
         }
 
-        let effectiveFrom = nowProvider()
+        // La vigencia del honorario se maneja por fecha administrativa.
+        // Normalizamos al inicio del día para evitar sorpresas dentro
+        // del mismo día al recalcular sesiones abiertas.
+        let effectiveFrom = nowProvider().startOfDayDate()
         let newVersion = SessionTypePriceVersion(
             effectiveFrom: effectiveFrom,
             price: editablePrice,

@@ -213,10 +213,13 @@ final class SessionTypeCatalogViewModel {
         from versions: [SessionTypePriceVersion],
         at date: Date
     ) -> [SessionTypeCurrentPrice] {
+        let referenceDay = date.startOfDayDate(calendar: calendar)
         let currentByCurrency = Dictionary(grouping: versions, by: \.currencyCode)
             .compactMap { currencyCode, currencyVersions -> SessionTypeCurrentPrice? in
                 let currentVersion = currencyVersions
-                    .filter { $0.effectiveFrom <= date }
+                    .filter {
+                        $0.effectiveFrom.startOfDayDate(calendar: calendar) <= referenceDay
+                    }
                     .sorted(by: sortVersionsDescending)
                     .first
 

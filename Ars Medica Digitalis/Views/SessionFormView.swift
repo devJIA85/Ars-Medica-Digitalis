@@ -10,6 +10,15 @@
 import SwiftUI
 import SwiftData
 
+private struct PendingSessionCompletion: Identifiable {
+    let patient: Patient
+    let existingSessionID: UUID?
+    let completionDraft: CompletionDraft
+    let formSnapshot: SessionFormSnapshot
+
+    var id: UUID { completionDraft.sessionID }
+}
+
 struct SessionFormView: View {
 
     @Environment(\.modelContext) private var modelContext
@@ -24,14 +33,12 @@ struct SessionFormView: View {
     /// Si es nil, el ViewModel usa Date() (ahora).
     let initialDate: Date?
 
-    @Bindable var viewModel: SessionViewModel
+    @State private var viewModel: SessionViewModel
     @State private var conflictingSessions: [Session] = []
     @State private var showingConflictAlert = false
-    @State private var showingPaymentFlow = false
     @State private var showAllDiagnoses = false
     @State private var persistenceErrorMessage: String?
-    @State private var completionDraft: CompletionDraft?
-    @State private var pendingCompletionSession: Session?
+    @State private var pendingCompletionFlow: PendingSessionCompletion?
     @State private var pricingPreview = SessionPricingPreview(
         amount: 0,
         currencyCode: "",
@@ -51,19 +58,21 @@ struct SessionFormView: View {
 
         // Establecer la fecha inmediatamente en el init para evitar que
         // el DatePicker muestre "hoy" por un frame antes del onAppear.
-        // En modo alta con fecha del calendario: día seleccionado + hora actual.
+        // En modo alta con fecha del calendario usamos una hora neutral
+        // de consultorio, no la hora actual, para permitir cargar sesiones
+        // pasadas del mismo día sin una fricción artificial.
         // En modo edición, load(from:) la sobreescribirá en onAppear.
         if session == nil, let initialDate {
-            let resolved = initialDate
-                .combiningTimeFrom(Date())
-                .roundedToMinuteInterval(5)
-            self.viewModel = SessionViewModel(initialDate: resolved)
+            let resolved = initialDate.defaultSessionStartDate()
+            _viewModel = State(initialValue: SessionViewModel(initialDate: resolved))
         } else {
-            self.viewModel = SessionViewModel()
+            _viewModel = State(initialValue: SessionViewModel())
         }
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         Form {
             // MARK: - Datos de la Sesión
             Section("Datos de la Sesión") {
@@ -123,13 +132,15 @@ struct SessionFormView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Tipo facturable")
                                 .foregroundStyle(.primary)
-                            Text("Primero creá un honorario en Perfil > Honorarios para poder cobrar esta sesión.")
+                            Text(missingFinancialTypesMessage)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        Picker("Tipo facturable", selection: $viewModel.financialSessionTypeID) {
-                            Text("Sin seleccionar").tag(nil as UUID?)
+                        Picker("Tipo facturable", selection: displayedFinancialSessionTypeBinding) {
+                            if allowsEmptyFinancialSessionTypeSelection {
+                                Text("Sin seleccionar").tag(nil as UUID?)
+                            }
                             ForEach(availableFinancialSessionTypes) { sessionType in
                                 Text(sessionType.name).tag(Optional(sessionType.id))
                             }
@@ -154,7 +165,7 @@ struct SessionFormView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
 
-                        Text(configurationIssue.message)
+                        Text(configurationIssue.message(resolvedCurrencyCode: pricingPreview.currencyCode))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -301,16 +312,13 @@ struct SessionFormView: View {
         } message: {
             Text(persistenceErrorMessage ?? "Ocurrió un error al persistir la sesión.")
         }
-        .sheet(isPresented: $showingPaymentFlow) {
-            if let completionDraft, let pendingCompletionSession {
-                PaymentFlowView(draft: completionDraft) { paymentIntent in
-                    try viewModel.completeSession(
-                        pendingCompletionSession,
-                        in: modelContext,
-                        paymentIntent: paymentIntent
-                    )
-                    dismiss()
-                }
+        .sheet(item: $pendingCompletionFlow) { flow in
+            PaymentFlowView(
+                draft: flow.completionDraft,
+                onCancel: {}
+            ) { paymentIntent in
+                try persistPendingCompletion(flow, paymentIntent: paymentIntent)
+                dismiss()
             }
         }
         .onAppear {
@@ -339,17 +347,10 @@ struct SessionFormView: View {
     }
 
     /// Catálogo facturable activo del profesional del paciente.
-    /// Se usa directo desde la relación ya cargada para no duplicar queries
-    /// en la vista cuando solo necesitamos poblar un picker simple.
+    /// Se filtra por compatibilidad real con la moneda del paciente para no
+    /// ofrecer tipos que luego fallen al resolver el honorario estimado.
     private var availableFinancialSessionTypes: [SessionCatalogType] {
-        ((patient.professional?.sessionCatalogTypes) ?? [])
-            .filter(\.isActive)
-            .sorted { lhs, rhs in
-                if lhs.sortOrder == rhs.sortOrder {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return lhs.sortOrder < rhs.sortOrder
-            }
+        viewModel.availableFinancialSessionTypes(for: patient, in: modelContext)
     }
 
     /// Identificador estable para recalcular la vista previa cuando cambia
@@ -381,6 +382,11 @@ struct SessionFormView: View {
         }
 
         guard pricingPreview.isResolved else {
+            if pricingPreview.configurationIssue == .missingResolvedPrice,
+               pricingPreview.currencyCode.isEmpty == false {
+                return L10n.tr("session.pricing.unresolved_for_currency", pricingPreview.currencyCode)
+            }
+
             return "Sin resolver"
         }
 
@@ -436,6 +442,37 @@ struct SessionFormView: View {
         )
     }
 
+    /// La vista refleja el tipo sugerido sin escribirlo en cada frame.
+    /// Solo se persiste una selección explícita del usuario, lo que evita
+    /// loops de actualización y mantiene el picker realmente editable.
+    private var displayedFinancialSessionTypeBinding: Binding<UUID?> {
+        Binding(
+            get: {
+                viewModel.displayedFinancialSessionTypeID(for: patient)
+            },
+            set: { newValue in
+                viewModel.financialSessionTypeID = newValue
+            }
+        )
+    }
+
+    /// "Sin seleccionar" solo tiene sentido cuando no existe sugerencia.
+    /// Si el dominio ya resolvió un tipo por defecto, mostrar una opción vacía
+    /// induce a error porque la sesión igualmente terminaría usando el sugerido.
+    private var allowsEmptyFinancialSessionTypeSelection: Bool {
+        viewModel.suggestedFinancialSessionTypeID(for: patient) == nil
+    }
+
+    private var missingFinancialTypesMessage: String {
+        let currencyCode = pricingPreview.currencyCode.isEmpty ? patient.currencyCode.trimmed : pricingPreview.currencyCode
+
+        if currencyCode.isEmpty == false {
+            return "No hay honorarios vigentes en \(currencyCode) para este paciente. Cargalos en Perfil > Honorarios para esa moneda."
+        }
+
+        return "Primero creá un honorario en Perfil > Honorarios para poder cobrar esta sesión."
+    }
+
     // MARK: - Acciones
 
     @MainActor
@@ -453,10 +490,21 @@ struct SessionFormView: View {
     @MainActor
     private func saveIgnoringConflicts() {
         do {
-            let savedSession = try persistSession()
             if requiresCompletionFlow {
-                prepareCompletionFlow(for: savedSession)
+                let snapshot = viewModel.buildFormSnapshot()
+                pendingCompletionFlow = PendingSessionCompletion(
+                    patient: patient,
+                    existingSessionID: session?.id,
+                    completionDraft: viewModel.completionDraft(
+                        for: snapshot,
+                        patient: patient,
+                        in: modelContext,
+                        existingSessionID: session?.id
+                    ),
+                    formSnapshot: snapshot
+                )
             } else {
+                try persistSession(using: viewModel.buildFormSnapshot())
                 dismiss()
             }
         } catch {
@@ -465,11 +513,11 @@ struct SessionFormView: View {
     }
 
     @MainActor
-    private func persistSession() throws -> Session {
+    private func persistSession(using snapshot: SessionFormSnapshot) throws -> Session {
         if let session {
-            return try viewModel.update(session, in: modelContext)
+            return try viewModel.update(session, from: snapshot, in: modelContext)
         } else {
-            return try viewModel.createSession(for: patient, in: modelContext)
+            return try viewModel.createSession(from: snapshot, for: patient, in: modelContext)
         }
     }
 
@@ -480,13 +528,6 @@ struct SessionFormView: View {
         let targetIsCompleted = viewModel.status == SessionStatusMapping.completada.rawValue
         let wasAlreadyCompleted = session?.sessionStatusValue == .completada
         return targetIsCompleted && wasAlreadyCompleted == false
-    }
-
-    @MainActor
-    private func prepareCompletionFlow(for session: Session) {
-        pendingCompletionSession = session
-        completionDraft = viewModel.preparePaymentFlow(for: session)
-        showingPaymentFlow = true
     }
 
     private var persistenceErrorBinding: Binding<Bool> {
@@ -504,7 +545,17 @@ struct SessionFormView: View {
         // Si la sesión actual queda cancelada, no se valida conflicto de agenda.
         guard viewModel.status != SessionStatusMapping.cancelada.rawValue else { return [] }
 
-        let descriptor = FetchDescriptor<Session>()
+        let start = viewModel.sessionDate.startOfMinuteDate()
+        let end = start.addingTimeInterval(60)
+        let cancelledStatus = SessionStatusMapping.cancelada.rawValue
+        let descriptor = FetchDescriptor<Session>(
+            predicate: #Predicate<Session> { existing in
+                existing.sessionDate >= start
+                && existing.sessionDate < end
+                && existing.status != cancelledStatus
+            },
+            sortBy: [SortDescriptor(\Session.sessionDate)]
+        )
         let allSessions = (try? modelContext.fetch(descriptor)) ?? []
         let currentSessionID = session?.id
 
@@ -512,10 +563,14 @@ struct SessionFormView: View {
             if let currentSessionID, existing.id == currentSessionID {
                 return false
             }
-            guard existing.status != SessionStatusMapping.cancelada.rawValue else {
+
+            // Mientras corre la reparación one-shot, ignoramos acá los
+            // borradores fantasma ya conocidos para no bloquear la agenda.
+            if SessionPhantomHeuristics.isPhantomCandidate(existing) {
                 return false
             }
-            return Calendar.current.isDate(existing.sessionDate, equalTo: viewModel.sessionDate, toGranularity: .minute)
+
+            return true
         }
     }
 
@@ -537,6 +592,43 @@ struct SessionFormView: View {
     private func refreshPricingPreview() {
         pricingPreview = viewModel.pricingPreview(for: patient, in: modelContext)
     }
+
+    @MainActor
+    private func persistPendingCompletion(
+        _ flow: PendingSessionCompletion,
+        paymentIntent: PaymentIntent
+    ) throws {
+        if let existingSessionID = flow.existingSessionID {
+            let descriptor = FetchDescriptor<Session>(
+                predicate: #Predicate<Session> { existing in
+                    existing.id == existingSessionID
+                }
+            )
+            guard let existingSession = try modelContext.fetch(descriptor).first else {
+                throw NSError(
+                    domain: "SessionFormView",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "No se encontró la sesión a completar."]
+                )
+            }
+
+            _ = try viewModel.updateAndCompleteSession(
+                existingSession,
+                from: flow.formSnapshot,
+                in: modelContext,
+                paymentIntent: paymentIntent
+            )
+            return
+        }
+
+        _ = try viewModel.createAndCompleteSession(
+            from: flow.formSnapshot,
+            for: flow.patient,
+            in: modelContext,
+            paymentIntent: paymentIntent
+        )
+    }
+
 }
 
 #Preview {

@@ -172,6 +172,49 @@ final class Patient {
     var fullName: String { "\(firstName) \(lastName)" }
     var isActive: Bool { deletedAt == nil }
 
+    /// Resume si el paciente mantiene deuda en sesiones ya completadas.
+    /// Se limita a sesiones cerradas para no marcar como deuda un turno futuro
+    /// todavía no cobrado y reutiliza Session.debt para no duplicar reglas.
+    @MainActor
+    var hasOutstandingDebt: Bool {
+        debtByCurrency.isEmpty == false
+    }
+
+    /// Agrupa la deuda pendiente del paciente por moneda efectiva.
+    /// Esto evita mezclar importes de monedas distintas y permite reutilizar
+    /// la misma lectura tanto en Perfil como en el flujo de cancelación.
+    @MainActor
+    var debtByCurrency: [PatientDebtCurrencySummary] {
+        let groupedDebt = (sessions ?? []).reduce(into: [String: (debt: Decimal, sessionCount: Int)]()) { partialResult, session in
+            guard session.sessionStatusValue == .completada else { return }
+
+            let debt = session.debt
+            let currencyCode = session.finalCurrencySnapshot ?? session.effectiveCurrency
+            guard debt > 0, currencyCode.isEmpty == false else { return }
+
+            let currentDebt = partialResult[currencyCode]?.debt ?? 0
+            let currentCount = partialResult[currencyCode]?.sessionCount ?? 0
+            partialResult[currencyCode] = (
+                debt: currentDebt + debt,
+                sessionCount: currentCount + 1
+            )
+        }
+
+        return groupedDebt.map { currencyCode, value in
+            PatientDebtCurrencySummary(
+                currencyCode: currencyCode,
+                debt: value.debt,
+                sessionCount: value.sessionCount
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.debt == rhs.debt {
+                return lhs.currencyCode < rhs.currencyCode
+            }
+            return lhs.debt > rhs.debt
+        }
+    }
+
     /// Edad calculada desde la fecha de nacimiento
     var age: Int {
         Calendar.current.dateComponents([.year], from: dateOfBirth, to: Date()).year ?? 0

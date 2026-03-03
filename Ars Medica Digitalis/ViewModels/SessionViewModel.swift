@@ -22,12 +22,14 @@ enum PaymentIntent: Sendable {
 /// Borrador in-memory para la sheet de finalización.
 /// Expone el importe pendiente y la moneda ya resueltos sin crear todavía
 /// ningún Payment, de modo que la UI pueda decidir cómo cerrar la sesión.
-struct CompletionDraft: Sendable {
+struct CompletionDraft: Identifiable, Sendable {
     let sessionID: UUID
     let amountDue: Decimal
     let currencyCode: String
     let isCourtesy: Bool
     let configurationIssue: CompletionConfigurationIssue?
+
+    var id: UUID { sessionID }
 
     var isFinanciallyConfigured: Bool {
         configurationIssue == nil
@@ -48,6 +50,51 @@ struct SessionPricingPreview: Sendable {
     }
 }
 
+/// Borrador financiero puro para cálculos previos a la persistencia.
+/// Mantiene referencias a modelos SwiftData solo dentro del MainActor y evita
+/// crear Session @Model temporales que luego puedan filtrarse al contexto.
+struct SessionFinancialDraft: @unchecked Sendable {
+    let scheduledAt: Date
+    let patient: Patient?
+    let financialSessionType: SessionCatalogType?
+    let isCourtesy: Bool
+    let isCompleted: Bool
+}
+
+/// Snapshot inmutable del formulario antes de guardar.
+/// Se usa para que validación, sheet de cobro y persistencia trabajen con el
+/// mismo estado, sin depender de cambios reactivos posteriores de la vista.
+struct SessionFormSnapshot: Sendable {
+    let sessionDate: Date
+    let sessionType: String
+    let durationMinutes: Int
+    let chiefComplaint: String
+    let notes: String
+    let treatmentPlan: String
+    let status: String
+    let financialSessionTypeID: UUID?
+    let isCourtesy: Bool
+    let selectedDiagnoses: [ICD11SearchResult]
+
+    /// Cuando el guardado requiere sheet de cobro, persistimos primero como
+    /// programada y cerramos recién tras confirmar la intención de pago.
+    /// Así evitamos sesiones intermedias ya insertadas antes de tiempo.
+    func snapshotForCompletionPersistence() -> SessionFormSnapshot {
+        SessionFormSnapshot(
+            sessionDate: sessionDate,
+            sessionType: sessionType,
+            durationMinutes: durationMinutes,
+            chiefComplaint: chiefComplaint,
+            notes: notes,
+            treatmentPlan: treatmentPlan,
+            status: SessionStatusMapping.programada.rawValue,
+            financialSessionTypeID: financialSessionTypeID,
+            isCourtesy: isCourtesy,
+            selectedDiagnoses: selectedDiagnoses
+        )
+    }
+}
+
 /// Explica por qué una sesión todavía no puede cerrarse financieramente.
 /// Se expone al sheet para evitar UI engañosa cuando falta configuración base.
 enum CompletionConfigurationIssue: Sendable, Equatable {
@@ -55,13 +102,20 @@ enum CompletionConfigurationIssue: Sendable, Equatable {
     case missingPatientCurrency
     case missingResolvedPrice
 
-    var message: String {
+    /// Devuelve un mensaje concreto para la UI según el contexto resuelto.
+    /// Cuando falta precio pero la moneda sí existe, nombrar la divisa evita
+    /// el ambiguo "Sin resolver" y orienta al profesional a corregir honorarios.
+    func message(resolvedCurrencyCode: String = "") -> String {
         switch self {
         case .missingFinancialSessionType:
             return "Elegí un tipo facturable en la sesión antes de completarla."
         case .missingPatientCurrency:
             return "Configurá la moneda predeterminada en Paciente > Editar > Finanzas antes de completar la sesión."
         case .missingResolvedPrice:
+            if resolvedCurrencyCode.isEmpty == false {
+                return "Definí un honorario vigente en \(resolvedCurrencyCode) en Perfil > Honorarios para este tipo de sesión antes de completar."
+            }
+
             return "Definí un honorario vigente en Perfil > Honorarios para este tipo de sesión antes de completar."
         }
     }
@@ -75,7 +129,7 @@ enum SessionCompletionError: LocalizedError {
     case invalidPartialAmount
     case missingFinancialSessionType
     case missingPatientCurrency
-    case missingResolvedPrice
+    case missingResolvedPrice(String)
 
     var errorDescription: String? {
         switch self {
@@ -87,7 +141,11 @@ enum SessionCompletionError: LocalizedError {
             return "Elegí un tipo facturable antes de completar la sesión."
         case .missingPatientCurrency:
             return "Configurá la moneda predeterminada del paciente antes de completar la sesión."
-        case .missingResolvedPrice:
+        case .missingResolvedPrice(let resolvedCurrencyCode):
+            if resolvedCurrencyCode.isEmpty == false {
+                return "Definí un honorario vigente en \(resolvedCurrencyCode) para este tipo de sesión antes de completar."
+            }
+
             return "Definí un honorario vigente para este tipo de sesión antes de completar."
         }
     }
@@ -219,29 +277,105 @@ final class SessionViewModel {
 
     // MARK: - Creación
 
+    /// Congela el estado actual del formulario.
+    /// Este snapshot permite validar y persistir una sola vez aunque la vista
+    /// siga recalculando previews o el usuario abra una sheet intermedia.
+    func buildFormSnapshot() -> SessionFormSnapshot {
+        SessionFormSnapshot(
+            sessionDate: sessionDate,
+            sessionType: sessionType,
+            durationMinutes: durationMinutes,
+            chiefComplaint: chiefComplaint.trimmed,
+            notes: notes.trimmed,
+            treatmentPlan: treatmentPlan.trimmed,
+            status: status,
+            financialSessionTypeID: financialSessionTypeID,
+            isCourtesy: isCourtesy,
+            selectedDiagnoses: selectedDiagnoses
+        )
+    }
+
+    /// Construye el borrador financiero que usa la sheet de cobro sin crear
+    /// todavía una Session persistida. Así la UI puede confirmar o cancelar
+    /// el cierre sin que SwiftData inserte registros intermedios.
+    @MainActor
+    func completionDraft(
+        for snapshot: SessionFormSnapshot,
+        patient: Patient,
+        in context: ModelContext,
+        existingSessionID: UUID? = nil
+    ) -> CompletionDraft {
+        let selectedFinancialSessionType = try? resolveFinancialSessionType(
+            for: patient,
+            selectedFinancialSessionTypeID: snapshot.financialSessionTypeID,
+            scheduledAt: snapshot.sessionDate,
+            in: context
+        )
+        let draft = SessionFinancialDraft(
+            scheduledAt: snapshot.sessionDate,
+            patient: patient,
+            financialSessionType: selectedFinancialSessionType,
+            isCourtesy: snapshot.isCourtesy,
+            isCompleted: snapshot.status == SessionStatusMapping.completada.rawValue
+        )
+        let pricingService = makePricingService(in: context)
+
+        return CompletionDraft(
+            sessionID: existingSessionID ?? UUID(),
+            amountDue: pricingService.resolveDynamicPrice(for: draft),
+            currencyCode: pricingService.resolveEffectiveCurrency(for: draft),
+            isCourtesy: snapshot.isCourtesy,
+            configurationIssue: completionConfigurationIssue(
+                for: draft,
+                pricingService: pricingService
+            )
+        )
+    }
+
     /// Crea una nueva Session vinculada al paciente y persiste los
     /// diagnósticos seleccionados como snapshots inmutables.
     /// Además sincroniza los diagnósticos vigentes del paciente.
     @MainActor
     func createSession(for patient: Patient, in context: ModelContext) throws -> Session {
-        try validateDraftCompletionReadiness(for: patient, in: context)
-        let selectedFinancialSessionType = try resolveSelectedFinancialSessionType(in: context)
+        try createSession(from: buildFormSnapshot(), for: patient, in: context)
+    }
+
+    /// Persiste una nueva sesión a partir de un snapshot estable del formulario.
+    /// Centralizar este camino evita que la vista inserte datos antes de decidir
+    /// si necesita abrir el flujo de cobro o confirmar conflictos.
+    @MainActor
+    func createSession(
+        from snapshot: SessionFormSnapshot,
+        for patient: Patient,
+        in context: ModelContext
+    ) throws -> Session {
+        try validateDraftCompletionReadiness(
+            for: patient,
+            snapshot: snapshot,
+            in: context
+        )
+        let selectedFinancialSessionType = try resolveFinancialSessionType(
+            for: patient,
+            selectedFinancialSessionTypeID: snapshot.financialSessionTypeID,
+            scheduledAt: snapshot.sessionDate,
+            in: context
+        )
         let session = Session(
-            sessionDate: sessionDate,
-            sessionType: sessionType,
-            durationMinutes: durationMinutes,
-            notes: notes.trimmed,
-            chiefComplaint: chiefComplaint.trimmed,
-            treatmentPlan: treatmentPlan.trimmed,
-            status: status,
+            sessionDate: snapshot.sessionDate,
+            sessionType: snapshot.sessionType,
+            durationMinutes: snapshot.durationMinutes,
+            notes: snapshot.notes,
+            chiefComplaint: snapshot.chiefComplaint,
+            treatmentPlan: snapshot.treatmentPlan,
+            status: snapshot.status,
             patient: patient,
             financialSessionType: selectedFinancialSessionType,
-            isCourtesy: isCourtesy
+            isCourtesy: snapshot.isCourtesy
         )
         context.insert(session)
 
         // Snapshot inmutable de cada diagnóstico CIE-11 seleccionado
-        for result in selectedDiagnoses {
+        for result in snapshot.selectedDiagnoses {
             let diagnosis = Diagnosis(from: result, session: session)
             context.insert(diagnosis)
         }
@@ -249,7 +383,11 @@ final class SessionViewModel {
         // Sincronizar diagnósticos vigentes del paciente con los de esta sesión.
         // Solo cuando hubo cambios explícitos en diagnósticos durante esta edición.
         if didModifyDiagnoses {
-            syncActiveDiagnoses(for: patient, in: context)
+            syncActiveDiagnoses(
+                for: patient,
+                selectedDiagnoses: snapshot.selectedDiagnoses,
+                in: context
+            )
         }
 
         syncCompletionMetadata(for: session)
@@ -268,24 +406,50 @@ final class SessionViewModel {
     /// Sincroniza diagnósticos vigentes del paciente si es la sesión más reciente.
     @MainActor
     func update(_ session: Session, in context: ModelContext) throws -> Session {
+        try update(session, from: buildFormSnapshot(), in: context)
+    }
+
+    /// Actualiza una sesión existente desde un snapshot congelado del formulario.
+    /// Esto garantiza que el camino de edición use exactamente los mismos datos
+    /// que fueron validados antes de mostrar conflictos o cobro.
+    @MainActor
+    func update(
+        _ session: Session,
+        from snapshot: SessionFormSnapshot,
+        in context: ModelContext
+    ) throws -> Session {
         if let patient = session.patient {
-            try validateDraftCompletionReadiness(for: patient, in: context)
+            try validateDraftCompletionReadiness(
+                for: patient,
+                snapshot: snapshot,
+                in: context
+            )
         }
-        let selectedFinancialSessionType = try resolveSelectedFinancialSessionType(in: context)
-        session.sessionDate = sessionDate
-        session.sessionType = sessionType
-        session.durationMinutes = durationMinutes
-        session.notes = notes.trimmed
-        session.chiefComplaint = chiefComplaint.trimmed
-        session.treatmentPlan = treatmentPlan.trimmed
-        session.status = status
+        let selectedFinancialSessionType: SessionCatalogType?
+        if let patient = session.patient {
+            selectedFinancialSessionType = try resolveFinancialSessionType(
+                for: patient,
+                selectedFinancialSessionTypeID: snapshot.financialSessionTypeID,
+                scheduledAt: snapshot.sessionDate,
+                in: context
+            )
+        } else {
+            selectedFinancialSessionType = nil
+        }
+        session.sessionDate = snapshot.sessionDate
+        session.sessionType = snapshot.sessionType
+        session.durationMinutes = snapshot.durationMinutes
+        session.notes = snapshot.notes
+        session.chiefComplaint = snapshot.chiefComplaint
+        session.treatmentPlan = snapshot.treatmentPlan
+        session.status = snapshot.status
         session.financialSessionType = selectedFinancialSessionType
-        session.isCourtesy = isCourtesy
+        session.isCourtesy = snapshot.isCourtesy
         session.updatedAt = Date()
 
         // Reconciliar diagnósticos: eliminar los que ya no están seleccionados
         let existingDiagnoses = session.diagnoses ?? []
-        let selectedURIs = Set(selectedDiagnoses.map(\.id))
+        let selectedURIs = Set(snapshot.selectedDiagnoses.map(\.id))
 
         for existing in existingDiagnoses {
             if !selectedURIs.contains(existing.icdURI) {
@@ -295,14 +459,18 @@ final class SessionViewModel {
 
         // Agregar diagnósticos nuevos
         let existingURIs = Set(existingDiagnoses.map(\.icdURI))
-        for result in selectedDiagnoses where !existingURIs.contains(result.id) {
+        for result in snapshot.selectedDiagnoses where !existingURIs.contains(result.id) {
             let diagnosis = Diagnosis(from: result, session: session)
             context.insert(diagnosis)
         }
 
         // Sincronizar vigentes si esta es la sesión más reciente completada
         if didModifyDiagnoses, let patient = session.patient {
-            syncActiveDiagnoses(for: patient, in: context)
+            syncActiveDiagnoses(
+                for: patient,
+                selectedDiagnoses: snapshot.selectedDiagnoses,
+                in: context
+            )
         }
 
         syncCompletionMetadata(for: session)
@@ -314,6 +482,42 @@ final class SessionViewModel {
         return session
     }
 
+    /// Crea una sesión nueva y la completa en una sola transacción lógica.
+    /// La sesión solo se inserta cuando el usuario ya confirmó el cobro.
+    @MainActor
+    func createAndCompleteSession(
+        from snapshot: SessionFormSnapshot,
+        for patient: Patient,
+        in context: ModelContext,
+        paymentIntent: PaymentIntent
+    ) throws -> Session {
+        let persistedSession = try createSession(
+            from: snapshot.snapshotForCompletionPersistence(),
+            for: patient,
+            in: context
+        )
+        try completeSession(persistedSession, in: context, paymentIntent: paymentIntent)
+        return persistedSession
+    }
+
+    /// Actualiza una sesión existente y luego la completa usando el mismo
+    /// snapshot que vio el usuario en la sheet de cobro.
+    @MainActor
+    func updateAndCompleteSession(
+        _ session: Session,
+        from snapshot: SessionFormSnapshot,
+        in context: ModelContext,
+        paymentIntent: PaymentIntent
+    ) throws -> Session {
+        let updatedSession = try update(
+            session,
+            from: snapshot.snapshotForCompletionPersistence(),
+            in: context
+        )
+        try completeSession(updatedSession, in: context, paymentIntent: paymentIntent)
+        return updatedSession
+    }
+
     // MARK: - Finalización clínica y pagos
 
     /// Prepara el resumen que necesita la sheet antes de cerrar la sesión.
@@ -321,12 +525,16 @@ final class SessionViewModel {
     /// origen para el importe y la moneda que se le mostrarán al usuario.
     @MainActor
     func preparePaymentFlow(for session: Session) -> CompletionDraft {
-        let configurationIssue = completionConfigurationIssue(for: session)
+        let draft = financialDraft(for: session)
+        let pricingService = makePricingService(
+            in: session.modelContext ?? session.patient?.modelContext
+        )
+        let configurationIssue = completionConfigurationIssue(for: draft, pricingService: pricingService)
         return CompletionDraft(
             sessionID: session.id,
-            amountDue: session.effectivePrice,
-            currencyCode: session.effectiveCurrency,
-            isCourtesy: session.isCourtesy,
+            amountDue: pricingService.resolveDynamicPrice(for: draft),
+            currencyCode: pricingService.resolveEffectiveCurrency(for: draft),
+            isCourtesy: draft.isCourtesy,
             configurationIssue: configurationIssue
         )
     }
@@ -336,21 +544,83 @@ final class SessionViewModel {
     /// sin necesitar crear una Session persistida ni repetir reglas contables.
     @MainActor
     func pricingPreview(for patient: Patient, in context: ModelContext) -> SessionPricingPreview {
-        let selectedFinancialSessionType = try? resolveSelectedFinancialSessionType(in: context)
-        let draftSession = Session(
-            sessionDate: sessionDate,
-            status: SessionStatusMapping.programada.rawValue,
+        pricingPreview(
+            for: patient,
+            in: context,
+            overridingFinancialSessionTypeID: financialSessionTypeID
+        )
+    }
+
+    /// Permite calcular previews para un tipo facturable explícito sin mutar
+    /// la selección del formulario. Esto habilita filtrar el picker por
+    /// moneda del paciente sin meter lógica financiera en la vista.
+    @MainActor
+    func pricingPreview(
+        for patient: Patient,
+        in context: ModelContext,
+        overridingFinancialSessionTypeID: UUID?
+    ) -> SessionPricingPreview {
+        let selectedFinancialSessionType = try? resolveFinancialSessionType(
+            for: patient,
+            selectedFinancialSessionTypeID: overridingFinancialSessionTypeID,
+            scheduledAt: sessionDate,
+            in: context
+        )
+        let draft = SessionFinancialDraft(
+            scheduledAt: sessionDate,
             patient: patient,
             financialSessionType: selectedFinancialSessionType,
-            isCourtesy: isCourtesy
+            isCourtesy: isCourtesy,
+            isCompleted: status == SessionStatusMapping.completada.rawValue
         )
+        let pricingService = makePricingService(in: context)
 
         return SessionPricingPreview(
-            amount: draftSession.effectivePrice,
-            currencyCode: draftSession.effectiveCurrency,
+            amount: pricingService.resolveDynamicPrice(for: draft),
+            currencyCode: pricingService.resolveEffectiveCurrency(for: draft),
             isCourtesy: isCourtesy,
-            configurationIssue: completionConfigurationIssue(for: draftSession)
+            configurationIssue: completionConfigurationIssue(for: draft, pricingService: pricingService)
         )
+    }
+
+    /// Expone el tipo facturable sugerido para que la vista refleje la misma
+    /// decisión que usa el dominio al persistir o validar la sesión.
+    @MainActor
+    func suggestedFinancialSessionTypeID(for patient: Patient) -> UUID? {
+        resolveSuggestedFinancialSessionType(
+            for: patient,
+            scheduledAt: sessionDate
+        )?.id
+    }
+
+    /// Expone el tipo que la UI debe mostrar como seleccionado.
+    /// Si el usuario todavía no eligió uno manualmente, la vista refleja la
+    /// sugerencia operativa para evitar un estado visual inconsistente.
+    @MainActor
+    func displayedFinancialSessionTypeID(for patient: Patient) -> UUID? {
+        financialSessionTypeID ?? suggestedFinancialSessionTypeID(for: patient)
+    }
+
+    /// Devuelve solo tipos facturables compatibles con la moneda vigente del
+    /// paciente para la fecha de la sesión. Así la UI evita mezclar monedas
+    /// y no le muestra al profesional opciones que nunca podrán cobrarse.
+    @MainActor
+    func availableFinancialSessionTypes(
+        for patient: Patient,
+        in context: ModelContext
+    ) -> [SessionCatalogType] {
+        resolveCompatibleFinancialSessionTypes(
+            for: patient,
+            scheduledAt: sessionDate
+        )
+    }
+
+    /// Expone el nombre del tipo facturable efectivo de una sesión existente.
+    /// Si la sesión todavía no lo persistió pero el profesional tiene una
+    /// sugerencia operativa válida, la UI refleja ese valor real.
+    @MainActor
+    func effectiveFinancialSessionTypeName(for session: Session) -> String? {
+        resolvedFinancialSessionType(for: session)?.name
     }
 
     /// Completa la sesión y registra el cobro elegido por el usuario.
@@ -368,6 +638,7 @@ final class SessionViewModel {
         }
 
         if wasCompleted == false {
+            applyImplicitFinancialSessionTypeIfNeeded(to: session)
             try validateCompletionConfiguration(for: session)
             session.status = SessionStatusMapping.completada.rawValue
             session.updatedAt = Date()
@@ -402,7 +673,11 @@ final class SessionViewModel {
 
     /// Reemplaza los diagnósticos vigentes del paciente con los seleccionados
     /// en el formulario. Usa reconciliación por URI para minimizar escrituras.
-    private func syncActiveDiagnoses(for patient: Patient, in context: ModelContext) {
+    private func syncActiveDiagnoses(
+        for patient: Patient,
+        selectedDiagnoses: [ICD11SearchResult],
+        in context: ModelContext
+    ) {
         let currentActive = patient.activeDiagnoses ?? []
         let selectedURIs = Set(selectedDiagnoses.map(\.id))
         let activeURIs = Set(currentActive.map(\.icdURI))
@@ -441,6 +716,14 @@ final class SessionViewModel {
         SessionPricingService(modelContext: context)
     }
 
+    /// Algunos flujos leen contexto desde modelos todavía no persistidos.
+    /// Aceptar nil permite reutilizar el mismo servicio sobre drafts puros
+    /// sin forzar inserciones auxiliares solo para obtener un ModelContext.
+    @MainActor
+    private func makePricingService(in context: ModelContext?) -> SessionPricingService {
+        SessionPricingService(modelContext: context)
+    }
+
     /// Valida el estado del formulario antes de persistir una sesión completada.
     /// Así evitamos guardar registros ya cerrados con configuración financiera
     /// incompleta y luego obligar a la UI a remendar ese estado inconsistente.
@@ -449,31 +732,55 @@ final class SessionViewModel {
         for patient: Patient,
         in context: ModelContext
     ) throws {
-        guard status == SessionStatusMapping.completada.rawValue else {
+        try validateDraftCompletionReadiness(
+            for: patient,
+            snapshot: buildFormSnapshot(),
+            in: context
+        )
+    }
+
+    /// Valida el cierre financiero usando un snapshot puro del formulario.
+    /// De este modo la comprobación no crea sesiones temporales dentro del
+    /// contexto solo para saber si el honorario y la moneda son válidos.
+    @MainActor
+    private func validateDraftCompletionReadiness(
+        for patient: Patient,
+        snapshot: SessionFormSnapshot,
+        in context: ModelContext
+    ) throws {
+        if snapshot.status != SessionStatusMapping.completada.rawValue {
             return
         }
 
-        if isCourtesy {
+        if snapshot.isCourtesy {
             return
         }
 
-        guard let selectedFinancialSessionType = try resolveSelectedFinancialSessionType(in: context) else {
+        guard let selectedFinancialSessionType = try resolveFinancialSessionType(
+            for: patient,
+            selectedFinancialSessionTypeID: snapshot.financialSessionTypeID,
+            scheduledAt: snapshot.sessionDate,
+            in: context
+        ) else {
             throw SessionCompletionError.missingFinancialSessionType
         }
 
-        let draftSession = Session(
-            sessionDate: sessionDate,
-            status: status,
+        let draft = SessionFinancialDraft(
+            scheduledAt: snapshot.sessionDate,
             patient: patient,
             financialSessionType: selectedFinancialSessionType,
-            isCourtesy: isCourtesy
+            isCourtesy: snapshot.isCourtesy,
+            isCompleted: snapshot.status == SessionStatusMapping.completada.rawValue
         )
+        let pricingService = makePricingService(in: context)
 
-        switch completionConfigurationIssue(for: draftSession) {
+        switch completionConfigurationIssue(for: draft, pricingService: pricingService) {
         case .missingPatientCurrency:
             throw SessionCompletionError.missingPatientCurrency
         case .missingResolvedPrice:
-            throw SessionCompletionError.missingResolvedPrice
+            throw SessionCompletionError.missingResolvedPrice(
+                pricingService.resolveEffectiveCurrency(for: draft)
+            )
         case .missingFinancialSessionType:
             throw SessionCompletionError.missingFinancialSessionType
         case nil:
@@ -486,23 +793,192 @@ final class SessionViewModel {
     /// vivos entre pantallas ni tenga que consultar SwiftData por su cuenta.
     @MainActor
     private func resolveSelectedFinancialSessionType(
+        for patient: Patient,
+        in context: ModelContext
+    ) throws -> SessionCatalogType? {
+        try resolveFinancialSessionType(
+            for: patient,
+            selectedFinancialSessionTypeID: financialSessionTypeID,
+            scheduledAt: sessionDate,
+            in: context
+        )
+    }
+
+    /// Resuelve un tipo facturable explícito o, si falta, la sugerencia
+    /// operativa compatible con la moneda vigente del paciente.
+    @MainActor
+    private func resolveFinancialSessionType(
+        for patient: Patient,
+        selectedFinancialSessionTypeID: UUID?,
+        scheduledAt: Date,
         in context: ModelContext
     ) throws -> SessionCatalogType? {
         if isCourtesy {
             return nil
         }
 
-        guard let financialSessionTypeID else {
-            return nil
+        guard let selectedFinancialSessionTypeID else {
+            return resolveSuggestedFinancialSessionType(
+                for: patient,
+                scheduledAt: scheduledAt
+            )
         }
 
         let descriptor = FetchDescriptor<SessionCatalogType>(
             predicate: #Predicate<SessionCatalogType> { sessionType in
-                sessionType.id == financialSessionTypeID
+                sessionType.id == selectedFinancialSessionTypeID
             }
         )
 
-        return try context.fetch(descriptor).first
+        return try context.fetch(descriptor).first ?? resolveSuggestedFinancialSessionType(
+            for: patient,
+            scheduledAt: scheduledAt
+        )
+    }
+
+    /// Resuelve el tipo facturable efectivo de una sesión ya persistida.
+    /// Permite que el flujo de cobro reutilice el mismo fallback de sugerencia
+    /// que usa el formulario cuando la sesión aún no guardó el tipo.
+    @MainActor
+    private func resolvedFinancialSessionType(for session: Session) -> SessionCatalogType? {
+        if session.isCourtesy {
+            return nil
+        }
+
+        if let storedSessionType = session.financialSessionType {
+            return storedSessionType
+        }
+
+        guard let patient = session.patient else {
+            return nil
+        }
+
+        return resolveSuggestedFinancialSessionType(
+            for: patient,
+            scheduledAt: session.sessionDate
+        )
+    }
+
+    /// Reúne la sugerencia operativa del profesional y el fallback de tipo único
+    /// en un único punto para que la UI y la persistencia siempre coincidan.
+    @MainActor
+    private func resolveSuggestedFinancialSessionType(
+        for patient: Patient,
+        scheduledAt: Date
+    ) -> SessionCatalogType? {
+        let compatibleTypes = resolveCompatibleFinancialSessionTypes(
+            for: patient,
+            scheduledAt: scheduledAt
+        )
+
+        if let preferredID = patient.professional?.defaultFinancialSessionTypeID,
+           let preferredType = compatibleTypes.first(where: { $0.id == preferredID }) {
+            return preferredType
+        }
+
+        guard compatibleTypes.count == 1 else {
+            return nil
+        }
+
+        return compatibleTypes.first
+    }
+
+    /// Filtra tipos activos por compatibilidad real con la moneda vigente del
+    /// paciente. Esto evita sugerir el default administrativo si no se puede
+    /// cobrar en la divisa que aplica a la sesión concreta.
+    @MainActor
+    private func resolveCompatibleFinancialSessionTypes(
+        for patient: Patient,
+        scheduledAt: Date
+    ) -> [SessionCatalogType] {
+        let activeTypes = resolveActiveFinancialSessionTypes(for: patient)
+        guard activeTypes.isEmpty == false else {
+            return []
+        }
+
+        let context = patient.modelContext ?? patient.professional?.modelContext
+        let pricingService = SessionPricingService(modelContext: context)
+        let compatibleTypes = activeTypes.filter { sessionType in
+            pricingService.canResolvePrice(
+                for: patient,
+                sessionType: sessionType,
+                scheduledAt: scheduledAt
+            )
+        }
+
+        // Solo devolvemos tipos realmente cobrables en la moneda vigente.
+        // Mostrar opciones incompatibles reintroduce resets visuales y errores
+        // de guardado porque la UI termina mezclando divisas sin querer.
+        return compatibleTypes
+    }
+
+    /// Consulta el catálogo activo desde SwiftData para que las sugerencias
+    /// no dependan de relaciones aún no cargadas en memoria en el formulario.
+    @MainActor
+    private func resolveActiveFinancialSessionTypes(for patient: Patient) -> [SessionCatalogType] {
+        guard let professional = patient.professional else {
+            return []
+        }
+
+        let fallbackTypes = (professional.sessionCatalogTypes ?? [])
+            .filter(\.isActive)
+            .sorted { lhs, rhs in
+                if lhs.sortOrder == rhs.sortOrder {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return lhs.sortOrder < rhs.sortOrder
+            }
+
+        guard let context = patient.modelContext ?? professional.modelContext else {
+            return fallbackTypes
+        }
+
+        let professionalID = professional.id
+        let descriptor = FetchDescriptor<SessionCatalogType>(
+            predicate: #Predicate<SessionCatalogType> { sessionType in
+                sessionType.professional?.id == professionalID
+            },
+            sortBy: [
+                SortDescriptor(\SessionCatalogType.sortOrder),
+                SortDescriptor(\SessionCatalogType.createdAt),
+            ]
+        )
+
+        guard let fetchedTypes = try? context.fetch(descriptor) else {
+            return fallbackTypes
+        }
+
+        return fetchedTypes
+            .filter(\.isActive)
+            .sorted { lhs, rhs in
+                if lhs.sortOrder == rhs.sortOrder {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return lhs.sortOrder < rhs.sortOrder
+            }
+    }
+
+    /// Materializa en la sesión el tipo sugerido solo cuando todavía falta
+    /// persistirlo. Esto evita que el cierre financiero falle por leer nil
+    /// aunque el dominio ya tenga una sugerencia válida para esa sesión.
+    @MainActor
+    private func applyImplicitFinancialSessionTypeIfNeeded(to session: Session) {
+        guard session.financialSessionType == nil else { return }
+        session.financialSessionType = resolvedFinancialSessionType(for: session)
+    }
+
+    /// Proyecta una sesión persistida a un borrador puro para cálculos
+    /// financieros. Esto reemplaza los Session temporales que antes podían
+    /// filtrarse al contexto de SwiftData durante los renders del formulario.
+    @MainActor
+    private func financialDraft(for session: Session) -> SessionFinancialDraft {
+        SessionFinancialDraft(
+            scheduledAt: session.scheduledAt,
+            patient: session.patient,
+            financialSessionType: resolvedFinancialSessionType(for: session),
+            isCourtesy: session.isCourtesy,
+            isCompleted: session.isCompleted
+        )
     }
 
     /// Congela snapshots solo cuando la sesión está completada.
@@ -523,13 +999,22 @@ final class SessionViewModel {
             return
         }
 
-        switch completionConfigurationIssue(for: session) {
+        let draft = financialDraft(for: session)
+        let pricingService = makePricingService(
+            in: session.modelContext ?? session.patient?.modelContext
+        )
+        switch completionConfigurationIssue(
+            for: draft,
+            pricingService: pricingService
+        ) {
         case .missingFinancialSessionType:
             throw SessionCompletionError.missingFinancialSessionType
         case .missingPatientCurrency:
             throw SessionCompletionError.missingPatientCurrency
         case .missingResolvedPrice:
-            throw SessionCompletionError.missingResolvedPrice
+            throw SessionCompletionError.missingResolvedPrice(
+                pricingService.resolveEffectiveCurrency(for: draft)
+            )
         case nil:
             return
         }
@@ -542,19 +1027,36 @@ final class SessionViewModel {
     private func completionConfigurationIssue(
         for session: Session
     ) -> CompletionConfigurationIssue? {
-        if session.isCourtesy {
+        let pricingService = makePricingService(
+            in: session.modelContext ?? session.patient?.modelContext
+        )
+        return completionConfigurationIssue(
+            for: financialDraft(for: session),
+            pricingService: pricingService
+        )
+    }
+
+    /// Centraliza la traducción del estado financiero de un borrador a una
+    /// causa de bloqueo visible por la UI. Mantener esta regla fuera de la
+    /// vista evita que preview, sheet y guardado discrepen entre sí.
+    @MainActor
+    private func completionConfigurationIssue(
+        for draft: SessionFinancialDraft,
+        pricingService: SessionPricingService
+    ) -> CompletionConfigurationIssue? {
+        if draft.isCourtesy {
             return nil
         }
 
-        guard session.financialSessionType != nil else {
+        guard draft.financialSessionType != nil else {
             return .missingFinancialSessionType
         }
 
-        if session.effectiveCurrency.isEmpty {
+        if pricingService.resolveEffectiveCurrency(for: draft).isEmpty {
             return .missingPatientCurrency
         }
 
-        if session.effectivePrice <= 0 {
+        if pricingService.resolveDynamicPrice(for: draft) <= 0 {
             return .missingResolvedPrice
         }
 

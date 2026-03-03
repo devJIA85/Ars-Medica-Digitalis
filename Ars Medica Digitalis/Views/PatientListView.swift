@@ -212,8 +212,21 @@ private struct PatientRowView: View {
                         .minimumScaleFactor(0.85)
 
                     HStack(spacing: AppSpacing.sm) {
-                        if let dx = summary.primaryDiagnosisCode {
-                            StatusBadge(label: dx, variant: .neutral, systemImage: "stethoscope")
+                        if let diagnosisSummary = summary.primaryDiagnosisSummary {
+                            StatusBadge(
+                                label: diagnosisSummary,
+                                variant: .neutral,
+                                systemImage: "stethoscope"
+                            )
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        }
+                        if patient.hasOutstandingDebt {
+                            StatusBadge(
+                                label: L10n.tr("patient.list.badge.debt"),
+                                variant: .warning,
+                                systemImage: "exclamationmark.circle"
+                            )
                         }
                         StatusBadge(
                             label: patient.isActive ? "Activo" : "Inactivo",
@@ -231,7 +244,6 @@ private struct PatientRowView: View {
         let today = Calendar.current.startOfDay(for: Date())
 
         var latestCompletedSessionDate: Date?
-        var latestCompletedDiagnoses: [Diagnosis]?
         var nextScheduledSessionDate: Date?
 
         for session in sessions {
@@ -239,11 +251,9 @@ private struct PatientRowView: View {
                 if let currentLatest = latestCompletedSessionDate {
                     if session.sessionDate > currentLatest {
                         latestCompletedSessionDate = session.sessionDate
-                        latestCompletedDiagnoses = session.diagnoses
                     }
                 } else {
                     latestCompletedSessionDate = session.sessionDate
-                    latestCompletedDiagnoses = session.diagnoses
                 }
             }
 
@@ -259,15 +269,11 @@ private struct PatientRowView: View {
             }
         }
 
-        let primaryDiagnosisCode =
-            diagnosisCode(from: patient.activeDiagnoses)
-            ?? diagnosisCode(from: latestCompletedDiagnoses)
-
         return PatientRowSummary(
             sessionCount: sessions.count,
             latestCompletedSessionDate: latestCompletedSessionDate,
             nextScheduledSessionDate: nextScheduledSessionDate,
-            primaryDiagnosisCode: primaryDiagnosisCode
+            primaryDiagnosisSummary: PatientRowDiagnosisSummaryBuilder.primarySummary(for: patient)
         )
     }
 
@@ -284,25 +290,102 @@ private struct PatientRowView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func diagnosisCode(from diagnoses: [Diagnosis]?) -> String? {
-        let list = diagnoses ?? []
-        guard !list.isEmpty else { return nil }
-
-        let preferred = list.first {
-            $0.diagnosisType.localizedCaseInsensitiveCompare("principal") == .orderedSame
-        } ?? list.first
-
-        let rawCode = preferred?.icdCode.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return rawCode.isEmpty ? nil : rawCode
-    }
-
     private struct PatientRowSummary {
         let sessionCount: Int
         let latestCompletedSessionDate: Date?
         let nextScheduledSessionDate: Date?
-        let primaryDiagnosisCode: String?
+        let primaryDiagnosisSummary: String?
     }
 
+}
+
+/// Construye el resumen clínico breve de la fila del paciente.
+/// Se concentra en texto legible para evitar exponer códigos CIE poco útiles
+/// en la lista principal, y además permite testear la regla sin renderizar UI.
+enum PatientRowDiagnosisSummaryBuilder {
+
+    /// El badge de la lista necesita una versión clínica corta que entre
+    /// junto a deuda/estado sin desbordar la card. Se prioriza la primera
+    /// cláusula útil y luego se recorta por palabras para conservar sentido.
+    private static let preferredWordLimit = 5
+
+    /// Prioriza diagnósticos vigentes del paciente.
+    /// Si no existen, usa los diagnósticos de la última sesión completada.
+    static func primarySummary(for patient: Patient) -> String? {
+        if let activeSummary = summary(from: patient.activeDiagnoses) {
+            return activeSummary
+        }
+
+        let latestCompletedDiagnoses = (patient.sessions ?? [])
+            .filter { $0.sessionStatusValue == .completada }
+            .max(by: { $0.sessionDate < $1.sessionDate })?
+            .diagnoses
+
+        return summary(from: latestCompletedDiagnoses)
+    }
+
+    /// Resume el diagnóstico principal en una forma breve y legible.
+    /// Si hay varios diagnósticos válidos agrega un sufijo `+N` para no perder
+    /// la señal de complejidad clínica sin ocupar varias líneas.
+    static func summary(from diagnoses: [Diagnosis]?) -> String? {
+        let validDiagnoses = (diagnoses ?? []).filter { diagnosis in
+            diagnosis.displayTitle.trimmed.isEmpty == false
+        }
+        guard validDiagnoses.isEmpty == false else { return nil }
+
+        let preferredDiagnosis = validDiagnoses.first {
+            $0.diagnosisType.localizedCaseInsensitiveCompare("principal") == .orderedSame
+        } ?? validDiagnoses.first
+
+        guard let preferredDiagnosis else { return nil }
+
+        let title = abbreviatedClinicalTitle(from: preferredDiagnosis.displayTitle)
+        guard title.isEmpty == false else { return nil }
+
+        let extraCount = validDiagnoses.count - 1
+        if extraCount > 0 {
+            return "\(title) +\(extraCount)"
+        }
+
+        return title
+    }
+
+    /// Reduce títulos extensos sin perder la idea clínica principal.
+    /// Primero intenta usar la primera cláusula antes de puntuación larga
+    /// y luego recorta por cantidad de palabras para que el badge siga legible.
+    private static func abbreviatedClinicalTitle(from rawTitle: String) -> String {
+        let compactTitle = rawTitle
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard compactTitle.isEmpty == false else { return "" }
+
+        let firstClause: String = {
+            let separators = [",", ";", "(", "·", ":"]
+            let firstRange = separators
+                .compactMap { separator in
+                    compactTitle.range(of: separator)
+                }
+                .min(by: { $0.lowerBound < $1.lowerBound })
+
+            guard let firstRange else { return compactTitle }
+
+            return String(compactTitle[..<firstRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }()
+
+        let titleToTrim = firstClause.isEmpty ? compactTitle : firstClause
+        let words = titleToTrim.split(separator: " ")
+
+        guard words.count > preferredWordLimit else {
+            return titleToTrim
+        }
+
+        return words
+            .prefix(preferredWordLimit)
+            .joined(separator: " ") + "…"
+    }
 }
 
 #Preview {

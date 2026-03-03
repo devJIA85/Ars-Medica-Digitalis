@@ -24,6 +24,7 @@ struct PatientDetailView: View {
     @State private var showingPDFShareSheet: Bool = false
     @State private var exportedPDFURL: URL? = nil
     @State private var exportErrorMessage: String? = nil
+    @State private var showingDebtSettlement: Bool = false
     @State private var didAppearDiagnoses: Bool = false
     @State private var didAppearSessions: Bool = false
 
@@ -53,6 +54,13 @@ struct PatientDetailView: View {
                         patient: patient,
                         professional: professional,
                         count: activeMedicationCount
+                    )
+                }
+
+                if patient.hasOutstandingDebt {
+                    PatientFinanceCard(
+                        patient: patient,
+                        onSettleDebt: { showingDebtSettlement = true }
                     )
                 }
 
@@ -129,6 +137,15 @@ struct PatientDetailView: View {
         .sheet(isPresented: $showingNewSession) {
             NavigationStack {
                 SessionFormView(patient: patient)
+            }
+        }
+        .sheet(isPresented: $showingDebtSettlement) {
+            NavigationStack {
+                PatientDebtSettlementView(
+                    patient: patient,
+                    context: modelContext,
+                    showsCloseButton: true
+                )
             }
         }
         .sheet(isPresented: $showingPDFShareSheet) {
@@ -252,6 +269,50 @@ struct PatientDetailView: View {
     }
 }
 
+// MARK: - Finanzas
+
+private struct PatientFinanceCard: View {
+    let patient: Patient
+    let onSettleDebt: () -> Void
+
+    var body: some View {
+        CardContainer(style: .flat) {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                HStack(alignment: .center) {
+                    Text(L10n.tr("Finanzas"))
+                        .font(.title3.bold())
+                        .foregroundStyle(.primary)
+
+                    Spacer(minLength: 0)
+
+                    StatusBadge(
+                        label: L10n.tr("patient.list.badge.debt"),
+                        variant: .warning,
+                        systemImage: "exclamationmark.circle"
+                    )
+                }
+
+                ForEach(patient.debtByCurrency) { summary in
+                    LabeledContent(summary.currencyCode) {
+                        Text(summary.debt.formattedCurrency(code: summary.currencyCode))
+                            .fontWeight(.semibold)
+                    }
+                }
+
+                Text(L10n.tr("patient.debt.card.footer"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Button(action: onSettleDebt) {
+                    Text(L10n.tr("patient.debt.card.action"))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+}
+
 // MARK: - Header (toolbar principal)
 
 private struct PatientHeaderContent: View {
@@ -295,12 +356,34 @@ private struct PatientQuickInfo: View {
             )
             .accessibilityHidden(true)
 
-            if let next = nextAppointmentDate {
-                StatusBadge(
-                    label: "Próxima: \(next.esDayMonthAbbrev())",
-                    variant: .warning,
-                    systemImage: "calendar.badge.clock"
-                )
+            // Reúne la próxima cita y la moneda asignada en el mismo bloque
+            // para que el profesional vea de un vistazo agenda y contexto financiero.
+            if nextAppointmentDate != nil || assignedCurrencyCode.isEmpty == false || patient.hasOutstandingDebt {
+                HStack(spacing: AppSpacing.sm) {
+                    if let next = nextAppointmentDate {
+                        StatusBadge(
+                            label: "Próxima: \(next.esDayMonthAbbrev())",
+                            variant: .warning,
+                            systemImage: "calendar.badge.clock"
+                        )
+                    }
+
+                    if assignedCurrencyCode.isEmpty == false {
+                        StatusBadge(
+                            label: assignedCurrencyCode,
+                            variant: .custom(.blue),
+                            systemImage: "dollarsign.circle"
+                        )
+                    }
+
+                    if patient.hasOutstandingDebt {
+                        StatusBadge(
+                            label: L10n.tr("patient.list.badge.debt"),
+                            variant: .danger,
+                            systemImage: "exclamationmark.circle"
+                        )
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -316,10 +399,20 @@ private struct PatientQuickInfo: View {
             .min()
     }
 
+    private var assignedCurrencyCode: String {
+        patient.currencyCode.trimmed
+    }
+
     private var accessibilityDescription: String {
         var parts = ["Estado clínico: \(patient.clinicalStatus)"]
         if let next = nextAppointmentDate {
             parts.append("Próxima cita: \(next.esDayMonthAbbrev())")
+        }
+        if assignedCurrencyCode.isEmpty == false {
+            parts.append("Moneda asignada: \(assignedCurrencyCode)")
+        }
+        if patient.hasOutstandingDebt {
+            parts.append("Con deuda pendiente")
         }
         return parts.joined(separator: ". ")
     }

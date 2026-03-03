@@ -6,6 +6,59 @@ import Testing
 @MainActor
 struct FinanceModuleTests {
 
+    @Test("SessionPricingService.canResolvePrice con draft no inserta sesiones")
+    func sessionPricingServiceCanResolvePriceDoesNotInsertSession() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let now = Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            currencyCode: "USD",
+            professional: professional
+        )
+        context.insert(patient)
+        context.insert(
+            PatientCurrencyVersion(
+                currencyCode: "USD",
+                effectiveFrom: now.addingTimeInterval(-60 * 60),
+                patient: patient
+            )
+        )
+
+        let sessionType = SessionCatalogType(
+            name: "Dólares",
+            professional: professional
+        )
+        context.insert(sessionType)
+        context.insert(
+            SessionTypePriceVersion(
+                effectiveFrom: now.addingTimeInterval(-60 * 60),
+                price: 35,
+                currencyCode: "USD",
+                sessionCatalogType: sessionType
+            )
+        )
+        try context.save()
+
+        let countBefore = try context.fetchCount(FetchDescriptor<Session>())
+        let service = SessionPricingService(modelContext: context)
+        let draft = SessionFinancialDraft(
+            scheduledAt: now,
+            patient: patient,
+            financialSessionType: sessionType,
+            isCourtesy: false,
+            isCompleted: false
+        )
+
+        #expect(service.canResolvePrice(for: draft) == true)
+        #expect(try context.fetchCount(FetchDescriptor<Session>()) == countBefore)
+    }
+
     @Test("El precio dinámico cambia cuando cambia la moneda del paciente")
     func testDynamicPriceChangesWhenCurrencyChanges() throws {
         let container = try makeInMemoryContainer()
@@ -75,6 +128,116 @@ struct FinanceModuleTests {
 
         #expect(session.effectiveCurrency == "EUR")
         #expect(session.effectivePrice == 80)
+    }
+
+    @Test("Un honorario vigente desde hoy aplica a cualquier hora del mismo día")
+    func testSameDayPriceVersionAppliesByDateNotByHour() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let sessionDate = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 3, hour: 2, minute: 10)
+        )!
+        let honorariumCreatedLaterSameDay = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 3, hour: 11, minute: 17)
+        )!
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            currencyCode: "ARS",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let sessionType = SessionCatalogType(
+            name: "Individual",
+            professional: professional
+        )
+        context.insert(sessionType)
+
+        let version = SessionTypePriceVersion(
+            effectiveFrom: honorariumCreatedLaterSameDay,
+            price: 55000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        context.insert(version)
+
+        let session = Session(
+            sessionDate: sessionDate,
+            status: SessionStatusMapping.programada.rawValue,
+            patient: patient,
+            financialSessionType: sessionType
+        )
+        context.insert(session)
+        try context.save()
+
+        #expect(session.effectiveCurrency == "ARS")
+        #expect(session.effectivePrice == 55000)
+    }
+
+    @Test("Una sesión anterior al primer honorario usa el primer precio disponible")
+    func testFirstHonorariumAppliesRetroactivelyWhenNoOlderPriceExists() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let sessionDate = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 2, hour: 10, minute: 5)
+        )!
+        let firstHonorariumDate = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 3, hour: 11, minute: 17)
+        )!
+        let laterHonorariumDate = calendar.date(
+            from: DateComponents(year: 2026, month: 3, day: 10, hour: 9, minute: 0)
+        )!
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            currencyCode: "ARS",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let sessionType = SessionCatalogType(
+            name: "Individual",
+            professional: professional
+        )
+        context.insert(sessionType)
+
+        let firstVersion = SessionTypePriceVersion(
+            effectiveFrom: firstHonorariumDate,
+            price: 55000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        let laterVersion = SessionTypePriceVersion(
+            effectiveFrom: laterHonorariumDate,
+            price: 70000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        context.insert(firstVersion)
+        context.insert(laterVersion)
+
+        let session = Session(
+            sessionDate: sessionDate,
+            status: SessionStatusMapping.programada.rawValue,
+            patient: patient,
+            financialSessionType: sessionType
+        )
+        context.insert(session)
+        try context.save()
+
+        #expect(session.effectiveCurrency == "ARS")
+        #expect(session.effectivePrice == 55000)
     }
 
     @Test("El snapshot congela el precio al completar la sesión")
@@ -1150,7 +1313,7 @@ struct FinanceModuleTests {
         #expect(latestVersion.adjustmentSource == .ipcSuggested)
         #expect(latestVersion.price == 109)
         #expect(latestVersion.currencyCode == "USD")
-        #expect(latestVersion.effectiveFrom == updateDate)
+        #expect(latestVersion.effectiveFrom == calendar.startOfDay(for: updateDate))
 
         let service = SessionTypeBusinessService(
             ipcIndicatorService: IPCIndicatorService(calendar: calendar),
@@ -1254,6 +1417,116 @@ struct FinanceModuleTests {
         #expect(completedSession.effectivePrice == 100)
         #expect(completedSession.finalPriceSnapshot == 100)
         #expect(completedSession.finalCurrencySnapshot == "USD")
+    }
+
+    @Test("Cancelar deuda parcial distribuye el pago desde la sesión más antigua")
+    func testPatientDebtSettlementAppliesPartialPaymentOldestFirst() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let olderDate = calendar.date(from: DateComponents(year: 2026, month: 2, day: 1)) ?? Date()
+        let newerDate = calendar.date(from: DateComponents(year: 2026, month: 2, day: 20)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let olderSession = Session(
+            sessionDate: olderDate,
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: olderDate,
+            patient: patient,
+            finalPriceSnapshot: 100,
+            finalCurrencySnapshot: "ARS"
+        )
+        let newerSession = Session(
+            sessionDate: newerDate,
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: newerDate,
+            patient: patient,
+            finalPriceSnapshot: 200,
+            finalCurrencySnapshot: "ARS"
+        )
+        context.insert(olderSession)
+        context.insert(newerSession)
+        try context.save()
+
+        let viewModel = PatientDebtSettlementViewModel(
+            patient: patient,
+            context: context,
+            preferredCurrencyCode: "ARS"
+        )
+        try viewModel.refresh()
+        viewModel.selectedOption = .partial
+        viewModel.partialAmount = 150
+
+        try viewModel.registerPayment()
+
+        #expect(olderSession.totalPaid == 100)
+        #expect(olderSession.debt == 0)
+        #expect(newerSession.totalPaid == 50)
+        #expect(newerSession.debt == 150)
+        #expect(viewModel.totalDebt == 150)
+    }
+
+    @Test("Cancelar deuda total limpia la moneda seleccionada sin tocar otras deudas")
+    func testPatientDebtSettlementAppliesFullPaymentOnlyToSelectedCurrency() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let now = Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let arsSession = Session(
+            sessionDate: now.addingTimeInterval(-60 * 60 * 24 * 2),
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: now.addingTimeInterval(-60 * 60 * 24 * 2),
+            patient: patient,
+            finalPriceSnapshot: 120,
+            finalCurrencySnapshot: "ARS"
+        )
+        let usdSession = Session(
+            sessionDate: now.addingTimeInterval(-60 * 60 * 24),
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: now.addingTimeInterval(-60 * 60 * 24),
+            patient: patient,
+            finalPriceSnapshot: 80,
+            finalCurrencySnapshot: "USD"
+        )
+        context.insert(arsSession)
+        context.insert(usdSession)
+        try context.save()
+
+        let viewModel = PatientDebtSettlementViewModel(
+            patient: patient,
+            context: context,
+            preferredCurrencyCode: "ARS"
+        )
+        try viewModel.refresh()
+
+        #expect(viewModel.selectedCurrency == "ARS")
+        #expect(viewModel.totalDebt == 120)
+
+        try viewModel.registerPayment()
+
+        #expect(arsSession.debt == 0)
+        #expect(usdSession.debt == 80)
+        #expect(patient.debtByCurrency.count == 1)
+        #expect(patient.debtByCurrency.first?.currencyCode == "USD")
     }
 
     @Test("El highlight de honorarios no aparece cuando no hay sugerencia")

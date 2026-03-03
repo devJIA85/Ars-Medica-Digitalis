@@ -13,9 +13,11 @@ import SwiftData
 final class SessionPricingService {
 
     private let modelContext: ModelContext?
+    private let calendar: Calendar
 
-    init(modelContext: ModelContext? = nil) {
+    init(modelContext: ModelContext? = nil, calendar: Calendar = .current) {
         self.modelContext = modelContext
+        self.calendar = calendar
     }
 
     /// Resuelve la moneda vigente de un paciente para una fecha dada.
@@ -55,16 +57,30 @@ final class SessionPricingService {
     /// Prioriza override base del paciente y luego catálogo profesional versionado.
     /// No usa resolvedPrice persistido porque el valor debe recalcularse en vivo.
     func resolveDynamicPrice(for session: Session) -> Decimal {
-        if session.isCourtesy {
+        let draft = SessionFinancialDraft(
+            scheduledAt: session.scheduledAt,
+            patient: session.patient,
+            financialSessionType: session.financialSessionType,
+            isCourtesy: session.isCourtesy,
+            isCompleted: session.isCompleted
+        )
+        return resolveDynamicPrice(for: draft)
+    }
+
+    /// Resuelve el precio dinámico de un borrador puro sin instanciar Session.
+    /// Esto evita que SwiftData interprete previews y validaciones como datos
+    /// persistibles cuando el formulario recalcula estados financieros.
+    func resolveDynamicPrice(for draft: SessionFinancialDraft) -> Decimal {
+        if draft.isCourtesy {
             return 0
         }
 
-        guard let patient = session.patient,
-              let sessionType = session.financialSessionType else {
+        guard let patient = draft.patient,
+              let sessionType = draft.financialSessionType else {
             return 0
         }
 
-        let currency = resolveCurrency(for: patient, at: session.scheduledAt)
+        let currency = resolveEffectiveCurrency(for: draft)
         if currency.isEmpty {
             return 0
         }
@@ -80,12 +96,60 @@ final class SessionPricingService {
         if let catalogPrice = resolveCatalogPrice(
             sessionType: sessionType,
             currencyCode: currency,
-            scheduledAt: session.scheduledAt
+            scheduledAt: draft.scheduledAt
         ) {
             return catalogPrice
         }
 
+        if let siblingCatalogPrice = resolveSiblingCatalogPrice(
+            sessionType: sessionType,
+            currencyCode: currency,
+            scheduledAt: draft.scheduledAt
+        ) {
+            return siblingCatalogPrice
+        }
+
         return 0
+    }
+
+    /// Resuelve la moneda efectiva de un borrador financiero puro.
+    /// Mantener esta API separada evita usar Session @Model para previews.
+    func resolveEffectiveCurrency(for draft: SessionFinancialDraft) -> String {
+        guard let patient = draft.patient else {
+            return ""
+        }
+
+        return resolveCurrency(for: patient, at: draft.scheduledAt)
+    }
+
+    /// Indica si un tipo facturable tiene algún honorario resoluble para la
+    /// moneda vigente del paciente en la fecha de la sesión. Se usa para que
+    /// la UI no ofrezca opciones incompatibles que después terminan en error.
+    func canResolvePrice(for draft: SessionFinancialDraft) -> Bool {
+        let currency = resolveEffectiveCurrency(for: draft)
+        guard currency.isEmpty == false else {
+            return false
+        }
+
+        return resolveDynamicPrice(for: draft) > 0
+    }
+
+    /// Compatibilidad con el contrato actual del ViewModel.
+    /// Internamente se delega al borrador puro para no crear Session temporales.
+    func canResolvePrice(
+        for patient: Patient,
+        sessionType: SessionCatalogType,
+        scheduledAt: Date
+    ) -> Bool {
+        let draft = SessionFinancialDraft(
+            scheduledAt: scheduledAt,
+            patient: patient,
+            financialSessionType: sessionType,
+            isCourtesy: false,
+            isCompleted: false
+        )
+
+        return canResolvePrice(for: draft)
     }
 
     /// Congela el snapshot financiero cuando la sesión queda completada.
@@ -217,7 +281,6 @@ final class SessionPricingService {
             predicate: #Predicate<SessionTypePriceVersion> { version in
                 version.sessionCatalogType?.id == typeID
                 && version.currencyCode == currencyCode
-                && version.effectiveFrom <= scheduledAt
             },
             sortBy: [
                 SortDescriptor(\SessionTypePriceVersion.effectiveFrom, order: .reverse),
@@ -226,7 +289,11 @@ final class SessionPricingService {
         )
 
         do {
-            return try context.fetch(descriptor).first?.price
+            let versions = try context.fetch(descriptor)
+            return resolveCatalogPriceVersion(
+                from: versions,
+                scheduledAt: scheduledAt
+            )?.price
         } catch {
             return resolveCatalogPriceInMemory(
                 sessionType: sessionType,
@@ -241,17 +308,112 @@ final class SessionPricingService {
         currencyCode: String,
         scheduledAt: Date
     ) -> Decimal? {
-        (sessionType.priceVersions ?? [])
-            .filter {
-                $0.currencyCode == currencyCode
-                && $0.effectiveFrom <= scheduledAt
+        let versions = (sessionType.priceVersions ?? [])
+            .filter { $0.currencyCode == currencyCode }
+
+        return resolveCatalogPriceVersion(
+            from: versions,
+            scheduledAt: scheduledAt
+        )?.price
+    }
+
+    /// Compatibiliza catálogos ya duplicados por nombre.
+    /// Si el tipo seleccionado no tiene precio en la moneda del paciente,
+    /// buscamos un tipo hermano del mismo profesional con el mismo nombre
+    /// lógico para reutilizar su versión y no bloquear el cobro.
+    private func resolveSiblingCatalogPrice(
+        sessionType: SessionCatalogType,
+        currencyCode: String,
+        scheduledAt: Date
+    ) -> Decimal? {
+        guard let professional = sessionType.professional else {
+            return nil
+        }
+
+        let normalizedName = normalizedSessionTypeName(sessionType.name)
+        let siblingTypes = fetchSessionCatalogTypes(for: professional)
+            .filter { candidate in
+                candidate.id != sessionType.id
+                && candidate.isActive
+                && normalizedSessionTypeName(candidate.name) == normalizedName
             }
-            .sorted { lhs, rhs in
-                if lhs.effectiveFrom == rhs.effectiveFrom {
-                    return lhs.updatedAt > rhs.updatedAt
-                }
-                return lhs.effectiveFrom > rhs.effectiveFrom
+
+        for siblingType in siblingTypes {
+            if let siblingPrice = resolveCatalogPrice(
+                sessionType: siblingType,
+                currencyCode: currencyCode,
+                scheduledAt: scheduledAt
+            ) {
+                return siblingPrice
             }
-            .first?.price
+        }
+
+        return nil
+    }
+
+    /// Resuelve la versión de honorario que corresponde a la sesión.
+    /// Primero respeta la versión vigente para la fecha programada y, si no existe
+    /// una anterior, cae al primer honorario disponible de esa moneda. Ese fallback
+    /// evita dejar sesiones históricas sin cobrar cuando el profesional configuró
+    /// su primer precio después de haber atendido al paciente.
+    private func resolveCatalogPriceVersion(
+        from versions: [SessionTypePriceVersion],
+        scheduledAt: Date
+    ) -> SessionTypePriceVersion? {
+        guard versions.isEmpty == false else {
+            return nil
+        }
+
+        let scheduledDay = scheduledAt.startOfDayDate(calendar: calendar)
+        let sortedByEffectiveDateDescending = versions.sorted { lhs, rhs in
+            if lhs.effectiveFrom == rhs.effectiveFrom {
+                return lhs.updatedAt > rhs.updatedAt
+            }
+            return lhs.effectiveFrom > rhs.effectiveFrom
+        }
+
+        if let currentVersion = sortedByEffectiveDateDescending.first(where: { version in
+            version.effectiveFrom.startOfDayDate(calendar: calendar) <= scheduledDay
+        }) {
+            return currentVersion
+        }
+
+        return versions.min { lhs, rhs in
+            let lhsDay = lhs.effectiveFrom.startOfDayDate(calendar: calendar)
+            let rhsDay = rhs.effectiveFrom.startOfDayDate(calendar: calendar)
+
+            if lhsDay == rhsDay {
+                return lhs.updatedAt > rhs.updatedAt
+            }
+
+            return lhsDay < rhsDay
+        }
+    }
+
+    /// Lee el catálogo desde SwiftData para no depender de que la relación
+    /// del Professional ya esté materializada en memoria al momento de cobrar.
+    private func fetchSessionCatalogTypes(for professional: Professional) -> [SessionCatalogType] {
+        guard let context = resolveContext(preferred: professional.modelContext) else {
+            return professional.sessionCatalogTypes ?? []
+        }
+
+        let professionalID = professional.id
+        let descriptor = FetchDescriptor<SessionCatalogType>(
+            predicate: #Predicate<SessionCatalogType> { sessionType in
+                sessionType.professional?.id == professionalID
+            },
+            sortBy: [
+                SortDescriptor(\SessionCatalogType.sortOrder),
+                SortDescriptor(\SessionCatalogType.createdAt),
+            ]
+        )
+
+        return (try? context.fetch(descriptor)) ?? (professional.sessionCatalogTypes ?? [])
+    }
+
+    private func normalizedSessionTypeName(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
     }
 }

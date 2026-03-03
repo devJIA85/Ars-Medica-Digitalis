@@ -387,6 +387,21 @@ private struct CalendarSessionRow: View {
                                 .lineLimit(1)
                         }
                     }
+
+                    // En la agenda necesitamos ver de inmediato qué sesiones
+                    // completadas todavía requieren seguimiento de cobro.
+                    // Mostramos badges para pago parcial y para ausencia total de pago.
+                    if let paymentBadge {
+                        Text(paymentBadge.title)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(paymentBadge.tint)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(paymentBadge.tint.opacity(0.12))
+                            )
+                    }
                 }
 
                 Spacer()
@@ -421,6 +436,23 @@ private struct CalendarSessionRow: View {
 
     private var statusMapping: SessionStatusMapping? {
         SessionStatusMapping(sessionStatusRawValue: session.status)
+    }
+
+    /// Resume el seguimiento financiero pendiente solo para sesiones ya completadas.
+    /// Evitamos mostrar badges en sesiones abiertas porque todavía no existe deuda devengada.
+    private var paymentBadge: (title: String, tint: Color)? {
+        guard session.sessionStatusValue == .completada else {
+            return nil
+        }
+
+        switch session.paymentState {
+        case .paidPartial:
+            return (L10n.tr("calendar.session.badge.partial_payment"), .orange)
+        case .unpaid:
+            return (L10n.tr("calendar.session.badge.unpaid"), .red)
+        case .paidFull:
+            return nil
+        }
     }
 }
 

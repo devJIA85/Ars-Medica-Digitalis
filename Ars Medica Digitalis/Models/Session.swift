@@ -100,11 +100,14 @@ final class Session {
             return 0
         }
 
+        let service = SessionPricingService(modelContext: modelContext)
         if isCompleted {
-            return finalPriceSnapshot ?? 0
+            // Mientras la sesión completada aún no congeló snapshots, por ejemplo
+            // durante la validación previa al guardado, seguimos resolviendo en vivo
+            // para no degradar a cero una sesión que sí tiene honorario válido.
+            return finalPriceSnapshot ?? service.resolveDynamicPrice(for: self)
         }
 
-        let service = SessionPricingService(modelContext: modelContext)
         return service.resolveDynamicPrice(for: self)
     }
 
@@ -113,12 +116,14 @@ final class Session {
     /// las no completadas siguen la moneda vigente del paciente por fecha.
     @MainActor
     var effectiveCurrency: String {
-        if isCompleted {
-            return finalCurrencySnapshot ?? ""
-        }
-
         guard let patient else { return "" }
         let service = SessionPricingService(modelContext: modelContext)
+        if isCompleted {
+            // Mismo criterio que el precio: una completada temporal sin snapshot
+            // todavía debe poder validarse y mostrarse con su moneda dinámica.
+            return finalCurrencySnapshot ?? service.resolveCurrency(for: patient, at: scheduledAt)
+        }
+
         return service.resolveCurrency(for: patient, at: scheduledAt)
     }
 

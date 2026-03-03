@@ -169,11 +169,23 @@ final class PatientViewModel {
         PatientFormData(patient: patient).apply(to: self)
     }
 
+    /// Si el profesional tiene una moneda base, la sembramos al crear
+    /// pacientes nuevos para reducir fricción y mantener consistencia
+    /// administrativa desde el primer guardado.
+    func applyCreationDefaults(from professional: Professional) {
+        guard currencyCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        currencyCode = professional.defaultPatientCurrencyCode
+    }
+
     // MARK: - Creación
 
     /// Crea un nuevo Patient vinculado al Professional activo
     @discardableResult
     func createPatient(for professional: Professional, in context: ModelContext) -> Patient {
+        applyCreationDefaults(from: professional)
         let data = PatientFormData(viewModel: self)
 
         // Autogenerar número de historia clínica si está vacío

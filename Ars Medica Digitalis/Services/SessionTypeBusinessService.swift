@@ -212,7 +212,10 @@ final class SessionTypeBusinessService {
         from versions: [SessionTypePriceVersion],
         at referenceDate: Date
     ) -> SessionTypePriceVersion? {
-        versions.first { $0.effectiveFrom <= referenceDate }
+        let referenceDay = referenceDate.startOfDayDate(calendar: calendar)
+        return versions.first { version in
+            version.effectiveFrom.startOfDayDate(calendar: calendar) <= referenceDay
+        }
     }
 
     /// Conserva la última versión registrada aunque todavía sea futura.

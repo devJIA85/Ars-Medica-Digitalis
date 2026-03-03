@@ -33,6 +33,10 @@ struct PatientFormView: View {
         let vm = PatientViewModel()
         if let patient {
             vm.load(from: patient)
+        } else {
+            // Sembramos la moneda default del profesional solo en altas nuevas
+            // para no pisar configuraciones ya existentes del paciente.
+            vm.applyCreationDefaults(from: professional)
         }
         _viewModel = State(initialValue: vm)
     }

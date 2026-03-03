@@ -17,6 +17,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query private var professionals: [Professional]
     @AppStorage("security.biometricEnabled") private var biometricLockEnabled: Bool = false
+    @AppStorage("repairs.sessionPhantoms.v1") private var didRunSessionPhantomRepair: Bool = false
 
     /// Namespace para la transición zoom entre la fila de paciente
     /// en la lista y su vista de detalle.
@@ -33,6 +34,8 @@ struct ContentView: View {
     @State private var isAppUnlocked: Bool = true
     @State private var isAuthenticating: Bool = false
     @State private var lockErrorMessage: String? = nil
+    @State private var isRunningSessionRepair: Bool = false
+    @State private var didResolveSessionRepairForCurrentLaunch: Bool = false
     @State private var biometricCapability = BiometricCapability(
         kind: .none,
         isAvailable: false,
@@ -58,6 +61,9 @@ struct ContentView: View {
         .task {
             await runLaunchFlowIfNeeded()
         }
+        .task(id: professionals.first?.id) {
+            await runSessionRepairIfNeeded()
+        }
         .onChange(of: professionals.first?.id) { _, _ in
             handleProtectionContextChange()
         }
@@ -74,7 +80,9 @@ struct ContentView: View {
     @ViewBuilder
     private var rootContent: some View {
         if let professional = professionals.first {
-            if shouldRequireLock && !isAppUnlocked {
+            if didResolveSessionRepairForCurrentLaunch == false || isRunningSessionRepair {
+                ProgressView()
+            } else if shouldRequireLock && !isAppUnlocked {
                 AppLockView(
                     capability: biometricCapability,
                     isAuthenticating: isAuthenticating,
@@ -257,6 +265,39 @@ struct ContentView: View {
         case .failed(let message):
             isAppUnlocked = false
             lockErrorMessage = message
+        }
+    }
+
+    /// Ejecuta una limpieza conservadora de sesiones fantasma generadas por
+    /// previews antiguos. Corre una sola vez por instalación para no borrar
+    /// nada durante el uso normal y para devolver consistencia al calendario.
+    @MainActor
+    private func runSessionRepairIfNeeded() async {
+        guard professionals.first != nil else {
+            didResolveSessionRepairForCurrentLaunch = true
+            return
+        }
+
+        if didRunSessionPhantomRepair {
+            didResolveSessionRepairForCurrentLaunch = true
+            return
+        }
+
+        guard isRunningSessionRepair == false else { return }
+
+        didResolveSessionRepairForCurrentLaunch = false
+        isRunningSessionRepair = true
+        defer {
+            isRunningSessionRepair = false
+            didResolveSessionRepairForCurrentLaunch = true
+        }
+
+        do {
+            let result = try SessionPhantomRepairService().repairIfNeeded(in: modelContext)
+            print("SessionPhantomRepairService removed=\(result.removedCount) skipped=\(result.skippedCount)")
+            didRunSessionPhantomRepair = true
+        } catch {
+            print("SessionPhantomRepairService failed: \(error.localizedDescription)")
         }
     }
 }

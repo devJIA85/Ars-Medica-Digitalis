@@ -74,6 +74,9 @@ struct HonorariumCreateView: View {
         } message: {
             Text(errorMessage ?? "Ocurrió un error al guardar el honorario.")
         }
+        .task {
+            viewModel.applyDefaults(from: professional)
+        }
     }
 
     /// Persistimos primero y refrescamos el tablero al final para que la hoja

@@ -39,6 +39,7 @@ struct PaymentFlowView: View {
     @FocusState private var isPartialAmountFocused: Bool
 
     let draft: CompletionDraft
+    let onCancel: @MainActor () -> Void
     let onConfirm: (PaymentIntent) throws -> Void
 
     @State private var selectedOption: PaymentOption = .full
@@ -50,7 +51,11 @@ struct PaymentFlowView: View {
             Form {
                 Section {
                     if let configurationIssue = draft.configurationIssue {
-                        configurationWarning(message: configurationIssue.message)
+                        configurationWarning(
+                            message: configurationIssue.message(
+                                resolvedCurrencyCode: draft.currencyCode
+                            )
+                        )
                     }
 
                     LabeledContent("Moneda del paciente", value: currencySummaryText)
@@ -104,6 +109,7 @@ struct PaymentFlowView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") {
+                        onCancel()
                         dismiss()
                     }
                 }
@@ -122,6 +128,7 @@ struct PaymentFlowView: View {
             } message: {
                 Text(errorMessage ?? "Ocurrió un error al registrar el cierre.")
             }
+            .interactiveDismissDisabled()
             .onAppear {
                 if draft.isCourtesy == false, selectedOption == .partial {
                     isPartialAmountFocused = true
@@ -203,6 +210,11 @@ struct PaymentFlowView: View {
     }
 
     private var totalSummaryText: String {
+        if draft.isCourtesy == false, draft.configurationIssue == .missingResolvedPrice,
+           draft.currencyCode.isEmpty == false {
+            return L10n.tr("session.pricing.unresolved_for_currency", draft.currencyCode)
+        }
+
         if draft.isCourtesy == false, draft.configurationIssue != nil {
             return "Sin configurar"
         }
@@ -266,6 +278,7 @@ struct PaymentFlowView: View {
             isCourtesy: false,
             configurationIssue: nil
         ),
+        onCancel: {},
         onConfirm: { _ in }
     )
 }

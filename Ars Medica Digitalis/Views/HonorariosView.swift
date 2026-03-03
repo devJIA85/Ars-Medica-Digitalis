@@ -50,6 +50,35 @@ enum HonorariosHighlightRules {
     }
 }
 
+/// Reglas puras del tipo sugerido para nuevas sesiones.
+/// Se centralizan fuera de la vista para reutilizar el mismo criterio en la
+/// UI y en tests sin depender de estado visual.
+enum HonorariosSuggestedTypeRules {
+
+    /// Solo los tipos activos pueden proponerse en sesiones nuevas.
+    /// Los inactivos siguen existiendo para historial, pero no para captura.
+    static func activeSnapshots(
+        from snapshots: [SessionTypeBusinessSnapshot]
+    ) -> [SessionTypeBusinessSnapshot] {
+        snapshots.filter { $0.sessionType.isActive }
+    }
+
+    /// Devuelve un tipo sugerido siempre válido para la operación diaria.
+    /// Si la preferencia guardada se volvió inválida, se cae al primer tipo
+    /// activo para no dejar sesiones nuevas sin una sugerencia usable.
+    static func resolvedDefaultSessionTypeID(
+        defaultSessionTypeID: UUID?,
+        activeSnapshots: [SessionTypeBusinessSnapshot]
+    ) -> UUID? {
+        if let defaultSessionTypeID,
+           activeSnapshots.contains(where: { $0.sessionType.id == defaultSessionTypeID }) {
+            return defaultSessionTypeID
+        }
+
+        return activeSnapshots.first?.sessionType.id
+    }
+}
+
 struct HonorariosView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -65,6 +94,19 @@ struct HonorariosView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Picker("Moneda predeterminada", selection: defaultPatientCurrencyBinding) {
+                        Text("Sin configurar").tag("")
+                        ForEach(CurrencyCatalog.common) { currency in
+                            Text(currency.displayLabel).tag(currency.code)
+                        }
+                    }
+                } header: {
+                    Text("Pacientes nuevos")
+                } footer: {
+                    Text("Se aplica automáticamente al crear pacientes nuevos.")
+                }
+
                 if let viewModel {
                     content(for: viewModel)
                 } else {
@@ -131,6 +173,15 @@ struct HonorariosView: View {
 
     @ViewBuilder
     private func content(for viewModel: SessionTypeBusinessViewModel) -> some View {
+        let activeSnapshots = HonorariosSuggestedTypeRules.activeSnapshots(
+            from: viewModel.snapshots
+        )
+        let suggestedSessionTypeID = HonorariosSuggestedTypeRules
+            .resolvedDefaultSessionTypeID(
+                defaultSessionTypeID: professional.defaultFinancialSessionTypeID,
+                activeSnapshots: activeSnapshots
+            )
+
         if viewModel.snapshots.isEmpty {
             Section {
                 VStack(spacing: 18) {
@@ -148,10 +199,17 @@ struct HonorariosView: View {
                 .frame(maxWidth: .infinity)
             }
         } else {
+            if activeSnapshots.isEmpty == false {
+                suggestedSessionTypeSection(
+                    activeSnapshots: activeSnapshots
+                )
+            }
+
             Section {
                 ForEach(viewModel.snapshots, id: \.sessionType.id) { snapshot in
                     HonorariosSessionTypeCard(
                         snapshot: snapshot,
+                        isSuggestedDefault: snapshot.sessionType.id == suggestedSessionTypeID,
                         isHighlighted: HonorariosHighlightRules.shouldShowSuggestionHighlight(
                             policy: professional.pricingAdjustmentPolicy,
                             snapshot: snapshot
@@ -192,6 +250,7 @@ struct HonorariosView: View {
 
         do {
             try await viewModel.refresh()
+            normalizeSuggestedFinancialSessionTypeIfNeeded(using: viewModel)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -231,6 +290,135 @@ struct HonorariosView: View {
             }
         )
     }
+
+    /// La vista escribe directo sobre el Professional vivo y persiste enseguida
+    /// para que la preferencia impacte en altas futuras sin depender de otro
+    /// formulario intermedio.
+    private var defaultPatientCurrencyBinding: Binding<String> {
+        Binding(
+            get: { professional.defaultPatientCurrencyCode },
+            set: { newValue in
+                updateDefaultPatientCurrency(to: newValue)
+            }
+        )
+    }
+
+    @MainActor
+    private func updateDefaultPatientCurrency(to newValue: String) {
+        let normalizedCurrency = newValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+
+        guard professional.defaultPatientCurrencyCode != normalizedCurrency else {
+            return
+        }
+
+        professional.defaultPatientCurrencyCode = normalizedCurrency
+        professional.updatedAt = .now
+
+        do {
+            try modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Mantiene consistente la preferencia sugerida del profesional.
+    /// Si cambia el catálogo y la selección guardada ya no aplica, se corrige
+    /// automáticamente para que la siguiente sesión nueva abra con un tipo válido.
+    @MainActor
+    private func normalizeSuggestedFinancialSessionTypeIfNeeded(
+        using viewModel: SessionTypeBusinessViewModel
+    ) {
+        let activeSnapshots = HonorariosSuggestedTypeRules.activeSnapshots(
+            from: viewModel.snapshots
+        )
+        let normalizedID = HonorariosSuggestedTypeRules.resolvedDefaultSessionTypeID(
+            defaultSessionTypeID: professional.defaultFinancialSessionTypeID,
+            activeSnapshots: activeSnapshots
+        )
+
+        guard professional.defaultFinancialSessionTypeID != normalizedID else {
+            return
+        }
+
+        professional.defaultFinancialSessionTypeID = normalizedID
+        professional.updatedAt = .now
+
+        do {
+            try modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func suggestedSessionTypeSection(
+        activeSnapshots: [SessionTypeBusinessSnapshot]
+    ) -> some View {
+        Section {
+            if activeSnapshots.count == 1, let onlySnapshot = activeSnapshots.first {
+                LabeledContent(L10n.tr("honorarios.default_session_type")) {
+                    Text(onlySnapshot.sessionType.name)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Picker(
+                    L10n.tr("honorarios.default_session_type"),
+                    selection: suggestedFinancialSessionTypeBinding(
+                        activeSnapshots: activeSnapshots
+                    )
+                ) {
+                    ForEach(activeSnapshots, id: \.sessionType.id) { snapshot in
+                        Text(snapshot.sessionType.name)
+                            .tag(snapshot.sessionType.id)
+                    }
+                }
+            }
+        } header: {
+            Text(L10n.tr("honorarios.new_sessions"))
+        } footer: {
+            Text(
+                activeSnapshots.count == 1
+                ? L10n.tr("honorarios.default_session_type_single_footer")
+                : L10n.tr("honorarios.default_session_type_footer")
+            )
+        }
+    }
+
+    /// La vista persiste la preferencia en Professional para que impacte de
+    /// inmediato en sesiones nuevas sin recalcular nada adicional en la captura.
+    private func suggestedFinancialSessionTypeBinding(
+        activeSnapshots: [SessionTypeBusinessSnapshot]
+    ) -> Binding<UUID> {
+        Binding(
+            get: {
+                HonorariosSuggestedTypeRules.resolvedDefaultSessionTypeID(
+                    defaultSessionTypeID: professional.defaultFinancialSessionTypeID,
+                    activeSnapshots: activeSnapshots
+                ) ?? activeSnapshots.first?.sessionType.id ?? UUID()
+            },
+            set: { newValue in
+                updateDefaultFinancialSessionType(to: newValue)
+            }
+        )
+    }
+
+    @MainActor
+    private func updateDefaultFinancialSessionType(to newValue: UUID) {
+        guard professional.defaultFinancialSessionTypeID != newValue else {
+            return
+        }
+
+        professional.defaultFinancialSessionTypeID = newValue
+        professional.updatedAt = .now
+
+        do {
+            try modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }
 
 private struct UpdateSheetState: Identifiable {
@@ -244,6 +432,7 @@ private struct UpdateSheetState: Identifiable {
 private struct HonorariosSessionTypeCard: View {
 
     let snapshot: SessionTypeBusinessSnapshot
+    let isSuggestedDefault: Bool
     let isHighlighted: Bool
     let onDismissHighlight: () -> Void
     let onRequestUpdate: () -> Void
@@ -299,6 +488,18 @@ private struct HonorariosSessionTypeCard: View {
                 Text(currentPriceText)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.primary)
+
+                if isSuggestedDefault {
+                    Text(L10n.tr("honorarios.default_session_type_badge"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.accentColor.opacity(0.12))
+                        )
+                }
             }
 
             Spacer(minLength: 0)

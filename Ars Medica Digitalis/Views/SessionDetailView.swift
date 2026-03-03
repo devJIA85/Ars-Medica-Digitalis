@@ -12,13 +12,19 @@ import SwiftData
 
 struct SessionDetailView: View {
 
+    @Environment(\.modelContext) private var modelContext
+
     let session: Session
     let patient: Patient
     let professional: Professional
 
+    @State private var viewModel = SessionViewModel()
     @State private var showingEdit: Bool = false
     @State private var showingStatusPicker: Bool = false
+    @State private var showingPaymentFlow: Bool = false
     @State private var showAllDiagnoses = false
+    @State private var sessionActionErrorMessage: String?
+    @State private var completionDraft: CompletionDraft?
 
     private static let diagnosisVisibleLimit = 3
 
@@ -30,16 +36,7 @@ struct SessionDetailView: View {
                 LabeledContent("Modalidad", value: sessionTypeLabel)
                 LabeledContent("Duración", value: "\(session.durationMinutes) min")
                 LabeledContent("Estado") {
-                    Button {
-                        showingStatusPicker = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: currentStatusMapping.icon)
-                            Text(currentStatusMapping.label)
-                        }
-                        .foregroundStyle(currentStatusMapping.tint)
-                    }
-                    .buttonStyle(.plain)
+                    statusControl
                 }
 
                 if !session.chiefComplaint.isEmpty {
@@ -48,6 +45,39 @@ struct SessionDetailView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Text(session.chiefComplaint)
+                    }
+                }
+            }
+
+            // MARK: - Finanzas
+            Section("Finanzas") {
+                LabeledContent("Tipo facturable", value: financialSessionTypeLabel)
+                LabeledContent("Moneda", value: effectiveCurrencyLabel)
+                LabeledContent(session.isCompleted ? "Precio final" : "Precio", value: session.effectivePrice.formattedCurrency(code: session.effectiveCurrency))
+                LabeledContent("Cobrado", value: session.totalPaid.formattedCurrency(code: session.effectiveCurrency))
+
+                if session.isCourtesy {
+                    HStack {
+                        Text("Tipo")
+                        Spacer()
+                        Text("Cortesía")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+                    }
+                } else {
+                    LabeledContent("Deuda", value: session.debt.formattedCurrency(code: session.effectiveCurrency))
+                }
+
+                LabeledContent("Estado de pago") {
+                    Text(paymentStateLabel)
+                        .foregroundStyle(paymentStateTint)
+                }
+
+                if canCompleteSession {
+                    Button(session.isCourtesy ? "Completar cortesía" : "Completar sesión") {
+                        openCompletionFlow()
                     }
                 }
             }
@@ -168,15 +198,19 @@ struct SessionDetailView: View {
                 SessionFormView(patient: patient, session: session)
             }
         }
+        .sheet(isPresented: $showingPaymentFlow) {
+            if let completionDraft {
+                PaymentFlowView(draft: completionDraft) { paymentIntent in
+                    // La ejecución real se mantiene en el ViewModel para que
+                    // completar y registrar Payment sigan un único camino.
+                    try viewModel.completeSession(session, in: modelContext, paymentIntent: paymentIntent)
+                }
+            }
+        }
         .confirmationDialog("Cambiar estado", isPresented: $showingStatusPicker, titleVisibility: .visible) {
             if session.status != SessionStatusMapping.programada.rawValue {
                 Button(SessionStatusMapping.programada.label) {
                     applyStatusChange(.programada)
-                }
-            }
-            if session.status != SessionStatusMapping.completada.rawValue {
-                Button(SessionStatusMapping.completada.label) {
-                    applyStatusChange(.completada)
                 }
             }
             if session.status != SessionStatusMapping.cancelada.rawValue {
@@ -184,6 +218,13 @@ struct SessionDetailView: View {
                     applyStatusChange(.cancelada)
                 }
             }
+        }
+        .alert("No se pudo actualizar la sesión", isPresented: sessionActionErrorBinding) {
+            Button("Aceptar", role: .cancel) {
+                sessionActionErrorMessage = nil
+            }
+        } message: {
+            Text(sessionActionErrorMessage ?? "Ocurrió un error al persistir el cambio de estado.")
         }
     }
 
@@ -200,9 +241,88 @@ struct SessionDetailView: View {
         SessionStatusMapping(sessionStatusRawValue: session.status) ?? .completada
     }
 
+    @ViewBuilder
+    private var statusControl: some View {
+        if canChangeStatus {
+            Button {
+                showingStatusPicker = true
+            } label: {
+                statusLabel
+            }
+            .buttonStyle(.plain)
+        } else {
+            statusLabel
+        }
+    }
+
+    private var statusLabel: some View {
+        HStack(spacing: 4) {
+            Image(systemName: currentStatusMapping.icon)
+            Text(currentStatusMapping.label)
+        }
+        .foregroundStyle(currentStatusMapping.tint)
+    }
+
+    private var canChangeStatus: Bool {
+        session.sessionStatusValue != .completada
+    }
+
+    private var canCompleteSession: Bool {
+        session.sessionStatusValue == .programada
+    }
+
+    private var effectiveCurrencyLabel: String {
+        session.effectiveCurrency.isEmpty ? "Sin definir" : session.effectiveCurrency
+    }
+
+    private var financialSessionTypeLabel: String {
+        if session.isCourtesy {
+            return "Cortesía"
+        }
+
+        return session.financialSessionType?.name ?? "Sin definir"
+    }
+
+    private var paymentStateLabel: String {
+        switch session.paymentState {
+        case .unpaid: "Sin pago"
+        case .paidPartial: "Pago parcial"
+        case .paidFull: "Pago completo"
+        }
+    }
+
+    private var paymentStateTint: Color {
+        switch session.paymentState {
+        case .unpaid: .red
+        case .paidPartial: .orange
+        case .paidFull: .green
+        }
+    }
+
+    @MainActor
     private func applyStatusChange(_ newStatus: SessionStatusMapping) {
-        session.status = newStatus.rawValue
-        session.updatedAt = Date()
+        do {
+            try viewModel.applyStatusChange(newStatus, to: session, in: modelContext)
+        } catch {
+            sessionActionErrorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func openCompletionFlow() {
+        completionDraft = viewModel.preparePaymentFlow(for: session)
+        showingPaymentFlow = true
+    }
+
+    private var sessionActionErrorBinding: Binding<Bool> {
+        Binding(
+            get: { sessionActionErrorMessage != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    sessionActionErrorMessage = nil
+                }
+            }
+        )
     }
 
     private func diagnosisTypeLabel(_ type: String) -> String {

@@ -34,6 +34,20 @@ final class Professional {
     @Relationship(deleteRule: .cascade, inverse: \Patient.professional)
     var patients: [Patient]? = []
 
+    // Flujo base del módulo financiero:
+    // Professional -> SessionCatalogType -> SessionTypePriceVersion.
+    // El profesional administra su catálogo facturable sin alterar la modalidad
+    // clínica ya persistida en Session.sessionType.
+    @Relationship(deleteRule: .cascade, inverse: \SessionCatalogType.professional)
+    var sessionCatalogTypes: [SessionCatalogType]? = []
+
+    // Política global del motor de inteligencia económica:
+    // Professional -> PricingAdjustmentPolicy.
+    // Se separa del catálogo para gobernar sugerencias automáticas sin mezclar
+    // reglas comerciales con cada versión individual de precio.
+    @Relationship(deleteRule: .cascade, inverse: \PricingAdjustmentPolicy.professional)
+    var pricingAdjustmentPolicy: PricingAdjustmentPolicy? = nil
+
     init(
         id: UUID = UUID(),
         fullName: String = "",
@@ -43,7 +57,9 @@ final class Professional {
         preferredLanguage: String = "es",
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        patients: [Patient]? = []
+        patients: [Patient]? = [],
+        sessionCatalogTypes: [SessionCatalogType]? = [],
+        pricingAdjustmentPolicy: PricingAdjustmentPolicy? = nil
     ) {
         self.id = id
         self.fullName = fullName
@@ -54,5 +70,7 @@ final class Professional {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.patients = patients
+        self.sessionCatalogTypes = sessionCatalogTypes
+        self.pricingAdjustmentPolicy = pricingAdjustmentPolicy
     }
 }

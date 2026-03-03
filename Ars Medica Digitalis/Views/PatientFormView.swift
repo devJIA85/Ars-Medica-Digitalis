@@ -115,6 +115,20 @@ struct PatientFormView: View {
                 TextField("Plan", text: $viewModel.insurancePlan)
             }
 
+            // MARK: - Finanzas
+            Section {
+                Picker("Moneda predeterminada", selection: $viewModel.currencyCode) {
+                    Text("Sin configurar").tag("")
+                    ForEach(PatientViewModel.supportedCurrencies) { currency in
+                        Text(currency.displayLabel).tag(currency.code)
+                    }
+                }
+            } header: {
+                Text("Finanzas")
+            } footer: {
+                Text("Se usa para resolver la moneda de la sesion al momento del cobro.")
+            }
+
             // MARK: - Contacto
             Section("Contacto") {
                 TextField("Email", text: $viewModel.email)
@@ -162,7 +176,7 @@ struct PatientFormView: View {
 
     private func save() {
         if let patient {
-            viewModel.update(patient)
+            viewModel.update(patient, in: modelContext)
         } else {
             viewModel.createPatient(for: professional, in: modelContext)
         }

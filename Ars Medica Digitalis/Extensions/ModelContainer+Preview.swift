@@ -12,8 +12,14 @@ extension ModelContainer {
     static var previewSchema: [any PersistentModel.Type] {
         [
             Professional.self,
+            PricingAdjustmentPolicy.self,
             Patient.self,
             Session.self,
+            SessionCatalogType.self,
+            SessionTypePriceVersion.self,
+            PatientCurrencyVersion.self,
+            PatientSessionDefaultPrice.self,
+            Payment.self,
             Diagnosis.self,
             Attachment.self,
             PriorTreatment.self,

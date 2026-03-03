@@ -126,6 +126,11 @@ final class Patient {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
+    /// Moneda vigente de compatibilidad.
+    /// Se mantiene como fallback rápido mientras convive con el historial
+    /// de PatientCurrencyVersion, que es la fuente principal por fecha.
+    var currencyCode: String = ""
+
     // MARK: - Relaciones
 
     var professional: Professional? = nil
@@ -151,6 +156,16 @@ final class Patient {
     /// con Swift Charts (peso, IMC, cintura a lo largo del tiempo)
     @Relationship(deleteRule: .cascade, inverse: \AnthropometricRecord.patient)
     var anthropometricRecords: [AnthropometricRecord]? = []
+
+    // Flujo de configuración financiera del paciente:
+    // Patient -> PatientCurrencyVersion para moneda vigente por fecha.
+    // Patient -> PatientSessionDefaultPrice para precios por defecto por tipo.
+    // Se agrega separado del dominio clínico para no alterar los formularios actuales.
+    @Relationship(deleteRule: .cascade, inverse: \PatientCurrencyVersion.patient)
+    var currencyVersions: [PatientCurrencyVersion]? = []
+
+    @Relationship(deleteRule: .cascade, inverse: \PatientSessionDefaultPrice.patient)
+    var sessionDefaultPrices: [PatientSessionDefaultPrice]? = []
 
     // MARK: - Computed properties (no se persisten)
 
@@ -235,12 +250,15 @@ final class Patient {
         deletedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
+        currencyCode: String = "",
         professional: Professional? = nil,
         sessions: [Session]? = [],
         activeDiagnoses: [Diagnosis]? = [],
         priorTreatments: [PriorTreatment]? = [],
         hospitalizations: [Hospitalization]? = [],
-        anthropometricRecords: [AnthropometricRecord]? = []
+        anthropometricRecords: [AnthropometricRecord]? = [],
+        currencyVersions: [PatientCurrencyVersion]? = [],
+        sessionDefaultPrices: [PatientSessionDefaultPrice]? = []
     ) {
         self.id = id
         self.firstName = firstName
@@ -286,11 +304,14 @@ final class Patient {
         self.deletedAt = deletedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.currencyCode = currencyCode
         self.professional = professional
         self.sessions = sessions
         self.activeDiagnoses = activeDiagnoses
         self.priorTreatments = priorTreatments
         self.hospitalizations = hospitalizations
         self.anthropometricRecords = anthropometricRecords
+        self.currencyVersions = currencyVersions
+        self.sessionDefaultPrices = sessionDefaultPrices
     }
 }

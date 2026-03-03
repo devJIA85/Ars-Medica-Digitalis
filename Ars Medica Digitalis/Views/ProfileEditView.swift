@@ -24,6 +24,8 @@ struct ProfileEditView: View {
         isAvailable: false,
         unavailableReason: nil
     )
+    @State private var showingFinanceDashboard: Bool = false
+    @State private var showingHonorarios: Bool = false
 
     private let biometricAuthService = BiometricAuthService()
 
@@ -75,6 +77,18 @@ struct ProfileEditView: View {
                     DashboardView(professional: professional)
                 } label: {
                     Label("Dashboard", systemImage: "chart.bar.xaxis")
+                }
+
+                Button {
+                    showingFinanceDashboard = true
+                } label: {
+                    Label(L10n.tr("finance.dashboard.entry"), systemImage: "creditcard")
+                }
+
+                Button {
+                    showingHonorarios = true
+                } label: {
+                    Label(L10n.tr("honorarios.entry"), systemImage: "banknote")
                 }
             } header: {
                 Label("Estadísticas", systemImage: "chart.pie")
@@ -191,6 +205,12 @@ struct ProfileEditView: View {
         }
         .task(id: professional.updatedAt) {
             await loadViewModel()
+        }
+        .sheet(isPresented: $showingFinanceDashboard) {
+            FinanceDashboardView()
+        }
+        .sheet(isPresented: $showingHonorarios) {
+            HonorariosView(professional: professional)
         }
     }
 

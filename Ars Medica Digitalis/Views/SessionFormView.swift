@@ -27,7 +27,17 @@ struct SessionFormView: View {
     @Bindable var viewModel: SessionViewModel
     @State private var conflictingSessions: [Session] = []
     @State private var showingConflictAlert = false
+    @State private var showingPaymentFlow = false
     @State private var showAllDiagnoses = false
+    @State private var persistenceErrorMessage: String?
+    @State private var completionDraft: CompletionDraft?
+    @State private var pendingCompletionSession: Session?
+    @State private var pricingPreview = SessionPricingPreview(
+        amount: 0,
+        currencyCode: "",
+        isCourtesy: false,
+        configurationIssue: .missingFinancialSessionType
+    )
 
     /// Límite de diagnósticos visibles cuando la lista está colapsada.
     private static let diagnosisVisibleLimit = 3
@@ -106,6 +116,27 @@ struct SessionFormView: View {
                     }
                 }
 
+                Toggle("Sesión de cortesía", isOn: $viewModel.isCourtesy)
+
+                if viewModel.isCourtesy == false {
+                    if availableFinancialSessionTypes.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Tipo facturable")
+                                .foregroundStyle(.primary)
+                            Text("Primero creá un honorario en Perfil > Honorarios para poder cobrar esta sesión.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Picker("Tipo facturable", selection: $viewModel.financialSessionTypeID) {
+                            Text("Sin seleccionar").tag(nil as UUID?)
+                            ForEach(availableFinancialSessionTypes) { sessionType in
+                                Text(sessionType.name).tag(Optional(sessionType.id))
+                            }
+                        }
+                    }
+                }
+
                 // Motivo de consulta integrado en la misma sección
                 // para reducir cajas Liquid Glass
                 TextField(
@@ -114,6 +145,40 @@ struct SessionFormView: View {
                     axis: .vertical
                 )
                 .lineLimit(2...4)
+            }
+
+            Section {
+                if let configurationIssue = pricingPreview.configurationIssue {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Falta configuración financiera", systemImage: "exclamationmark.triangle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.orange)
+
+                        Text(configurationIssue.message)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                LabeledContent("Moneda del paciente", value: pricingPreviewCurrencyText)
+                LabeledContent("Honorario estimado", value: pricingPreviewAmountText)
+
+                if pricingPreview.isCourtesy {
+                    HStack {
+                        Text("Tipo")
+                        Spacer()
+                        Text("Cortesía")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
+            } header: {
+                Text("Resumen financiero")
+            } footer: {
+                Text("Este cálculo usa la fecha de la sesión, la moneda vigente del paciente y el honorario activo del tipo facturable.")
             }
 
             // MARK: - Diagnósticos CIE-11
@@ -224,11 +289,29 @@ struct SessionFormView: View {
         ) {
             Button("Cancelar", role: .cancel) {}
             Button("Guardar igual") {
-                persistSession()
-                dismiss()
+                saveIgnoringConflicts()
             }
         } message: {
             Text(conflictAlertMessage)
+        }
+        .alert("No se pudo guardar la sesión", isPresented: persistenceErrorBinding) {
+            Button("Aceptar", role: .cancel) {
+                persistenceErrorMessage = nil
+            }
+        } message: {
+            Text(persistenceErrorMessage ?? "Ocurrió un error al persistir la sesión.")
+        }
+        .sheet(isPresented: $showingPaymentFlow) {
+            if let completionDraft, let pendingCompletionSession {
+                PaymentFlowView(draft: completionDraft) { paymentIntent in
+                    try viewModel.completeSession(
+                        pendingCompletionSession,
+                        in: modelContext,
+                        paymentIntent: paymentIntent
+                    )
+                    dismiss()
+                }
+            }
         }
         .onAppear {
             if let session {
@@ -241,6 +324,9 @@ struct SessionFormView: View {
                 viewModel.preloadDiagnoses(from: patient)
             }
         }
+        .task(id: pricingPreviewTaskID) {
+            refreshPricingPreview()
+        }
     }
 
     // MARK: - Helpers diagnósticos
@@ -250,6 +336,59 @@ struct SessionFormView: View {
         showAllDiagnoses
             ? viewModel.selectedDiagnoses
             : Array(viewModel.selectedDiagnoses.prefix(Self.diagnosisVisibleLimit))
+    }
+
+    /// Catálogo facturable activo del profesional del paciente.
+    /// Se usa directo desde la relación ya cargada para no duplicar queries
+    /// en la vista cuando solo necesitamos poblar un picker simple.
+    private var availableFinancialSessionTypes: [SessionCatalogType] {
+        ((patient.professional?.sessionCatalogTypes) ?? [])
+            .filter(\.isActive)
+            .sorted { lhs, rhs in
+                if lhs.sortOrder == rhs.sortOrder {
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                }
+                return lhs.sortOrder < rhs.sortOrder
+            }
+    }
+
+    /// Identificador estable para recalcular la vista previa cuando cambia
+    /// cualquiera de los inputs que afectan moneda o precio estimados.
+    private var pricingPreviewTaskID: String {
+        [
+            "\(viewModel.sessionDate.timeIntervalSinceReferenceDate)",
+            viewModel.financialSessionTypeID?.uuidString ?? "none",
+            viewModel.isCourtesy ? "courtesy" : "paid",
+            patient.currencyCode,
+        ].joined(separator: "|")
+    }
+
+    private var pricingPreviewCurrencyText: String {
+        if pricingPreview.isCourtesy, pricingPreview.currencyCode.isEmpty {
+            return "No aplica"
+        }
+
+        return pricingPreview.currencyCode.isEmpty ? "Sin configurar" : pricingPreview.currencyCode
+    }
+
+    private var pricingPreviewAmountText: String {
+        if pricingPreview.isCourtesy {
+            if pricingPreview.currencyCode.isEmpty {
+                return "0"
+            }
+
+            return pricingPreview.amount.formattedCurrency(code: pricingPreview.currencyCode)
+        }
+
+        guard pricingPreview.isResolved else {
+            return "Sin resolver"
+        }
+
+        if pricingPreview.currencyCode.isEmpty {
+            return NSDecimalNumber(decimal: pricingPreview.amount).stringValue
+        }
+
+        return pricingPreview.amount.formattedCurrency(code: pricingPreview.currencyCode)
     }
 
     private var sessionDateBinding: Binding<Date> {
@@ -299,6 +438,7 @@ struct SessionFormView: View {
 
     // MARK: - Acciones
 
+    @MainActor
     private func save() {
         let conflicts = conflictingSessionsForSelectedDate()
         if !conflicts.isEmpty {
@@ -307,16 +447,57 @@ struct SessionFormView: View {
             return
         }
 
-        persistSession()
-        dismiss()
+        saveIgnoringConflicts()
     }
 
-    private func persistSession() {
-        if let session {
-            viewModel.update(session, in: modelContext)
-        } else {
-            viewModel.createSession(for: patient, in: modelContext)
+    @MainActor
+    private func saveIgnoringConflicts() {
+        do {
+            let savedSession = try persistSession()
+            if requiresCompletionFlow {
+                prepareCompletionFlow(for: savedSession)
+            } else {
+                dismiss()
+            }
+        } catch {
+            persistenceErrorMessage = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func persistSession() throws -> Session {
+        if let session {
+            return try viewModel.update(session, in: modelContext)
+        } else {
+            return try viewModel.createSession(for: patient, in: modelContext)
+        }
+    }
+
+    /// Si el formulario deja la sesión como completada por primera vez,
+    /// abrimos el mismo flujo de pago que usa el detalle para no saltear
+    /// la captura de Payment ni duplicar UI contable.
+    private var requiresCompletionFlow: Bool {
+        let targetIsCompleted = viewModel.status == SessionStatusMapping.completada.rawValue
+        let wasAlreadyCompleted = session?.sessionStatusValue == .completada
+        return targetIsCompleted && wasAlreadyCompleted == false
+    }
+
+    @MainActor
+    private func prepareCompletionFlow(for session: Session) {
+        pendingCompletionSession = session
+        completionDraft = viewModel.preparePaymentFlow(for: session)
+        showingPaymentFlow = true
+    }
+
+    private var persistenceErrorBinding: Binding<Bool> {
+        Binding(
+            get: { persistenceErrorMessage != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    persistenceErrorMessage = nil
+                }
+            }
+        )
     }
 
     private func conflictingSessionsForSelectedDate() -> [Session] {
@@ -350,6 +531,11 @@ struct SessionFormView: View {
         }
 
         return "Ya existen \(conflictingSessions.count) turnos asignados en \(when)."
+    }
+
+    @MainActor
+    private func refreshPricingPreview() {
+        pricingPreview = viewModel.pricingPreview(for: patient, in: modelContext)
     }
 }
 

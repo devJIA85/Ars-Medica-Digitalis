@@ -3,6 +3,7 @@ import SwiftData
 import Testing
 @testable import Ars_Medica_Digitalis
 
+@MainActor
 struct Ars_Medica_DigitalisTests {
 
     @Test("PatientViewModel.canSave valida trimming de nombre/apellido")
@@ -26,8 +27,8 @@ struct Ars_Medica_DigitalisTests {
             firstName: "Ana",
             lastName: "García",
             gender: "femenino",
-            currentMedication: "Ibuprofeno",
             clinicalStatus: ClinicalStatusMapping.riesgo.rawValue,
+            currentMedication: "Ibuprofeno",
             smokingStatus: true
         )
         let viewModel = PatientViewModel()
@@ -40,6 +41,26 @@ struct Ars_Medica_DigitalisTests {
         #expect(viewModel.currentMedication == "Ibuprofeno")
         #expect(viewModel.clinicalStatus == ClinicalStatusMapping.riesgo.rawValue)
         #expect(viewModel.smokingStatus == true)
+    }
+
+    @Test("PatientViewModel crea historial de moneda al guardar el paciente")
+    func patientViewModelCreatesCurrencyVersion() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let viewModel = PatientViewModel()
+        viewModel.firstName = "Ana"
+        viewModel.lastName = "García"
+        viewModel.currencyCode = "USD"
+
+        let patient = viewModel.createPatient(for: professional, in: context)
+        try context.save()
+
+        #expect(patient.currencyCode == "USD")
+        #expect((patient.currencyVersions ?? []).count == 1)
+        #expect(patient.currencyVersions?.first?.currencyCode == "USD")
     }
 
     @Test("SessionViewModel ajusta status automáticamente según fecha")
@@ -93,7 +114,8 @@ struct Ars_Medica_DigitalisTests {
 
         let viewModel = SessionViewModel()
         viewModel.chiefComplaint = "Control"
-        viewModel.createSession(for: patient, in: context)
+        viewModel.status = SessionStatusMapping.programada.rawValue
+        try viewModel.createSession(for: patient, in: context)
         try context.save()
 
         let activeURIs = Set((patient.activeDiagnoses ?? []).map(\.icdURI))
@@ -120,12 +142,13 @@ struct Ars_Medica_DigitalisTests {
 
         let viewModel = SessionViewModel()
         viewModel.chiefComplaint = "Control"
+        viewModel.status = SessionStatusMapping.programada.rawValue
         viewModel.preloadDiagnoses(from: patient)
         if let preloaded = viewModel.selectedDiagnoses.first {
             viewModel.removeDiagnosis(preloaded)
         }
 
-        viewModel.createSession(for: patient, in: context)
+        try viewModel.createSession(for: patient, in: context)
         try context.save()
 
         #expect((patient.activeDiagnoses ?? []).isEmpty)
@@ -150,6 +173,7 @@ struct Ars_Medica_DigitalisTests {
 
         let session = Session(
             chiefComplaint: "Primera consulta",
+            status: SessionStatusMapping.programada.rawValue,
             patient: patient
         )
         context.insert(session)
@@ -167,7 +191,7 @@ struct Ars_Medica_DigitalisTests {
         let viewModel = SessionViewModel()
         viewModel.load(from: session)
         viewModel.notes = "Nota actualizada"
-        viewModel.update(session, in: context)
+        try viewModel.update(session, in: context)
         try context.save()
 
         let activeURIs = Set((patient.activeDiagnoses ?? []).map(\.icdURI))
@@ -195,6 +219,143 @@ struct Ars_Medica_DigitalisTests {
         #expect(viewModel.sessionsThisMonth == 3)
         #expect(viewModel.averageDurationMinutes == 50)
         #expect(viewModel.completionRate == 50)
+    }
+
+    @Test("SessionViewModel.completeSession congela snapshots financieros")
+    func sessionViewModelCompleteSessionFreezesFinancialSnapshots() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let now = Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            currencyCode: "USD",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let currencyVersion = PatientCurrencyVersion(
+            currencyCode: "USD",
+            effectiveFrom: now.addingTimeInterval(-60 * 60 * 24),
+            patient: patient
+        )
+        context.insert(currencyVersion)
+
+        let sessionType = SessionCatalogType(
+            name: "Individual",
+            professional: professional
+        )
+        context.insert(sessionType)
+
+        let priceVersion = SessionTypePriceVersion(
+            effectiveFrom: now.addingTimeInterval(-60 * 60 * 24),
+            price: 90,
+            currencyCode: "USD",
+            sessionCatalogType: sessionType
+        )
+        context.insert(priceVersion)
+
+        let session = Session(
+            sessionDate: now,
+            status: SessionStatusMapping.programada.rawValue,
+            patient: patient,
+            financialSessionType: sessionType
+        )
+        context.insert(session)
+        try context.save()
+
+        let viewModel = SessionViewModel()
+        let draft = viewModel.preparePaymentFlow(for: session)
+        try viewModel.completeSession(session, in: context, paymentIntent: .none)
+
+        #expect(draft.sessionID == session.id)
+        #expect(draft.amountDue == 90)
+        #expect(draft.currencyCode == "USD")
+        #expect(session.status == SessionStatusMapping.completada.rawValue)
+        #expect(session.finalPriceSnapshot == 90)
+        #expect(session.finalCurrencySnapshot == "USD")
+    }
+
+    @Test("SessionViewModel prepara un borrador bloqueado si falta configuración financiera")
+    func sessionViewModelPreparePaymentFlowFlagsMissingConfiguration() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(firstName: "Ana", lastName: "Paciente", professional: professional)
+        context.insert(patient)
+
+        let session = Session(
+            sessionDate: Date(),
+            status: SessionStatusMapping.programada.rawValue,
+            patient: patient
+        )
+        context.insert(session)
+        try context.save()
+
+        let viewModel = SessionViewModel()
+        let draft = viewModel.preparePaymentFlow(for: session)
+
+        #expect(draft.isFinanciallyConfigured == false)
+        #expect(draft.configurationIssue == .missingFinancialSessionType)
+        #expect(draft.amountDue == 0)
+        #expect(draft.currencyCode.isEmpty)
+    }
+
+    @Test("SessionViewModel resuelve preview financiero dinámico para el formulario")
+    func sessionViewModelPricingPreviewResolvesAmountAndCurrency() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let now = Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "Paciente",
+            currencyCode: "ARS",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let currencyVersion = PatientCurrencyVersion(
+            currencyCode: "ARS",
+            effectiveFrom: now.addingTimeInterval(-60 * 60 * 24),
+            patient: patient
+        )
+        context.insert(currencyVersion)
+
+        let sessionType = SessionCatalogType(
+            name: "Individual",
+            professional: professional
+        )
+        context.insert(sessionType)
+
+        let priceVersion = SessionTypePriceVersion(
+            effectiveFrom: now.addingTimeInterval(-60 * 60 * 24),
+            price: 25000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        context.insert(priceVersion)
+        try context.save()
+
+        let viewModel = SessionViewModel()
+        viewModel.sessionDate = now
+        viewModel.financialSessionTypeID = sessionType.id
+
+        let preview = viewModel.pricingPreview(for: patient, in: context)
+
+        #expect(preview.configurationIssue == nil)
+        #expect(preview.currencyCode == "ARS")
+        #expect(preview.amount == 25000)
     }
 
     @Test("CalendarViewModel navega entre meses")
@@ -233,8 +394,14 @@ struct Ars_Medica_DigitalisTests {
     private func makeInMemoryContainer() throws -> ModelContainer {
         let schema = Schema([
             Professional.self,
+            PricingAdjustmentPolicy.self,
             Patient.self,
             Session.self,
+            SessionCatalogType.self,
+            SessionTypePriceVersion.self,
+            PatientCurrencyVersion.self,
+            PatientSessionDefaultPrice.self,
+            Payment.self,
             Diagnosis.self,
             Attachment.self,
             PriorTreatment.self,

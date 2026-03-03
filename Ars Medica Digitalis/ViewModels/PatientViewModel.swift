@@ -49,6 +49,13 @@ final class PatientViewModel {
     var insuranceMemberNumber: String = ""
     var insurancePlan: String = ""
 
+    // MARK: - Finanzas básicas
+
+    /// Moneda administrativa vigente del paciente.
+    /// Se edita desde el formulario para que el flujo de cobro pueda resolver
+    /// una divisa válida sin pedirla al momento de completar cada sesión.
+    var currencyCode: String = ""
+
     // MARK: - Foto de perfil
 
     var photoData: Data? = nil
@@ -145,6 +152,8 @@ final class PatientViewModel {
         ("otro", "Otro"),
     ]
 
+    static let supportedCurrencies: [SupportedCurrency] = CurrencyCatalog.common
+
     // MARK: - Validación
 
     /// Validación mínima: nombre y apellido son obligatorios (HU-02)
@@ -163,7 +172,8 @@ final class PatientViewModel {
     // MARK: - Creación
 
     /// Crea un nuevo Patient vinculado al Professional activo
-    func createPatient(for professional: Professional, in context: ModelContext) {
+    @discardableResult
+    func createPatient(for professional: Professional, in context: ModelContext) -> Patient {
         let data = PatientFormData(viewModel: self)
 
         // Autogenerar número de historia clínica si está vacío
@@ -173,13 +183,18 @@ final class PatientViewModel {
 
         let patient = data.makePatient(recordNumber: recordNumber, professional: professional)
         context.insert(patient)
+        syncCurrencyVersionIfNeeded(for: patient, in: context)
+        return patient
     }
 
     // MARK: - Actualización
 
     /// Actualiza un Patient existente con los valores del formulario
-    func update(_ patient: Patient) {
+    func update(_ patient: Patient, in context: ModelContext? = nil) {
         PatientFormData(viewModel: self).apply(to: patient)
+        if let context {
+            syncCurrencyVersionIfNeeded(for: patient, in: context)
+        }
         patient.updatedAt = Date()
     }
 
@@ -217,6 +232,9 @@ final class PatientViewModel {
         let healthInsurance: String
         let insuranceMemberNumber: String
         let insurancePlan: String
+
+        // Finanzas
+        let currencyCode: String
 
         // Clínica
         let photoData: Data?
@@ -272,6 +290,7 @@ final class PatientViewModel {
             healthInsurance = viewModel.healthInsurance.trimmed
             insuranceMemberNumber = viewModel.insuranceMemberNumber.trimmed
             insurancePlan = viewModel.insurancePlan.trimmed
+            currencyCode = viewModel.currencyCode
 
             photoData = viewModel.photoData
             clinicalStatus = viewModel.clinicalStatus
@@ -323,6 +342,7 @@ final class PatientViewModel {
             healthInsurance = patient.healthInsurance
             insuranceMemberNumber = patient.insuranceMemberNumber
             insurancePlan = patient.insurancePlan
+            currencyCode = patient.currencyCode
 
             photoData = patient.photoData
             clinicalStatus = patient.clinicalStatus
@@ -374,6 +394,7 @@ final class PatientViewModel {
             viewModel.healthInsurance = healthInsurance
             viewModel.insuranceMemberNumber = insuranceMemberNumber
             viewModel.insurancePlan = insurancePlan
+            viewModel.currencyCode = currencyCode
 
             viewModel.photoData = photoData
             viewModel.clinicalStatus = clinicalStatus
@@ -425,6 +446,7 @@ final class PatientViewModel {
             patient.healthInsurance = healthInsurance
             patient.insuranceMemberNumber = insuranceMemberNumber
             patient.insurancePlan = insurancePlan
+            patient.currencyCode = currencyCode
 
             patient.photoData = photoData
             patient.clinicalStatus = clinicalStatus
@@ -475,6 +497,45 @@ final class PatientViewModel {
     func restore(_ patient: Patient) {
         patient.deletedAt = nil
         patient.updatedAt = Date()
+    }
+
+    /// Mantiene el scalar de compatibilidad y el historial temporal alineados.
+    /// Solo crea una nueva versión cuando la moneda efectivamente cambió para
+    /// preservar el histórico sin duplicar entradas idénticas.
+    private func syncCurrencyVersionIfNeeded(for patient: Patient, in context: ModelContext) {
+        let normalizedCode = currencyCode.trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+
+        patient.currencyCode = normalizedCode
+
+        guard normalizedCode.isEmpty == false else {
+            return
+        }
+
+        let latestVersion = (patient.currencyVersions ?? [])
+            .sorted(by: sortCurrencyVersionsDescending)
+            .first
+
+        guard latestVersion?.currencyCode != normalizedCode else {
+            return
+        }
+
+        let version = PatientCurrencyVersion(
+            currencyCode: normalizedCode,
+            effectiveFrom: Date(),
+            patient: patient
+        )
+        context.insert(version)
+    }
+
+    private func sortCurrencyVersionsDescending(
+        _ lhs: PatientCurrencyVersion,
+        _ rhs: PatientCurrencyVersion
+    ) -> Bool {
+        if lhs.effectiveFrom == rhs.effectiveFrom {
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        return lhs.effectiveFrom > rhs.effectiveFrom
     }
 
     // MARK: - Registro antropométrico histórico

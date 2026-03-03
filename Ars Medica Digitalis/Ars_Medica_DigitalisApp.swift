@@ -18,8 +18,14 @@ struct Ars_Medica_DigitalisApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Professional.self,
+            PricingAdjustmentPolicy.self,
             Patient.self,
             Session.self,
+            SessionCatalogType.self,
+            SessionTypePriceVersion.self,
+            PatientCurrencyVersion.self,
+            PatientSessionDefaultPrice.self,
+            Payment.self,
             Diagnosis.self,
             Attachment.self,
             PriorTreatment.self,

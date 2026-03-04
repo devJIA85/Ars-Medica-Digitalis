@@ -692,8 +692,14 @@ private struct MedicationCard: View {
 // MARK: - Sesiones (timeline protagonista)
 
 private struct SessionsSection: View {
+    @Environment(\.modelContext) private var modelContext
+
     let patient: Patient
     let onCreateSession: () -> Void
+
+    @State private var sessionViewModel = SessionViewModel()
+    @State private var pendingCompletion: PendingPatientSessionCompletion?
+    @State private var completionErrorMessage: String?
 
     private static let visibleLimit = 3
 
@@ -738,16 +744,11 @@ private struct SessionsSection: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(visibleSessions.enumerated()), id: \.element.id) { index, session in
-                            NavigationLink {
-                                SessionFormView(patient: patient, session: session)
-                            } label: {
-                                SessionRowView(
-                                    session: session,
-                                    isFirst: index == 0,
-                                    isLast: index == visibleSessions.count - 1
-                                )
-                            }
-                            .buttonStyle(.plain)
+                            sessionListItem(
+                                for: session,
+                                isFirst: index == 0,
+                                isLast: index == visibleSessions.count - 1
+                            )
 
                             if index < visibleSessions.count - 1 {
                                 Divider()
@@ -771,6 +772,77 @@ private struct SessionsSection: View {
                 }
             }
         }
+        .sheet(item: $pendingCompletion) { item in
+            PaymentFlowView(draft: item.completionDraft, onCancel: {}) { paymentIntent in
+                try sessionViewModel.completeSession(item.session, in: modelContext, paymentIntent: paymentIntent)
+            }
+        }
+        .alert("No se pudo completar la sesión", isPresented: completionErrorBinding) {
+            Button("Aceptar", role: .cancel) {
+                completionErrorMessage = nil
+            }
+        } message: {
+            Text(completionErrorMessage ?? "Ocurrió un error al registrar el cierre.")
+        }
+    }
+
+    @ViewBuilder
+    private func sessionListItem(for session: Session, isFirst: Bool, isLast: Bool) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            NavigationLink {
+                SessionFormView(patient: patient, session: session)
+            } label: {
+                SessionRowView(
+                    session: session,
+                    isFirst: isFirst,
+                    isLast: isLast
+                )
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if canCompleteSession(session) {
+                Button {
+                    openCompletionFlow(for: session)
+                } label: {
+                    Text("Completar")
+                        .font(.footnote.weight(.semibold))
+                        .frame(minWidth: 104)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(.top, 18)
+                .accessibilityLabel(completionButtonLabel(for: session))
+                .accessibilityHint("Abre el flujo de cierre y cobro de la sesión")
+            }
+        }
+    }
+
+    private func canCompleteSession(_ session: Session) -> Bool {
+        session.sessionStatusValue == .programada
+    }
+
+    private func completionButtonLabel(for session: Session) -> String {
+        session.isCourtesy ? "Completar cortesía" : "Completar sesión"
+    }
+
+    @MainActor
+    private func openCompletionFlow(for session: Session) {
+        pendingCompletion = PendingPatientSessionCompletion(
+            session: session,
+            completionDraft: sessionViewModel.preparePaymentFlow(for: session)
+        )
+    }
+
+    private var completionErrorBinding: Binding<Bool> {
+        Binding(
+            get: { completionErrorMessage != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    completionErrorMessage = nil
+                }
+            }
+        )
     }
 }
 
@@ -799,6 +871,13 @@ private struct SessionHistoryListView: View {
         }
         .navigationTitle("Historial de Sesiones")
     }
+}
+
+private struct PendingPatientSessionCompletion: Identifiable {
+    let session: Session
+    let completionDraft: CompletionDraft
+
+    var id: UUID { completionDraft.sessionID }
 }
 
 // MARK: - Session Row

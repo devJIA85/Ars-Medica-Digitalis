@@ -36,7 +36,7 @@ struct PatientListView: View {
         )
         .searchable(text: $searchText, placement: .automatic, prompt: "Buscar paciente")
         .searchToolbarBehavior(.minimize)
-        .navigationTitle(showInactive ? "Pacientes Inactivos" : "Pacientes")
+        .navigationTitle(showInactive ? "Inactivos" : "Pacientes")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button {

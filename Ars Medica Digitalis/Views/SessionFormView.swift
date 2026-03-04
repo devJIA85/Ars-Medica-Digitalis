@@ -504,7 +504,7 @@ struct SessionFormView: View {
                     formSnapshot: snapshot
                 )
             } else {
-                try persistSession(using: viewModel.buildFormSnapshot())
+                _ = try persistSession(using: viewModel.buildFormSnapshot())
                 dismiss()
             }
         } catch {

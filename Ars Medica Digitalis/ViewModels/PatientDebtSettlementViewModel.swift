@@ -159,10 +159,11 @@ final class PatientDebtSettlementViewModel {
 
     private func fetchCompletedSessions() throws -> [Session] {
         let patientID = patient.id
+        let completedStatus = SessionStatusMapping.completada.rawValue
         let descriptor = FetchDescriptor<Session>(
             predicate: #Predicate<Session> { session in
                 session.patient?.id == patientID
-                && session.completedAt != nil
+                && (session.completedAt != nil || session.status == completedStatus)
             }
         )
 

@@ -185,7 +185,7 @@ final class Patient {
     /// la misma lectura tanto en Perfil como en el flujo de cancelación.
     @MainActor
     var debtByCurrency: [PatientDebtCurrencySummary] {
-        let groupedDebt = (sessions ?? []).reduce(into: [String: (debt: Decimal, sessionCount: Int)]()) { partialResult, session in
+        let groupedDebt = completedSessionsForDebt.reduce(into: [String: (debt: Decimal, sessionCount: Int)]()) { partialResult, session in
             guard session.sessionStatusValue == .completada else { return }
 
             let debt = session.debt
@@ -213,6 +213,32 @@ final class Patient {
             }
             return lhs.debt > rhs.debt
         }
+    }
+
+    /// Relee las sesiones completadas desde SwiftData cuando hay contexto activo.
+    /// Esto evita usar relaciones stale después de registrar pagos desde sheets,
+    /// donde el paciente ya está cargado pero sus arrays relacionados no siempre
+    /// se refrescan automáticamente al cerrar la modal.
+    @MainActor
+    private var completedSessionsForDebt: [Session] {
+        guard let context = modelContext else {
+            return sessions ?? []
+        }
+
+        let patientID = id
+        let completedStatus = SessionStatusMapping.completada.rawValue
+        let descriptor = FetchDescriptor<Session>(
+            predicate: #Predicate<Session> { session in
+                session.patient?.id == patientID
+                && (session.completedAt != nil || session.status == completedStatus)
+            }
+        )
+
+        guard let fetchedSessions = try? context.fetch(descriptor) else {
+            return sessions ?? []
+        }
+
+        return fetchedSessions
     }
 
     /// Edad calculada desde la fecha de nacimiento

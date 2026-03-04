@@ -78,7 +78,7 @@ struct FinanceDashboardView: View {
 
                     // La deuda por paciente se muestra como lista simple para
                     // priorizar legibilidad antes que navegación avanzada.
-                    Section(L10n.tr("finance.dashboard.debt.patients")) {
+                    Section {
                         if viewModel.debtByPatient.isEmpty {
                             Text(L10n.tr("finance.dashboard.debt.empty"))
                                 .foregroundStyle(.secondary)
@@ -95,6 +95,8 @@ struct FinanceDashboardView: View {
                                 }
                             }
                         }
+                    } header: {
+                        debtSectionHeader
                     }
                 }
             }
@@ -230,6 +232,21 @@ struct FinanceDashboardView: View {
         }
 
         return amount.formattedCurrency(code: viewModel.selectedCurrency)
+    }
+
+    /// El dashboard financiero siempre está filtrado por la moneda activa.
+    /// El header lo explicita para evitar comparar este listado con la lista
+    /// general de pacientes, que puede marcar deuda en otras monedas.
+    @ViewBuilder
+    private var debtSectionHeader: some View {
+        let baseTitle = L10n.tr("finance.dashboard.debt.patients")
+
+        if viewModel.selectedCurrency.isEmpty {
+            Text(baseTitle)
+        } else {
+            let patientCount = viewModel.debtByPatient.count
+            Text("\(baseTitle) · \(viewModel.selectedCurrency) · \(patientCount)")
+        }
     }
 
     /// La fila reutilizable concentra la presentación de deuda y permite

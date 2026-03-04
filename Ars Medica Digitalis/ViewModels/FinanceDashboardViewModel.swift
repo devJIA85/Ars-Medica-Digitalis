@@ -87,13 +87,13 @@ final class FinanceDashboardViewModel {
             end: range.end,
             in: context
         )
-        monthlyAccrued = sumDecimals(monthlyCompletedSessions) { $0.finalPriceSnapshot ?? 0 }
+        monthlyAccrued = sumDecimals(monthlyCompletedSessions) { resolvedAccruedAmount(for: $0) }
 
-        let completedSessionsForDebt = try fetchCompletedSessions(
-            currencyCode: resolvedCurrency,
-            in: context
+        let patients = try fetchPatients(in: context)
+        debtByPatient = buildDebtSummaries(
+            from: patients,
+            currencyCode: resolvedCurrency
         )
-        debtByPatient = buildDebtSummaries(from: completedSessionsForDebt)
         totalDebt = sumDecimals(debtByPatient) { $0.debt }
     }
 
@@ -142,7 +142,13 @@ final class FinanceDashboardViewModel {
     private func resolveAvailableCurrencies(in context: ModelContext) throws -> [String] {
         let paymentCurrencies = try fetchPaymentCurrencies(in: context)
         let sessionCurrencies = try fetchCompletedSessionCurrencies(in: context)
-        return Array(Set(paymentCurrencies).union(sessionCurrencies)).sorted()
+        let patientDebtCurrencies = try fetchPatientDebtCurrencies(in: context)
+        return Array(
+            Set(paymentCurrencies)
+                .union(sessionCurrencies)
+                .union(patientDebtCurrencies)
+        )
+        .sorted()
     }
 
     private func fetchPaymentCurrencies(in context: ModelContext) throws -> [String] {
@@ -157,14 +163,26 @@ final class FinanceDashboardViewModel {
     }
 
     private func fetchCompletedSessionCurrencies(in context: ModelContext) throws -> [String] {
+        let completedStatus = SessionStatusMapping.completada.rawValue
         let descriptor = FetchDescriptor<Session>(
             predicate: #Predicate<Session> { session in
-                session.completedAt != nil
+                session.completedAt != nil || session.status == completedStatus
             }
         )
 
         return try context.fetch(descriptor)
-            .compactMap(\.finalCurrencySnapshot)
+            .map(resolvedCurrency(for:))
+            .filter { $0.isEmpty == false }
+    }
+
+    /// El selector de moneda también debe reflejar deudas visibles en Perfil.
+    /// Así evitamos que una moneda con deuda reconstruible por paciente quede
+    /// fuera del dashboard solo porque la sesión histórica no tiene todos los
+    /// snapshots financieros completos.
+    private func fetchPatientDebtCurrencies(in context: ModelContext) throws -> [String] {
+        try fetchPatients(in: context)
+            .flatMap(\.debtByCurrency)
+            .map(\.currencyCode)
             .filter { $0.isEmpty == false }
     }
 
@@ -195,14 +213,16 @@ final class FinanceDashboardViewModel {
         currencyCode: String,
         in context: ModelContext
     ) throws -> [Session] {
+        let completedStatus = SessionStatusMapping.completada.rawValue
         let descriptor = FetchDescriptor<Session>(
             predicate: #Predicate<Session> { session in
-                session.completedAt != nil
-                && session.finalCurrencySnapshot == currencyCode
+                session.completedAt != nil || session.status == completedStatus
             }
         )
 
-        return try context.fetch(descriptor)
+        return try context.fetch(descriptor).filter { session in
+            resolvedCurrency(for: session) == currencyCode
+        }
     }
 
     private func fetchCompletedSessions(
@@ -219,36 +239,71 @@ final class FinanceDashboardViewModel {
             in: context
         )
         return completedSessions.filter { session in
-            guard let completedAt = session.completedAt else { return false }
-            return completedAt >= start && completedAt < end
+            let reportingDate = resolvedCompletedDate(for: session)
+            return reportingDate >= start && reportingDate < end
         }
     }
 
-    /// Agrupa deuda por paciente usando solo sesiones completadas con deuda > 0.
-    /// El agrupado en memoria permite reutilizar Session.debt, que ya encapsula
-    /// cortesía, pagos parciales y snapshots finales.
-    private func buildDebtSummaries(from sessions: [Session]) -> [PatientDebtSummary] {
-        let groupedDebt = sessions.reduce(into: [UUID: (patient: Patient, patientName: String, debt: Decimal)]()) { partialResult, session in
-            let debt = session.debt
-            guard debt > 0, let patient = session.patient else { return }
+    /// El ranking por paciente se arma desde Patient.debtByCurrency para que
+    /// Finanzas reutilice exactamente la misma lectura fresca que usa Perfil
+    /// y el flujo de cancelación de deuda.
+    private func fetchPatients(in context: ModelContext) throws -> [Patient] {
+        let impossibleID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+        let descriptor = FetchDescriptor<Patient>(
+            predicate: #Predicate<Patient> { patient in
+                patient.id != impossibleID
+            }
+        )
 
-            let patientID = patient.id
+        return try context.fetch(descriptor)
+    }
+
+    /// Algunas sesiones completadas históricas pueden no tener snapshot de moneda
+    /// porque fueron creadas antes del cierre financiero definitivo. El dashboard
+    /// usa el mismo fallback que Perfil para no ocultar deuda real del paciente.
+    private func resolvedCurrency(for session: Session) -> String {
+        if let finalCurrency = session.finalCurrencySnapshot, finalCurrency.isEmpty == false {
+            return finalCurrency
+        }
+
+        return session.effectiveCurrency
+    }
+
+    /// Algunas sesiones antiguas fueron cerradas con status completada pero sin
+    /// completedAt persistido. Para no perderlas en deuda/devengado mensual,
+    /// usamos sessionDate como fallback histórico del mes de imputación.
+    private func resolvedCompletedDate(for session: Session) -> Date {
+        session.completedAt ?? session.sessionDate
+    }
+
+    /// El devengado mensual debe seguir la misma compatibilidad histórica.
+    /// Si falta snapshot de precio, reutilizamos el precio efectivo visible.
+    private func resolvedAccruedAmount(for session: Session) -> Decimal {
+        session.finalPriceSnapshot ?? session.effectivePrice
+    }
+
+    /// Agrupa deuda por paciente usando el resumen ya consolidado del modelo.
+    /// Esto evita divergencias entre la ficha del paciente y el dashboard cuando
+    /// existen sesiones históricas con snapshots incompletos pero deuda vigente.
+    private func buildDebtSummaries(
+        from patients: [Patient],
+        currencyCode: String
+    ) -> [PatientDebtSummary] {
+        patients.compactMap { patient in
+            guard let summary = patient.debtByCurrency.first(where: { $0.currencyCode == currencyCode }) else {
+                return nil
+            }
+
+            guard summary.debt > 0 else { return nil }
+
             let patientName = patient.fullName.isEmpty
                 ? L10n.tr("finance.dashboard.patient.unknown")
                 : patient.fullName
-            let currentDebt = partialResult[patientID]?.debt ?? 0
-            partialResult[patientID] = (
+
+            return PatientDebtSummary(
                 patient: patient,
                 patientName: patientName,
-                debt: currentDebt + debt
-            )
-        }
-
-        return groupedDebt.map { _, value in
-            PatientDebtSummary(
-                patient: value.patient,
-                patientName: value.patientName,
-                debt: value.debt
+                debt: summary.debt
             )
         }
         .sorted { lhs, rhs in

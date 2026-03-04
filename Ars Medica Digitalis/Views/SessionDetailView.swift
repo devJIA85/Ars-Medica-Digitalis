@@ -38,6 +38,16 @@ struct SessionDetailView: View {
                     statusControl
                 }
 
+                if canCompleteSession {
+                    Button(completionButtonLabel) {
+                        openCompletionFlow()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .accessibilityHint("Abre el flujo de cierre y cobro de la sesión")
+                }
+
                 if !session.chiefComplaint.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Motivo de consulta")
@@ -72,12 +82,6 @@ struct SessionDetailView: View {
                 LabeledContent("Estado de pago") {
                     Text(paymentStateLabel)
                         .foregroundStyle(paymentStateTint)
-                }
-
-                if canCompleteSession {
-                    Button(session.isCourtesy ? "Completar cortesía" : "Completar sesión") {
-                        openCompletionFlow()
-                    }
                 }
             }
 
@@ -266,6 +270,10 @@ struct SessionDetailView: View {
 
     private var canCompleteSession: Bool {
         session.sessionStatusValue == .programada
+    }
+
+    private var completionButtonLabel: String {
+        session.isCourtesy ? "Completar cortesía" : "Completar sesión"
     }
 
     private var effectiveCurrencyLabel: String {

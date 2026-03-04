@@ -701,6 +701,140 @@ struct FinanceModuleTests {
         #expect(viewModel.debtByPatient.isEmpty)
     }
 
+    @Test("FinanceDashboardViewModel incluye deuda histórica aun si faltan snapshots finales")
+    func testFinanceDashboardIncludesCompletedDebtWithoutSnapshots() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let month = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+        let completedAt = calendar.date(from: DateComponents(year: 2026, month: 3, day: 3, hour: 10, minute: 5)) ?? Date()
+        let effectiveFrom = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Mari",
+            lastName: "Kita",
+            currencyCode: "ARS",
+            professional: professional
+        )
+        context.insert(patient)
+
+        context.insert(
+            PatientCurrencyVersion(
+                currencyCode: "ARS",
+                effectiveFrom: effectiveFrom,
+                patient: patient
+            )
+        )
+
+        let sessionType = SessionCatalogType(
+            name: "Sesión Psi",
+            professional: professional
+        )
+        context.insert(sessionType)
+
+        context.insert(
+            SessionTypePriceVersion(
+                effectiveFrom: effectiveFrom,
+                price: 55,
+                currencyCode: "ARS",
+                sessionCatalogType: sessionType
+            )
+        )
+
+        let completedSession = Session(
+            sessionDate: completedAt,
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: completedAt,
+            patient: patient,
+            financialSessionType: sessionType,
+            finalPriceSnapshot: nil,
+            finalCurrencySnapshot: nil
+        )
+        context.insert(completedSession)
+        try context.save()
+
+        let viewModel = FinanceDashboardViewModel(selectedMonth: month, calendar: calendar)
+        viewModel.selectedCurrency = "ARS"
+        try viewModel.refresh(in: context)
+
+        #expect(viewModel.availableCurrencies == ["ARS"])
+        #expect(viewModel.monthlyAccrued == 55)
+        #expect(viewModel.totalDebt == 55)
+        #expect(viewModel.debtByPatient.count == 1)
+        #expect(viewModel.debtByPatient.first?.patientName == "Mari Kita")
+        #expect(viewModel.debtByPatient.first?.debt == 55)
+    }
+
+    @Test("FinanceDashboardViewModel incluye deuda cuando la sesión está completada pero completedAt falta")
+    func testFinanceDashboardIncludesCompletedDebtWithoutCompletedAt() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let month = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+        let sessionDate = calendar.date(from: DateComponents(year: 2026, month: 3, day: 3, hour: 10, minute: 5)) ?? Date()
+        let effectiveFrom = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Mari",
+            lastName: "Kita",
+            currencyCode: "ARS",
+            professional: professional
+        )
+        context.insert(patient)
+
+        context.insert(
+            PatientCurrencyVersion(
+                currencyCode: "ARS",
+                effectiveFrom: effectiveFrom,
+                patient: patient
+            )
+        )
+
+        let sessionType = SessionCatalogType(
+            name: "Sesión Psi",
+            professional: professional
+        )
+        context.insert(sessionType)
+
+        context.insert(
+            SessionTypePriceVersion(
+                effectiveFrom: effectiveFrom,
+                price: 55,
+                currencyCode: "ARS",
+                sessionCatalogType: sessionType
+            )
+        )
+
+        let completedSession = Session(
+            sessionDate: sessionDate,
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: nil,
+            patient: patient,
+            financialSessionType: sessionType,
+            finalPriceSnapshot: nil,
+            finalCurrencySnapshot: nil
+        )
+        context.insert(completedSession)
+        try context.save()
+
+        let viewModel = FinanceDashboardViewModel(selectedMonth: month, calendar: calendar)
+        viewModel.selectedCurrency = "ARS"
+        try viewModel.refresh(in: context)
+
+        #expect(viewModel.availableCurrencies == ["ARS"])
+        #expect(viewModel.monthlyAccrued == 55)
+        #expect(viewModel.totalDebt == 55)
+        #expect(viewModel.debtByPatient.count == 1)
+        #expect(viewModel.debtByPatient.first?.patientName == "Mari Kita")
+        #expect(viewModel.debtByPatient.first?.debt == 55)
+    }
+
     @Test("SessionTypeCatalogViewModel arma precios vigentes, historial e impacto futuro")
     func testSessionTypeCatalogRefreshBuildsStrategicSummary() throws {
         let container = try makeInMemoryContainer()
@@ -1527,6 +1661,50 @@ struct FinanceModuleTests {
         #expect(usdSession.debt == 80)
         #expect(patient.debtByCurrency.count == 1)
         #expect(patient.debtByCurrency.first?.currencyCode == "USD")
+    }
+
+    @Test("Patient refleja en perfil que la deuda quedó cancelada tras registrar pago total")
+    func testPatientDebtIndicatorsRefreshAfterFullSettlement() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let sessionDate = calendar.date(from: DateComponents(year: 2026, month: 3, day: 3, hour: 10)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "John",
+            lastName: "Rambo",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let session = Session(
+            sessionDate: sessionDate,
+            status: SessionStatusMapping.completada.rawValue,
+            completedAt: sessionDate,
+            patient: patient,
+            finalPriceSnapshot: 140,
+            finalCurrencySnapshot: "ARS"
+        )
+        context.insert(session)
+        try context.save()
+
+        #expect(patient.hasOutstandingDebt == true)
+        #expect(patient.debtByCurrency.first?.debt == 140)
+
+        let viewModel = PatientDebtSettlementViewModel(
+            patient: patient,
+            context: context,
+            preferredCurrencyCode: "ARS"
+        )
+        try viewModel.refresh()
+        try viewModel.registerPayment()
+
+        #expect(viewModel.totalDebt == 0)
+        #expect(patient.hasOutstandingDebt == false)
+        #expect(patient.debtByCurrency.isEmpty)
     }
 
     @Test("El highlight de honorarios no aparece cuando no hay sugerencia")

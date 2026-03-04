@@ -111,7 +111,7 @@ struct PatientMedicalHistoryFormView: View {
                         focus(on: .familyHistory)
                     }
                 ) {
-                    FamilyHistorySection(
+                    FamilyHistoryFormSection(
                         viewModel: viewModel,
                         isVoiceActive: isVoiceCaptureActive(for: .familyHistoryOther),
                         onBeginEditingOther: {
@@ -727,7 +727,7 @@ private struct LifestyleSection: View {
     }
 }
 
-private struct FamilyHistorySection: View {
+private struct FamilyHistoryFormSection: View {
 
     @Bindable var viewModel: PatientViewModel
     let isVoiceActive: Bool

@@ -128,7 +128,8 @@ struct ContentView: View {
                     PatientListView(
                         professional: professional,
                         namespace: patientTransition,
-                        onAddPatient: { showingNewPatient = true }
+                        onAddPatient: { showingNewPatient = true },
+                        enablesSearch: false
                     )
                         .navigationDestination(for: UUID.self) { patientID in
                             PatientDestinationView(
@@ -147,8 +148,27 @@ struct ContentView: View {
                     CalendarView(professional: professional)
                 }
             }
+
+            Tab(role: .search) {
+                NavigationStack {
+                    PatientListView(
+                        professional: professional,
+                        namespace: patientTransition,
+                        onAddPatient: { showingNewPatient = true },
+                        enablesSearch: true
+                    )
+                    .navigationDestination(for: UUID.self) { patientID in
+                        PatientDestinationView(
+                            patientID: patientID,
+                            professional: professional
+                        )
+                        .navigationTransition(.zoom(sourceID: patientID, in: patientTransition))
+                    }
+                }
+            }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewSearchActivation(.searchTabSelection)
         .sheet(isPresented: $showingNewPatient) {
             NavigationStack {
                 PatientFormView(professional: professional)

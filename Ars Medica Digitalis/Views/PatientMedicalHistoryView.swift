@@ -31,7 +31,7 @@ struct PatientMedicalHistoryView: View {
     @State private var showingContactAlert: Bool = false
 
     var body: some View {
-        ClinicalDashboardView(
+        PatientClinicalDashboardView(
             patient: patient,
             onContact: contactPatient,
             onNewSession: {

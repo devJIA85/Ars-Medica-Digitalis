@@ -1,13 +1,13 @@
 //
-//  ClinicalDashboardView.swift
+//  PatientClinicalDashboardView.swift
 //  Ars Medica Digitalis
 //
-//  Dashboard clínico de lectura para Historia Clínica.
+//  Dashboard clínico de lectura para Historia Clínica del paciente.
 //
 
 import SwiftUI
 
-struct ClinicalDashboardView: View {
+struct PatientClinicalDashboardView: View {
 
     let patient: Patient
     let onContact: () -> Void

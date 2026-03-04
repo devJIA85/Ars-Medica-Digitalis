@@ -20,12 +20,12 @@ struct StatisticsSection: View {
             subtitle: "Accesos rapidos para revisar la actividad de la practica."
         ) {
             NavigationLink {
-                DashboardView(professional: professional)
+                ClinicalDashboardView(professional: professional)
             } label: {
                 SettingsRow(
                     systemImage: "chart.bar.xaxis",
-                    title: "Dashboard",
-                    subtitle: "Resumen clinico de la practica"
+                    title: "Dashboard Clínico",
+                    subtitle: "Insights, adherencia y prioridad de seguimiento"
                 ) {
                     rowChevron
                 }

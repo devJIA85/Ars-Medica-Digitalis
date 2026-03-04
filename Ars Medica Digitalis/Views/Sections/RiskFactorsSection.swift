@@ -8,27 +8,25 @@ import SwiftUI
 struct RiskFactorsSection: View {
 
     let patient: Patient
+    let onEditMedicalHistory: () -> Void
 
     var body: some View {
-        CardContainer(
+        SectionCard(
             title: "Factores de riesgo",
-            systemImage: "exclamationmark.shield",
-            style: .flat
+            icon: "exclamationmark.shield"
         ) {
             VStack(spacing: 0) {
                 ForEach(Array(riskFactors.enumerated()), id: \.element.title) { index, factor in
-                    HStack(spacing: AppSpacing.sm) {
-                        Label(factor.title, systemImage: factor.systemImage)
-                            .foregroundStyle(.primary)
-
-                        Spacer(minLength: 0)
-
-                        StatusBadge(
-                            label: factor.isActive ? "Sí" : "No",
-                            variant: factor.isActive ? .warning : .neutral
-                        )
-                    }
-                    .padding(.vertical, AppSpacing.xs)
+                    ClinicalListRow(
+                        icon: factor.systemImage,
+                        title: factor.title,
+                        value: factor.isActive ? "Sí" : "No",
+                        onTap: onEditMedicalHistory,
+                        onDelete: {
+                            deleteRiskFactor(factor.kind)
+                        },
+                        onEdit: onEditMedicalHistory
+                    )
 
                     if index < riskFactors.count - 1 {
                         Divider()
@@ -38,12 +36,33 @@ struct RiskFactorsSection: View {
         }
     }
 
-    private var riskFactors: [(title: String, systemImage: String, isActive: Bool)] {
+    private var riskFactors: [(title: String, systemImage: String, isActive: Bool, kind: RiskFactorKind)] {
         [
-            ("Tabaquismo", "smoke", patient.smokingStatus),
-            ("Consumo de alcohol", "wineglass", patient.alcoholUse),
-            ("Consumo de drogas", "pill", patient.drugUse),
-            ("Chequeos de rutina", "heart.text.clipboard", patient.routineCheckups)
+            ("Tabaquismo", "smoke", patient.smokingStatus, .smoking),
+            ("Consumo de alcohol", "wineglass", patient.alcoholUse, .alcohol),
+            ("Consumo de drogas", "pill", patient.drugUse, .drugs),
+            ("Chequeos de rutina", "heart.text.clipboard", patient.routineCheckups, .routineCheckups)
         ]
     }
+
+    private func deleteRiskFactor(_ factor: RiskFactorKind) {
+        switch factor {
+        case .smoking:
+            patient.smokingStatus = false
+        case .alcohol:
+            patient.alcoholUse = false
+        case .drugs:
+            patient.drugUse = false
+        case .routineCheckups:
+            patient.routineCheckups = false
+        }
+        patient.updatedAt = Date()
+    }
+}
+
+private enum RiskFactorKind {
+    case smoking
+    case alcohol
+    case drugs
+    case routineCheckups
 }

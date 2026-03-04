@@ -15,46 +15,13 @@ struct PatientSummarySection: View {
     ]
 
     var body: some View {
-        CardContainer(
-            title: "Resumen del paciente",
-            systemImage: "person.text.rectangle",
-            style: .elevated
+        SectionCard(
+            title: "Datos del paciente",
+            icon: "person.text.rectangle"
         ) {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                HStack(alignment: .center, spacing: AppSpacing.md) {
-                    PatientAvatarView(
-                        photoData: patient.photoData,
-                        firstName: patient.firstName,
-                        lastName: patient.lastName,
-                        genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
-                        clinicalStatus: patient.clinicalStatus,
-                        size: 60
-                    )
-                    .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                        Text(patient.fullName)
-                            .font(.title3.bold())
-                            .foregroundStyle(.primary)
-
-                        Text("\(patient.age) años")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        if !patient.medicalRecordNumber.isEmpty {
-                            Text(patient.medicalRecordNumber)
-                                .font(.footnote.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-                }
-
-                LazyVGrid(columns: columns, spacing: AppSpacing.md) {
-                    ForEach(summaryItems, id: \.title) { item in
-                        ClinicalMetricTile(title: item.title, value: item.value)
-                    }
+            LazyVGrid(columns: columns, spacing: AppSpacing.md) {
+                ForEach(summaryItems, id: \.title) { item in
+                    ClinicalMetric(title: item.title, value: item.value, style: .material)
                 }
             }
         }

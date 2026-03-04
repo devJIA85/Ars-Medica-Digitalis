@@ -9,24 +9,40 @@ import PencilKit
 struct FamilyHistorySection: View {
 
     let patient: Patient
+    let onEditMedicalHistory: () -> Void
     let onShowGenogram: () -> Void
 
     var body: some View {
-        CardContainer(
+        SectionCard(
             title: "Antecedentes familiares",
-            systemImage: "person.3.sequence",
-            style: .flat
+            icon: "person.3.sequence"
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if activeHistory.isEmpty && patient.familyHistoryOther.trimmed.isEmpty {
                     ClinicalEmptyState(text: "Sin antecedentes familiares registrados")
                 } else {
-                    ForEach(activeHistory, id: \.self) { item in
-                        Label(item, systemImage: "exclamationmark.triangle")
+                    ForEach(activeHistory, id: \.label) { item in
+                        ClinicalListRow(
+                            icon: "exclamationmark.triangle",
+                            title: item.label,
+                            value: "Registrado",
+                            onTap: onEditMedicalHistory,
+                            onDelete: {
+                                deleteFamilyHistory(item.kind)
+                            },
+                            onEdit: onEditMedicalHistory
+                        )
                     }
 
                     if !patient.familyHistoryOther.trimmed.isEmpty {
-                        ClinicalMetricTile(title: "Otros antecedentes", value: patient.familyHistoryOther)
+                        ClinicalListRow(
+                            icon: "text.justify",
+                            title: "Otros antecedentes",
+                            value: patient.familyHistoryOther,
+                            onTap: onEditMedicalHistory,
+                            onDelete: deleteOtherFamilyHistory,
+                            onEdit: onEditMedicalHistory
+                        )
                     }
                 }
 
@@ -62,14 +78,46 @@ struct FamilyHistorySection: View {
         }
     }
 
-    private var activeHistory: [String] {
-        var items: [String] = []
-        if patient.familyHistoryHTA { items.append("Hipertensión arterial") }
-        if patient.familyHistoryACV { items.append("ACV") }
-        if patient.familyHistoryCancer { items.append("Cáncer") }
-        if patient.familyHistoryDiabetes { items.append("Diabetes") }
-        if patient.familyHistoryHeartDisease { items.append("Enfermedad cardíaca") }
-        if patient.familyHistoryMentalHealth { items.append("Salud mental") }
+    private var activeHistory: [(label: String, kind: FamilyHistoryKind)] {
+        var items: [(String, FamilyHistoryKind)] = []
+        if patient.familyHistoryHTA { items.append(("Hipertensión arterial", .hta)) }
+        if patient.familyHistoryACV { items.append(("ACV", .acv)) }
+        if patient.familyHistoryCancer { items.append(("Cáncer", .cancer)) }
+        if patient.familyHistoryDiabetes { items.append(("Diabetes", .diabetes)) }
+        if patient.familyHistoryHeartDisease { items.append(("Enfermedad cardíaca", .heartDisease)) }
+        if patient.familyHistoryMentalHealth { items.append(("Salud mental", .mentalHealth)) }
         return items
     }
+
+    private func deleteFamilyHistory(_ kind: FamilyHistoryKind) {
+        switch kind {
+        case .hta:
+            patient.familyHistoryHTA = false
+        case .acv:
+            patient.familyHistoryACV = false
+        case .cancer:
+            patient.familyHistoryCancer = false
+        case .diabetes:
+            patient.familyHistoryDiabetes = false
+        case .heartDisease:
+            patient.familyHistoryHeartDisease = false
+        case .mentalHealth:
+            patient.familyHistoryMentalHealth = false
+        }
+        patient.updatedAt = Date()
+    }
+
+    private func deleteOtherFamilyHistory() {
+        patient.familyHistoryOther = ""
+        patient.updatedAt = Date()
+    }
+}
+
+private enum FamilyHistoryKind {
+    case hta
+    case acv
+    case cancer
+    case diabetes
+    case heartDisease
+    case mentalHealth
 }

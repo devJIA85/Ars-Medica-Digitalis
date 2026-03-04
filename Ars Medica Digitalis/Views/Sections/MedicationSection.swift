@@ -8,45 +8,46 @@ import SwiftUI
 struct MedicationSection: View {
 
     let patient: Patient
+    let onEditMedicalHistory: () -> Void
     let onShowMedicationInfo: (Medication) -> Void
 
     var body: some View {
-        CardContainer(
+        SectionCard(
             title: "Medicación",
-            systemImage: "pills",
-            style: .flat
+            icon: "pills"
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if sortedCurrentMedications.isEmpty {
                     if patient.currentMedication.trimmed.isEmpty {
-                        ClinicalEmptyState(text: "Sin medicación registrada")
+                        EmptyStateView(
+                            message: "Sin medicación registrada",
+                            buttonTitle: "Agregar medicación",
+                            action: onEditMedicalHistory
+                        )
                     } else {
-                        ClinicalMetricTile(title: "Texto libre", value: patient.currentMedication)
+                        ClinicalListRow(
+                            icon: "text.justify",
+                            title: "Texto libre",
+                            value: patient.currentMedication,
+                            onTap: onEditMedicalHistory,
+                            onDelete: deleteLegacyMedication,
+                            onEdit: onEditMedicalHistory
+                        )
                     }
                 } else {
                     ForEach(sortedCurrentMedications) { medication in
-                        HStack(alignment: .top, spacing: AppSpacing.md) {
-                            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                                Text(medication.primaryDisplayName)
-                                    .font(.body.weight(.semibold))
-
-                                Text(medication.secondaryDisplayName)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer(minLength: 0)
-
-                            Button {
+                        ClinicalListRow(
+                            icon: "pills",
+                            title: medication.primaryDisplayName,
+                            value: medication.secondaryDisplayName,
+                            onTap: {
                                 onShowMedicationInfo(medication)
-                            } label: {
-                                Image(systemName: "info.circle")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .accessibilityLabel("Ver información de \(medication.summaryLabel)")
-                        }
+                            },
+                            onDelete: {
+                                deleteMedication(medication)
+                            },
+                            onEdit: onEditMedicalHistory
+                        )
 
                         if medication.id != sortedCurrentMedications.last?.id {
                             Divider()
@@ -54,7 +55,14 @@ struct MedicationSection: View {
                     }
 
                     if !patient.currentMedication.trimmed.isEmpty {
-                        ClinicalMetricTile(title: "Observaciones", value: patient.currentMedication)
+                        ClinicalListRow(
+                            icon: "text.justify",
+                            title: "Observaciones",
+                            value: patient.currentMedication,
+                            onTap: onEditMedicalHistory,
+                            onDelete: deleteLegacyMedication,
+                            onEdit: onEditMedicalHistory
+                        )
                     }
                 }
             }
@@ -68,5 +76,15 @@ struct MedicationSection: View {
             }
             return $0.principioActivo.localizedCaseInsensitiveCompare($1.principioActivo) == .orderedAscending
         }
+    }
+
+    private func deleteMedication(_ medication: Medication) {
+        patient.currentMedications = (patient.currentMedications ?? []).filter { $0.id != medication.id }
+        patient.updatedAt = Date()
+    }
+
+    private func deleteLegacyMedication() {
+        patient.currentMedication = ""
+        patient.updatedAt = Date()
     }
 }

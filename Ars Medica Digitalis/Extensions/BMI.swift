@@ -50,10 +50,10 @@ enum BMICategory: CaseIterable {
 extension BMICategory {
     var color: Color {
         switch self {
-        case .underweight: .orange
-        case .normal: .green
-        case .overweight: .orange
-        case .obesity: .red
+        case .underweight: Color(uiColor: .systemBrown)
+        case .normal: Color(uiColor: .systemGreen)
+        case .overweight: Color(uiColor: .systemOrange)
+        case .obesity: Color(uiColor: .systemRed)
         }
     }
 }

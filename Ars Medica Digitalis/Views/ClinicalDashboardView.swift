@@ -10,6 +10,9 @@ import SwiftUI
 struct ClinicalDashboardView: View {
 
     let patient: Patient
+    let onContact: () -> Void
+    let onNewSession: () -> Void
+    let onEditMedicalHistory: () -> Void
     let onShowMedicationInfo: (Medication) -> Void
     let onShowGenogram: () -> Void
     let onAddTreatment: () -> Void
@@ -20,15 +23,34 @@ struct ClinicalDashboardView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: AppSpacing.xxl) {
+                PatientSummaryCard(
+                    patientName: patient.fullName,
+                    age: patient.age,
+                    sex: patient.biologicalSex.trimmed.isEmpty ? "No registrado" : patient.biologicalSex,
+                    medicalRecordNumber: patient.medicalRecordNumber.trimmed.isEmpty ? "Sin HC" : patient.medicalRecordNumber,
+                    photoData: patient.photoData,
+                    firstName: patient.firstName,
+                    lastName: patient.lastName,
+                    genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
+                    clinicalStatus: patient.clinicalStatus,
+                    isContactEnabled: patient.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+                    onContact: onContact,
+                    onNewSession: onNewSession
+                )
                 PatientSummarySection(patient: patient)
                 ClinicalStatusSection(patient: patient)
                 MedicationSection(
                     patient: patient,
+                    onEditMedicalHistory: onEditMedicalHistory,
                     onShowMedicationInfo: onShowMedicationInfo
                 )
-                RiskFactorsSection(patient: patient)
+                RiskFactorsSection(
+                    patient: patient,
+                    onEditMedicalHistory: onEditMedicalHistory
+                )
                 FamilyHistorySection(
                     patient: patient,
+                    onEditMedicalHistory: onEditMedicalHistory,
                     onShowGenogram: onShowGenogram
                 )
                 TreatmentsSection(
@@ -48,28 +70,6 @@ struct ClinicalDashboardView: View {
         }
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
-    }
-}
-
-struct ClinicalMetricTile: View {
-
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.xs) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(value)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppSpacing.md)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
     }
 }
 
@@ -94,7 +94,7 @@ struct ClinicalDeleteButton: View {
         Button(role: .destructive, action: action) {
             Image(systemName: "trash")
                 .font(.footnote.weight(.semibold))
-                .frame(width: 32, height: 32)
+                .frame(width: 44, height: 44)
                 .background(.quaternary.opacity(0.7), in: Circle())
         }
         .buttonStyle(.plain)

@@ -13,11 +13,13 @@ import SwiftData
 struct PatientMedicalHistoryView: View {
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
 
     let patient: Patient
     let professional: Professional
 
     @State private var showingEditForm: Bool = false
+    @State private var showingNewSession: Bool = false
     @State private var showingGenogram: Bool = false
     @State private var showingNewTreatment: Bool = false
     @State private var showingNewHospitalization: Bool = false
@@ -27,6 +29,13 @@ struct PatientMedicalHistoryView: View {
     var body: some View {
         ClinicalDashboardView(
             patient: patient,
+            onContact: contactPatient,
+            onNewSession: {
+                showingNewSession = true
+            },
+            onEditMedicalHistory: {
+                showingEditForm = true
+            },
             onShowMedicationInfo: { medication in
                 infoMedication = medication
             },
@@ -65,6 +74,11 @@ struct PatientMedicalHistoryView: View {
         .sheet(isPresented: $showingEditForm) {
             NavigationStack {
                 PatientMedicalHistoryFormView(patient: patient)
+            }
+        }
+        .sheet(isPresented: $showingNewSession) {
+            NavigationStack {
+                SessionFormView(patient: patient)
             }
         }
         .sheet(isPresented: $showingGenogram, onDismiss: {
@@ -106,5 +120,24 @@ struct PatientMedicalHistoryView: View {
                     }
             }
         }
+    }
+
+    private func contactPatient() {
+        guard let phoneURL else { return }
+        openURL(phoneURL)
+    }
+
+    private var phoneURL: URL? {
+        let rawValue = patient.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard rawValue.isEmpty == false else { return nil }
+
+        let allowedCharacters = CharacterSet(charactersIn: "+0123456789")
+        let normalized = rawValue.unicodeScalars.filter { scalar in
+            allowedCharacters.contains(scalar)
+        }
+
+        let phoneNumber = String(String.UnicodeScalarView(normalized))
+        guard phoneNumber.isEmpty == false else { return nil }
+        return URL(string: "tel://\(phoneNumber)")
     }
 }

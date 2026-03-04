@@ -12,6 +12,8 @@ struct PatientRiskSection: View {
     let section: PatientDashboardSection
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
+    let activePriorityFilterTitle: String?
+    let onClearPriorityFilter: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -57,6 +59,26 @@ struct PatientRiskSection: View {
             }
 
             Spacer(minLength: 0)
+
+            if let activePriorityFilterTitle {
+                Button {
+                    onClearPriorityFilter?()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                        Text(activePriorityFilterTitle)
+                        Image(systemName: "xmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.thinMaterial, in: Capsule(style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("patient.dashboard.priority_filter.clear"))
+            }
 
             Text("\(section.rows.count)")
                 .font(.caption.weight(.semibold))

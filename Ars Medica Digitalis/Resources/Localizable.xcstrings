@@ -2597,6 +2597,276 @@
         }
       }
     },
+    "patient.dashboard.priority_filter.clear" : {
+      "comment" : "Accessibility label for clearing the active priority filter in patient sections.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear priority filter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar filtro de prioridad"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.bucket.attention" : {
+      "comment" : "Bucket title for patients that require follow-up in the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs attention"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requieren atención"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.bucket.critical" : {
+      "comment" : "Bucket title for critical patients in the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Critical"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Críticos"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.bucket.stable" : {
+      "comment" : "Bucket title for stable patients in the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estables"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.center.critical" : {
+      "comment" : "Center subtitle in the radar when there are critical patients.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d critical"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d críticos"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.center.stable" : {
+      "comment" : "Center subtitle in the radar when there are no critical patients.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estable"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.menu.show_all" : {
+      "comment" : "Context-menu action to show all patients from the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show all"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar todos"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.menu.show_attention" : {
+      "comment" : "Context-menu action to filter patients requiring follow-up in the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show follow-up"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar seguimiento"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.menu.show_critical" : {
+      "comment" : "Context-menu action to filter critical patients in the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show critical"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar críticos"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.menu.show_stable" : {
+      "comment" : "Context-menu action to filter stable patients in the clinical priority radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show stable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar estables"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.segment.selected.hint" : {
+      "comment" : "VoiceOver hint for a selected radar segment.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to clear and show all priorities."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doble toque para quitar el filtro y mostrar todas las prioridades."
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.title" : {
+      "comment" : "Title for the clinical priority radar component.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clinical priority"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prioridad clínica"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.total" : {
+      "comment" : "Label for the total number of patients in the radar.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total"
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.voiceover.distribution" : {
+      "comment" : "VoiceOver full description of the clinical priority radar distribution.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clinical priority. Total %d. Critical %d. Needs attention %d. Stable %d."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prioridad clínica. Total %d. Críticos %d. Requieren atención %d. Estables %d."
+          }
+        }
+      }
+    },
+    "patient.dashboard.radar.voiceover.selected" : {
+      "comment" : "VoiceOver label for the currently selected radar bucket.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ selected, %d patients"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ seleccionado, %d pacientes"
+          }
+        }
+      }
+    },
     "patient.dashboard.trend.improving" : {
       "comment" : "Short label for an improving adherence trend in the patient dashboard.",
       "extractionState" : "manual",

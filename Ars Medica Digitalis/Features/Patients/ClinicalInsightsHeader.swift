@@ -10,9 +10,17 @@ import SwiftUI
 struct ClinicalInsightsHeader: View {
 
     let summary: ClinicalInsightsSummary
+    let selectedRadarBucket: ClinicalPriorityBucket?
+    let onSelectRadarBucket: (ClinicalPriorityBucket?) -> Void
 
-    init(summary: ClinicalInsightsSummary) {
+    init(
+        summary: ClinicalInsightsSummary,
+        selectedRadarBucket: ClinicalPriorityBucket? = nil,
+        onSelectRadarBucket: @escaping (ClinicalPriorityBucket?) -> Void = { _ in }
+    ) {
         self.summary = summary
+        self.selectedRadarBucket = selectedRadarBucket
+        self.onSelectRadarBucket = onSelectRadarBucket
     }
 
     init(
@@ -24,6 +32,14 @@ struct ClinicalInsightsHeader: View {
     ) {
         let analyzedCount = max(totalPatients, criticalPatients + riskPatients)
         let adherencePercentage = Int((min(max(averageAdherence, 0), 1) * 100).rounded())
+        let attentionPatients = max(riskPatients - criticalPatients, 0)
+        let stablePatients = max(analyzedCount - criticalPatients - attentionPatients, 0)
+        let radarModel = ClinicalPriorityRadarModel(
+            totalCount: analyzedCount,
+            criticalCount: criticalPatients,
+            attentionCount: attentionPatients,
+            stableCount: stablePatients
+        )
 
         self.summary = ClinicalInsightsSummary(
             totalPatients: analyzedCount,
@@ -31,6 +47,9 @@ struct ClinicalInsightsHeader: View {
             subtitle: analyzedCount > 0
                 ? L10n.tr("patient.dashboard.insights.analyzed", analyzedCount)
                 : L10n.tr("patient.dashboard.insights.subtitle"),
+            criticalPatientsCount: criticalPatients,
+            attentionPatientsCount: attentionPatients,
+            stablePatientsCount: stablePatients,
             trends: [
                 ClinicalTrend(
                     id: "adherence",
@@ -102,8 +121,11 @@ struct ClinicalInsightsHeader: View {
                     accessibilityLabel: "\(L10n.tr("patient.dashboard.metric.session_gap.title")): \(patientsWithoutSession30Days)",
                     animationDelay: 0.09
                 ),
-            ]
+            ],
+            radarModel: radarModel
         )
+        self.selectedRadarBucket = nil
+        self.onSelectRadarBucket = { _ in }
     }
 
     var body: some View {
@@ -117,6 +139,12 @@ struct ClinicalInsightsHeader: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            ClinicalPriorityRadar(
+                model: summary.radarModel,
+                selectedBucket: selectedRadarBucket,
+                onSelectBucket: onSelectRadarBucket
+            )
 
             ClinicalTrendBar(trends: summary.trends)
             InsightMetricsGrid(metrics: summary.metrics)

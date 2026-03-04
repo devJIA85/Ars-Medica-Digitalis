@@ -71,6 +71,7 @@ final class PatientDashboardStore {
         let totalAdherence = rows.reduce(0) { $0 + $1.adherence }
         let dropoutRiskPatients = rows.filter { $0.alertKinds.contains(.highDropoutRisk) }.count
         let criticalPatients = rows.filter { $0.sectionKind == .critical }.count
+        let attentionPatients = rows.filter { $0.sectionKind == .needsAttention }.count
         let patientsWithoutSession30Days = rows.filter { $0.alertKinds.contains(.noSession30Days) }.count
         let stablePatients = rows.filter { $0.sectionKind == .stable }.count
         let averageAdherence = rows.isEmpty ? 0 : (totalAdherence / Double(rows.count))
@@ -80,25 +81,37 @@ final class PatientDashboardStore {
             "patients: \(patients.count), sections: \(sections.count), rows: \(rows.count)"
         )
 
-        return PatientDashboardState(
-            summary: ClinicalInsightsSummary(
+        let summaryWithoutRadar = ClinicalInsightsSummary(
+            totalPatients: patients.count,
+            title: L10n.tr("patient.dashboard.insights.title"),
+            subtitle: L10n.tr("patient.dashboard.insights.analyzed", patients.count),
+            criticalPatientsCount: criticalPatients,
+            attentionPatientsCount: attentionPatients,
+            stablePatientsCount: stablePatients,
+            trends: buildClinicalTrends(
+                rows: rows,
                 totalPatients: patients.count,
-                title: L10n.tr("patient.dashboard.insights.title"),
-                subtitle: L10n.tr("patient.dashboard.insights.analyzed", patients.count),
-                trends: buildClinicalTrends(
-                    rows: rows,
-                    totalPatients: patients.count,
-                    dropoutRiskPatients: dropoutRiskPatients,
-                    patientsWithoutSession30Days: patientsWithoutSession30Days,
-                    stablePatients: stablePatients
-                ),
-                metrics: buildInsightMetrics(
-                    criticalPatients: criticalPatients,
-                    dropoutRiskPatients: dropoutRiskPatients,
-                    averageAdherence: averageAdherence,
-                    patientsWithoutSession30Days: patientsWithoutSession30Days
-                )
+                dropoutRiskPatients: dropoutRiskPatients,
+                patientsWithoutSession30Days: patientsWithoutSession30Days,
+                stablePatients: stablePatients
             ),
+            metrics: buildInsightMetrics(
+                criticalPatients: criticalPatients,
+                dropoutRiskPatients: dropoutRiskPatients,
+                averageAdherence: averageAdherence,
+                patientsWithoutSession30Days: patientsWithoutSession30Days
+            ),
+            radarModel: .empty
+        )
+
+        let stateWithoutRadar = PatientDashboardState(
+            summary: summaryWithoutRadar,
+            sections: sections
+        )
+        let radarModel = ClinicalPriorityRadarBuilder.build(from: stateWithoutRadar)
+
+        return PatientDashboardState(
+            summary: summaryWithoutRadar.withRadarModel(radarModel),
             sections: sections
         )
     }
@@ -317,15 +330,34 @@ struct PatientDashboardView: View {
     let state: PatientDashboardState
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
+    @State private var selectedPriorityBucket: ClinicalPriorityBucket? = nil
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.xl) {
                 if state.hasPatients {
-                    ClinicalInsightsHeader(summary: state.summary)
+                    ClinicalInsightsHeader(
+                        summary: state.summary,
+                        selectedRadarBucket: selectedPriorityBucket,
+                        onSelectRadarBucket: { bucket in
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                                selectedPriorityBucket = bucket
+                            }
+                        }
+                    )
 
-                    ForEach(state.sections) { section in
-                        PatientRiskSection(section: section, namespace: namespace, onDelete: onDelete)
+                    ForEach(filteredSections) { section in
+                        PatientRiskSection(
+                            section: section,
+                            namespace: namespace,
+                            onDelete: onDelete,
+                            activePriorityFilterTitle: activePriorityFilterTitle,
+                            onClearPriorityFilter: selectedPriorityBucket == nil ? nil : {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                                    selectedPriorityBucket = nil
+                                }
+                            }
+                        )
                     }
                 } else {
                     ContentUnavailableView(
@@ -345,6 +377,11 @@ struct PatientDashboardView: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollEdgeEffectStyle(.soft, for: .all)
+        .onChange(of: state.summary.radarModel) { _, newValue in
+            guard let selectedPriorityBucket else { return }
+            guard newValue.count(for: selectedPriorityBucket) == 0 else { return }
+            self.selectedPriorityBucket = nil
+        }
     }
 
     private var backgroundGradient: some View {
@@ -373,14 +410,42 @@ struct PatientDashboardView: View {
         }
         .ignoresSafeArea()
     }
+
+    private var filteredSections: [PatientDashboardSection] {
+        guard let selectedPriorityBucket else { return state.sections }
+        return state.sections.filter { $0.kind == selectedPriorityBucket.sectionKind }
+    }
+
+    private var activePriorityFilterTitle: String? {
+        guard let selectedPriorityBucket else { return nil }
+        return selectedPriorityBucket.localizedTitle
+    }
 }
 
 struct ClinicalInsightsSummary: Equatable {
     let totalPatients: Int
     let title: String
     let subtitle: String
+    let criticalPatientsCount: Int
+    let attentionPatientsCount: Int
+    let stablePatientsCount: Int
     let trends: [ClinicalTrend]
     let metrics: [InsightMetric]
+    let radarModel: ClinicalPriorityRadarModel
+
+    func withRadarModel(_ radarModel: ClinicalPriorityRadarModel) -> ClinicalInsightsSummary {
+        ClinicalInsightsSummary(
+            totalPatients: totalPatients,
+            title: title,
+            subtitle: subtitle,
+            criticalPatientsCount: criticalPatientsCount,
+            attentionPatientsCount: attentionPatientsCount,
+            stablePatientsCount: stablePatientsCount,
+            trends: trends,
+            metrics: metrics,
+            radarModel: radarModel
+        )
+    }
 }
 
 struct PatientDashboardState: Equatable {
@@ -396,11 +461,39 @@ struct PatientDashboardState: Equatable {
             totalPatients: 0,
             title: L10n.tr("patient.dashboard.insights.title"),
             subtitle: L10n.tr("patient.dashboard.insights.analyzed", 0),
+            criticalPatientsCount: 0,
+            attentionPatientsCount: 0,
+            stablePatientsCount: 0,
             trends: [],
-            metrics: []
+            metrics: [],
+            radarModel: .empty
         ),
         sections: []
     )
+}
+
+private extension ClinicalPriorityBucket {
+    var sectionKind: PatientDashboardSection.Kind {
+        switch self {
+        case .critical:
+            .critical
+        case .attention:
+            .needsAttention
+        case .stable:
+            .stable
+        }
+    }
+
+    var localizedTitle: String {
+        switch self {
+        case .critical:
+            L10n.tr("patient.dashboard.radar.bucket.critical")
+        case .attention:
+            L10n.tr("patient.dashboard.radar.bucket.attention")
+        case .stable:
+            L10n.tr("patient.dashboard.radar.bucket.stable")
+        }
+    }
 }
 
 struct PatientDashboardSection: Identifiable, Equatable {

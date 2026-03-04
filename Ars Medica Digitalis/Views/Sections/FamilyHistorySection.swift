@@ -52,7 +52,7 @@ struct FamilyHistorySection: View {
                    let drawing = try? PKDrawing(data: data) {
                     Button(action: onShowGenogram) {
                         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                            Text("Genograma")
+                            Label("Genograma", systemImage: "point.3.connected.trianglepath.dotted")
                                 .font(.headline)
                                 .foregroundStyle(.primary)
 

@@ -60,7 +60,7 @@ struct PatientListView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    ProfileEditView(professional: professional)
+                    ProfileView(professional: professional)
                 } label: {
                     Label("Perfil", systemImage: "person.crop.circle")
                 }
@@ -186,7 +186,7 @@ private struct PatientRowView: View {
 
         // CardContainer unifica el estilo de celda con PatientDetailView;
         // reemplaza el LinearGradient manual por el sistema nativo Liquid Glass.
-        CardContainer(style: .flat) {
+        CardContainer(style: .flat, usesGlassEffect: false) {
             // Jerarquía: avatar (quién) → nombre → subinfo → badges (síntesis)
             HStack(alignment: .center, spacing: 14) {
                 PatientAvatarView(

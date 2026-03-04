@@ -48,14 +48,12 @@ struct PatientDetailView: View {
                 .scaleEffect(didAppearDiagnoses ? 1 : 0.97)
                 .animation(.smooth(duration: 0.4), value: didAppearDiagnoses)
 
-                // 3. Medicación — condicional, solo si > 0
-                if activeMedicationCount > 0 {
-                    MedicationCard(
-                        patient: patient,
-                        professional: professional,
-                        count: activeMedicationCount
-                    )
-                }
+                // 3. Historia clínica — acceso rápido siempre visible
+                MedicationCard(
+                    patient: patient,
+                    professional: professional,
+                    count: activeMedicationCount
+                )
 
                 if patient.hasOutstandingDebt {
                     PatientFinanceCard(
@@ -659,6 +657,16 @@ private struct MedicationCard: View {
     let professional: Professional
     let count: Int
 
+    private var summaryText: String {
+        count > 0 ? "\(count) med. activa\(count == 1 ? "" : "s")" : "Sin med. activa"
+    }
+
+    private var accessibilitySummary: String {
+        count > 0
+            ? "\(count) medicación activa\(count == 1 ? "" : "s")"
+            : "sin medicación activa"
+    }
+
     var body: some View {
         NavigationLink {
             PatientMedicalHistoryView(patient: patient, professional: professional)
@@ -671,7 +679,7 @@ private struct MedicationCard: View {
 
                     Spacer(minLength: 0)
 
-                    Text("\(count) med. activa\(count == 1 ? "" : "s")")
+                    Text(summaryText)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
@@ -684,7 +692,7 @@ private struct MedicationCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Historia clínica, \(count) medicación activa\(count == 1 ? "" : "s")")
+        .accessibilityLabel("Historia clínica, \(accessibilitySummary)")
         .accessibilityHint("Abre la historia clínica")
     }
 }

@@ -34,6 +34,8 @@ final class HonorariumCreateViewModel {
     var currencyCode: String = "ARS"
     var price: Decimal = 0
     var effectiveFrom: Date = Date()
+    var colorToken: String = SessionTypeColorToken.blue.rawValue
+    var symbolName: String = SessionTypeSymbolCatalog.defaultSymbolName
 
     var canSave: Bool {
         name.trimmed.isEmpty == false
@@ -84,6 +86,8 @@ final class HonorariumCreateViewModel {
             let nextSortOrder = ((professional.sessionCatalogTypes ?? []).map(\.sortOrder).max() ?? -1) + 1
             let newSessionType = SessionCatalogType(
                 name: trimmedName,
+                iconSystemName: resolvedSymbolName,
+                colorToken: resolvedColorToken.rawValue,
                 sortOrder: nextSortOrder,
                 professional: professional
             )
@@ -114,6 +118,16 @@ final class HonorariumCreateViewModel {
         context.insert(version)
 
         try context.save()
+    }
+
+    private var resolvedColorToken: SessionTypeColorToken {
+        SessionTypeColorToken(rawValue: colorToken) ?? .blue
+    }
+
+    private var resolvedSymbolName: String {
+        SessionTypeSymbolCatalog.isSupported(symbolName)
+        ? symbolName
+        : SessionTypeSymbolCatalog.defaultSymbolName
     }
 
     /// Reutiliza tipos con el mismo nombre lógico para que distintas monedas

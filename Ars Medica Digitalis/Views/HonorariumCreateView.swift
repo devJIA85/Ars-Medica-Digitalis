@@ -47,6 +47,19 @@ struct HonorariumCreateView: View {
                         displayedComponents: .date
                     )
                 }
+
+                Section {
+                    SessionTypeStylePicker(
+                        previewName: viewModel.name,
+                        previewPrice: previewPrice,
+                        selectedColorToken: $viewModel.colorToken,
+                        selectedSymbolName: $viewModel.symbolName
+                    )
+                } header: {
+                    Text("Apariencia")
+                } footer: {
+                    Text("La identidad visual del tipo queda persistida para reutilizarla en otras pantallas.")
+                }
             }
             .navigationTitle("Nuevo honorario")
             .navigationBarTitleDisplayMode(.inline)
@@ -101,5 +114,13 @@ struct HonorariumCreateView: View {
                 }
             }
         )
+    }
+
+    private var previewPrice: String {
+        guard viewModel.price > 0 else {
+            return "Sin honorario cargado"
+        }
+
+        return viewModel.price.formattedCurrency(code: viewModel.currencyCode)
     }
 }

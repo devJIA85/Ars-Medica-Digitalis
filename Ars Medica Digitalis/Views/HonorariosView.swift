@@ -89,6 +89,7 @@ struct HonorariosView: View {
     @State private var viewModel: SessionTypeBusinessViewModel?
     @State private var errorMessage: String?
     @State private var selectedUpdateSnapshot: UpdateSheetState?
+    @State private var selectedManagementState: SessionTypeManagementSheetState?
     @State private var showingCreateHonorarium: Bool = false
 
     var body: some View {
@@ -161,6 +162,15 @@ struct HonorariosView: View {
                 await refreshHonorarios()
             }
         }
+        .sheet(item: $selectedManagementState) { state in
+            SessionTypeManagementView(
+                snapshot: state.snapshot,
+                professional: professional,
+                context: modelContext
+            ) {
+                await refreshHonorarios()
+            }
+        }
         .sheet(isPresented: $showingCreateHonorarium) {
             HonorariumCreateView(
                 professional: professional,
@@ -182,7 +192,7 @@ struct HonorariosView: View {
                 activeSnapshots: activeSnapshots
             )
 
-        if viewModel.snapshots.isEmpty {
+        if activeSnapshots.isEmpty {
             Section {
                 VStack(spacing: 18) {
                     ContentUnavailableView(
@@ -206,7 +216,7 @@ struct HonorariosView: View {
             }
 
             Section {
-                ForEach(viewModel.snapshots, id: \.sessionType.id) { snapshot in
+                ForEach(activeSnapshots, id: \.sessionType.id) { snapshot in
                     HonorariosSessionTypeCard(
                         snapshot: snapshot,
                         isSuggestedDefault: snapshot.sessionType.id == suggestedSessionTypeID,
@@ -217,6 +227,11 @@ struct HonorariosView: View {
                         onDismissHighlight: dismissSuggestionHighlight,
                         onRequestUpdate: {
                             selectedUpdateSnapshot = UpdateSheetState(snapshot: snapshot)
+                        },
+                        onManageType: {
+                            selectedManagementState = SessionTypeManagementSheetState(
+                                snapshot: snapshot
+                            )
                         }
                     )
                     .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
@@ -429,6 +444,14 @@ private struct UpdateSheetState: Identifiable {
     }
 }
 
+private struct SessionTypeManagementSheetState: Identifiable {
+    let snapshot: SessionTypeBusinessSnapshot
+
+    var id: UUID {
+        snapshot.sessionType.id
+    }
+}
+
 private struct HonorariosSessionTypeCard: View {
 
     let snapshot: SessionTypeBusinessSnapshot
@@ -436,6 +459,7 @@ private struct HonorariosSessionTypeCard: View {
     let isHighlighted: Bool
     let onDismissHighlight: () -> Void
     let onRequestUpdate: () -> Void
+    let onManageType: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -473,13 +497,15 @@ private struct HonorariosSessionTypeCard: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "banknote.fill")
-                .font(.title3)
-                .foregroundStyle(.tint)
-                .frame(width: 28, height: 28)
-                .padding(10)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+        let colorToken = snapshot.sessionType.resolvedColorToken
+
+        return HStack(alignment: .top, spacing: 12) {
+            SessionTypeIconBadge(
+                symbolName: snapshot.sessionType.resolvedSymbolName,
+                colorToken: colorToken,
+                frameSize: 48,
+                symbolSize: 20
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(snapshot.sessionType.name)
@@ -492,17 +518,25 @@ private struct HonorariosSessionTypeCard: View {
                 if isSuggestedDefault {
                     Text(L10n.tr("honorarios.default_session_type_badge"))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(colorToken.color)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(Color.accentColor.opacity(0.12))
+                                .fill(colorToken.softFill)
                         )
                 }
             }
 
             Spacer(minLength: 0)
+
+            Button(action: onManageType) {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Administrar \(snapshot.sessionType.name)")
         }
     }
 

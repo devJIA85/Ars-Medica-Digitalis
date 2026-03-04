@@ -46,7 +46,10 @@ struct ClinicalStatusSection: View {
                 if records.count >= 2 {
                     WeightTrendChartView(records: records)
                 } else if records.count == 1 {
-                    ClinicalEmptyState(text: "Guardá mediciones en diferentes fechas para ver la tendencia")
+                    Text("Guardá mediciones en diferentes fechas para ver la tendencia")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }

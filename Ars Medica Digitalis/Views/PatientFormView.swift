@@ -26,6 +26,11 @@ struct PatientFormView: View {
 
     private var isEditing: Bool { patient != nil }
 
+    /// Países frecuentes calculados a partir de los pacientes del profesional
+    private var frequentCountryCodes: [String] {
+        CountryCatalog.frequentCodes(from: professional.patients ?? [])
+    }
+
     init(professional: Professional, patient: Patient? = nil) {
         self.professional = professional
         self.patient = patient
@@ -85,9 +90,31 @@ struct PatientFormView: View {
                     }
                 }
 
-                TextField("Nacionalidad", text: $viewModel.nationality)
+                NavigationLink {
+                    CountryPickerView(
+                        selection: $viewModel.nationality,
+                        frequentCodes: frequentCountryCodes
+                    )
+                    .navigationTitle("Nacionalidad")
+                } label: {
+                    LabeledContent("Nacionalidad") {
+                        Text(CountryCatalog.displayName(for: viewModel.nationality))
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-                TextField("País de Residencia", text: $viewModel.residenceCountry)
+                NavigationLink {
+                    CountryPickerView(
+                        selection: $viewModel.residenceCountry,
+                        frequentCodes: frequentCountryCodes
+                    )
+                    .navigationTitle("País de Residencia")
+                } label: {
+                    LabeledContent("País de Residencia") {
+                        Text(CountryCatalog.displayName(for: viewModel.residenceCountry))
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 TextField("Ocupación", text: $viewModel.occupation)
 

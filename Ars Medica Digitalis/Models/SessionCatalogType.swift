@@ -18,6 +18,10 @@ final class SessionCatalogType {
     /// Vive fuera de Session.sessionType porque ese campo sigue siendo clínico.
     var name: String = ""
 
+    /// Identidad visual reusable para listas, agenda y reportes.
+    var iconSystemName: String = SessionTypeSymbolCatalog.defaultSymbolName
+    var colorToken: String = SessionTypeColorToken.blue.rawValue
+
     /// Permite ocultar tipos viejos sin borrar historial asociado.
     var isActive: Bool = true
 
@@ -46,6 +50,8 @@ final class SessionCatalogType {
     init(
         id: UUID = UUID(),
         name: String = "",
+        iconSystemName: String = SessionTypeSymbolCatalog.defaultSymbolName,
+        colorToken: String = SessionTypeColorToken.blue.rawValue,
         isActive: Bool = true,
         sortOrder: Int = 0,
         createdAt: Date = Date(),
@@ -57,6 +63,8 @@ final class SessionCatalogType {
     ) {
         self.id = id
         self.name = name
+        self.iconSystemName = iconSystemName
+        self.colorToken = colorToken
         self.isActive = isActive
         self.sortOrder = sortOrder
         self.createdAt = createdAt

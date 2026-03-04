@@ -17,6 +17,8 @@ final class ProfessionalViewModel {
     var licenseNumber: String = ""
     var specialty: String = ""
     var email: String = ""
+    var defaultPatientCurrencyCode: String = ""
+    var defaultFinancialSessionTypeID: UUID? = nil
 
     // Validación mínima para habilitar el botón de guardar
     var canSave: Bool {
@@ -31,6 +33,8 @@ final class ProfessionalViewModel {
         licenseNumber = professional.licenseNumber
         specialty = professional.specialty
         email = professional.email
+        defaultPatientCurrencyCode = professional.defaultPatientCurrencyCode
+        defaultFinancialSessionTypeID = professional.defaultFinancialSessionTypeID
     }
 
     // Crea un nuevo Professional y lo inserta en el contexto
@@ -39,7 +43,9 @@ final class ProfessionalViewModel {
             fullName: fullName.trimmed,
             licenseNumber: licenseNumber.trimmed,
             specialty: specialty.trimmed,
-            email: email.trimmed
+            email: email.trimmed,
+            defaultPatientCurrencyCode: defaultPatientCurrencyCode,
+            defaultFinancialSessionTypeID: defaultFinancialSessionTypeID
         )
         context.insert(professional)
     }
@@ -50,6 +56,8 @@ final class ProfessionalViewModel {
         professional.licenseNumber = licenseNumber.trimmed
         professional.specialty = specialty.trimmed
         professional.email = email.trimmed
+        professional.defaultPatientCurrencyCode = defaultPatientCurrencyCode
+        professional.defaultFinancialSessionTypeID = defaultFinancialSessionTypeID
         professional.updatedAt = Date()
     }
 }

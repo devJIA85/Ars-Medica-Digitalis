@@ -28,6 +28,7 @@ struct ClinicalDashboardView: View {
                     age: patient.age,
                     sex: patient.biologicalSex.trimmed.isEmpty ? "No registrado" : patient.biologicalSex,
                     medicalRecordNumber: patient.medicalRecordNumber.trimmed.isEmpty ? "Sin HC" : patient.medicalRecordNumber,
+                    birthCountryFlag: patient.nationality.flagEmoji,
                     photoData: patient.photoData,
                     firstName: patient.firstName,
                     lastName: patient.lastName,
@@ -72,6 +73,8 @@ struct ClinicalDashboardView: View {
         .scrollBounceBehavior(.basedOnSize)
     }
 }
+
+// flagEmoji ahora viene de String+FlagEmoji.swift (extensión compartida)
 
 struct ClinicalEmptyState: View {
 

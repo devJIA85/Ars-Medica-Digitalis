@@ -16,7 +16,7 @@ struct ClinicalStatusCard: View {
     var lastMeasurementDate: Date? = nil
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .largeTitle) private var bmiFontSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .title) private var bmiFontSize: CGFloat = 36
     @State private var animatedFillProgress: CGFloat = 0
 
     private let minVisibleBMI: Double = 10
@@ -24,12 +24,12 @@ struct ClinicalStatusCard: View {
     private let thresholds: [Double] = [18.5, 25, 30]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
             header
             bmiBar
             metricsGrid
         }
-        .padding(AppSpacing.lg)
+        .padding(AppSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             Color(uiColor: .systemBackground),
@@ -52,7 +52,7 @@ struct ClinicalStatusCard: View {
     }
 
     private var bmiBar: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
             GeometryReader { proxy in
                 let width = max(proxy.size.width, 1)
 
@@ -61,30 +61,39 @@ struct ClinicalStatusCard: View {
 
                     Capsule()
                         .fill(.primary.opacity(0.06))
-                        .frame(width: width * animatedFillProgress, height: 14)
+                        .frame(width: width * animatedFillProgress, height: 12)
 
                     if bmiValue != nil {
                         Circle()
                             .fill(classificationColor)
-                            .frame(width: 18, height: 18)
-                            .shadow(color: classificationColor.opacity(0.28), radius: 6, y: 2)
+                            .frame(width: 16, height: 16)
+                            .shadow(color: classificationColor.opacity(0.24), radius: 5, y: 2)
                             .offset(x: markerOffset(totalWidth: width))
                     }
                 }
             }
-            .frame(height: 18)
+            .frame(height: 16)
 
-            HStack {
-                Text("10")
-                Spacer()
-                Text("18.5")
-                Spacer()
-                Text("25")
-                Spacer()
-                Text("30")
-                Spacer()
-                Text("45")
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+
+                ZStack(alignment: .topLeading) {
+                    HStack {
+                        Text(formatThreshold(minVisibleBMI))
+                        Spacer(minLength: 0)
+                        Text(formatThreshold(maxVisibleBMI))
+                    }
+
+                    ForEach(thresholds, id: \.self) { threshold in
+                        Text(formatThreshold(threshold))
+                            .position(
+                                x: width * CGFloat((threshold - minVisibleBMI) / (maxVisibleBMI - minVisibleBMI)),
+                                y: 8
+                            )
+                    }
+                }
             }
+            .frame(height: 16)
             .font(.caption2)
             .foregroundStyle(.secondary)
             .monospacedDigit()
@@ -108,7 +117,7 @@ struct ClinicalStatusCard: View {
             ForEach(thresholds, id: \.self) { threshold in
                 Rectangle()
                     .fill(.white.opacity(0.55))
-                    .frame(width: 1, height: 14)
+                    .frame(width: 1, height: 12)
                     .offset(x: width * CGFloat((threshold - minVisibleBMI) / (maxVisibleBMI - minVisibleBMI)))
             }
         }
@@ -119,29 +128,29 @@ struct ClinicalStatusCard: View {
             .fill(color)
             .frame(
                 width: totalWidth * CGFloat((end - start) / (maxVisibleBMI - minVisibleBMI)),
-                height: 14
+                height: 12
             )
     }
 
     private var metricsGrid: some View {
         ViewThatFits(in: .vertical) {
-            HStack(spacing: AppSpacing.md) {
-                ClinicalMetric(title: "Peso", value: weightText ?? "Sin dato")
-                ClinicalMetric(title: "Altura", value: heightText ?? "Sin dato")
-                ClinicalMetric(title: "Cintura", value: waistText ?? "Sin dato")
+            HStack(spacing: AppSpacing.sm) {
+                ClinicalMetric(title: "Peso", value: weightText ?? "Sin dato", density: .compact)
+                ClinicalMetric(title: "Altura", value: heightText ?? "Sin dato", density: .compact)
+                ClinicalMetric(title: "Cintura", value: waistText ?? "Sin dato", density: .compact)
             }
 
-            VStack(spacing: AppSpacing.md) {
-                ClinicalMetric(title: "Peso", value: weightText ?? "Sin dato")
-                ClinicalMetric(title: "Altura", value: heightText ?? "Sin dato")
-                ClinicalMetric(title: "Cintura", value: waistText ?? "Sin dato")
+            VStack(spacing: AppSpacing.sm) {
+                ClinicalMetric(title: "Peso", value: weightText ?? "Sin dato", density: .compact)
+                ClinicalMetric(title: "Altura", value: heightText ?? "Sin dato", density: .compact)
+                ClinicalMetric(title: "Cintura", value: waistText ?? "Sin dato", density: .compact)
             }
         }
     }
 
     private func markerOffset(totalWidth: CGFloat) -> CGFloat {
         let markerX = totalWidth * CGFloat(clampedNormalizedBMI)
-        let dotSize: CGFloat = 18
+        let dotSize: CGFloat = 16
         return min(max(markerX - (dotSize / 2), 0), max(totalWidth - dotSize, 0))
     }
 
@@ -174,13 +183,13 @@ struct ClinicalStatusCard: View {
     @ViewBuilder
     private func headerLayout(horizontal: Bool) -> some View {
         if horizontal && !dynamicTypeSize.isAccessibilitySize {
-            HStack(alignment: .top, spacing: AppSpacing.md) {
+            HStack(alignment: .top, spacing: AppSpacing.sm) {
                 bmiSummary
                 Spacer(minLength: 0)
                 measurementSummary(alignment: .trailing)
             }
         } else {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 bmiSummary
                 measurementSummary(alignment: .leading)
             }
@@ -188,9 +197,9 @@ struct ClinicalStatusCard: View {
     }
 
     private var bmiSummary: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+        VStack(alignment: .leading, spacing: 2) {
             Text("IMC")
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             if let formattedBMI {
@@ -202,12 +211,12 @@ struct ClinicalStatusCard: View {
                     .minimumScaleFactor(0.8)
             } else {
                 Text("Sin dato")
-                    .font(.title2.weight(.bold))
+                    .font(.title3.weight(.bold))
                     .foregroundStyle(.secondary)
             }
 
             Text(classificationLabel)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(classificationColor)
         }
         .accessibilityElement(children: .ignore)
@@ -216,13 +225,13 @@ struct ClinicalStatusCard: View {
     }
 
     private func measurementSummary(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: AppSpacing.xs) {
+        VStack(alignment: alignment, spacing: 2) {
             Text("Última medición")
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             Text(lastMeasurementLabel)
-                .font(.subheadline)
+                .font(.callout)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(alignment == .trailing ? .trailing : .leading)
         }
@@ -236,6 +245,10 @@ struct ClinicalStatusCard: View {
             return "Sin dato. \(classificationLabel)"
         }
         return "\(formattedBMI). \(classificationLabel). Última medición \(lastMeasurementLabel)"
+    }
+
+    private func formatThreshold(_ value: Double) -> String {
+        value == floor(value) ? String(Int(value)) : String(format: "%.1f", value)
     }
 
     private func animateBar() {

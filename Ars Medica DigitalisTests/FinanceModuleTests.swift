@@ -575,6 +575,177 @@ struct FinanceModuleTests {
         #expect((session.payments ?? []).isEmpty)
     }
 
+    @Test("SessionTypeManagementViewModel renombra el tipo validando duplicados")
+    func testSessionTypeManagementRenamesType() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let effectiveFrom = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let sessionType = SessionCatalogType(name: "Sesión Psi", professional: professional)
+        let existing = SessionCatalogType(name: "Familiar", professional: professional)
+        context.insert(sessionType)
+        context.insert(existing)
+
+        let priceVersion = SessionTypePriceVersion(
+            effectiveFrom: effectiveFrom,
+            price: 55_000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        context.insert(priceVersion)
+        try context.save()
+
+        let snapshot = SessionTypeBusinessSnapshot(
+            sessionType: sessionType,
+            currentPrice: 55_000,
+            currentCurrencyCode: "ARS",
+            effectiveFrom: effectiveFrom,
+            lastPriceVersion: priceVersion,
+            monthsSinceLastUpdate: 0,
+            ipcAccumulated: 0,
+            shouldSuggestUpdate: false,
+            suggestedPrice: nil
+        )
+
+        let viewModel = SessionTypeManagementViewModel(
+            snapshot: snapshot,
+            professional: professional,
+            context: context
+        )
+        viewModel.name = "Individual"
+
+        try viewModel.save()
+
+        #expect(sessionType.name == "Individual")
+
+        viewModel.name = " familiar "
+
+        #expect(throws: SessionTypeManagementError.duplicateName) {
+            try viewModel.save()
+        }
+    }
+
+    @Test("SessionTypeManagementViewModel da de baja un tipo y limpia el default")
+    func testSessionTypeManagementArchivesTypeAndClearsDefault() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let effectiveFrom = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let sessionType = SessionCatalogType(name: "Sesión Psi", professional: professional)
+        context.insert(sessionType)
+
+        let priceVersion = SessionTypePriceVersion(
+            effectiveFrom: effectiveFrom,
+            price: 55_000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        context.insert(priceVersion)
+        professional.defaultFinancialSessionTypeID = sessionType.id
+        try context.save()
+
+        let snapshot = SessionTypeBusinessSnapshot(
+            sessionType: sessionType,
+            currentPrice: 55_000,
+            currentCurrencyCode: "ARS",
+            effectiveFrom: effectiveFrom,
+            lastPriceVersion: priceVersion,
+            monthsSinceLastUpdate: 0,
+            ipcAccumulated: 0,
+            shouldSuggestUpdate: false,
+            suggestedPrice: nil
+        )
+
+        let viewModel = SessionTypeManagementViewModel(
+            snapshot: snapshot,
+            professional: professional,
+            context: context
+        )
+
+        try viewModel.archive()
+
+        #expect(sessionType.isActive == false)
+        #expect(professional.defaultFinancialSessionTypeID == nil)
+    }
+
+    @Test("SessionTypeManagementViewModel crea una nueva versión manual y actualiza apariencia")
+    func testSessionTypeManagementCreatesManualVersionAndUpdatesAppearance() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let calendar = Calendar(identifier: .gregorian)
+        let initialEffectiveFrom = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)) ?? Date()
+        let updatedEffectiveFrom = calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)) ?? Date()
+
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let sessionType = SessionCatalogType(name: "Sesión Psi", professional: professional)
+        context.insert(sessionType)
+
+        let initialVersion = SessionTypePriceVersion(
+            effectiveFrom: initialEffectiveFrom,
+            price: 55_000,
+            currencyCode: "ARS",
+            sessionCatalogType: sessionType
+        )
+        context.insert(initialVersion)
+        try context.save()
+
+        let snapshot = SessionTypeBusinessSnapshot(
+            sessionType: sessionType,
+            currentPrice: 55_000,
+            currentCurrencyCode: "ARS",
+            effectiveFrom: initialEffectiveFrom,
+            lastPriceVersion: initialVersion,
+            monthsSinceLastUpdate: 0,
+            ipcAccumulated: 0,
+            shouldSuggestUpdate: false,
+            suggestedPrice: nil
+        )
+
+        let viewModel = SessionTypeManagementViewModel(
+            snapshot: snapshot,
+            professional: professional,
+            context: context
+        )
+        viewModel.price = 63_500
+        viewModel.currencyCode = "USD"
+        viewModel.effectiveFrom = updatedEffectiveFrom
+        viewModel.colorToken = SessionTypeColorToken.green.rawValue
+        viewModel.symbolName = "stethoscope"
+
+        try viewModel.save()
+
+        let sessionTypeID = sessionType.id
+        let descriptor = FetchDescriptor<SessionTypePriceVersion>(
+            predicate: #Predicate<SessionTypePriceVersion> { version in
+                version.sessionCatalogType?.id == sessionTypeID
+            },
+            sortBy: [
+                SortDescriptor(\SessionTypePriceVersion.effectiveFrom, order: .reverse),
+                SortDescriptor(\SessionTypePriceVersion.updatedAt, order: .reverse),
+            ]
+        )
+        let versions = try context.fetch(descriptor)
+        let latestVersion = try #require(versions.first)
+
+        #expect(sessionType.colorToken == SessionTypeColorToken.green.rawValue)
+        #expect(sessionType.iconSystemName == "stethoscope")
+        #expect(versions.count == 2)
+        #expect(latestVersion.adjustmentSource == .manual)
+        #expect(latestVersion.price == 63_500)
+        #expect(latestVersion.currencyCode == "USD")
+        #expect(latestVersion.effectiveFrom == calendar.startOfDay(for: updatedEffectiveFrom))
+    }
+
     @Test("FinanceDashboardViewModel calcula cobrado, devengado y deuda por moneda")
     func testFinanceDashboardRefreshByCurrency() throws {
         let container = try makeInMemoryContainer()

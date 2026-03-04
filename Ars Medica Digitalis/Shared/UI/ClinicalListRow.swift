@@ -80,7 +80,7 @@ struct ClinicalListRow: View {
 
     private var rowIcon: some View {
         Image(systemName: icon)
-            .font(.system(size: 20, weight: .semibold))
+            .font(.system(size: 19, weight: .medium))
             .foregroundStyle(.secondary)
             .frame(width: 24)
             .accessibilityHidden(true)
@@ -88,7 +88,7 @@ struct ClinicalListRow: View {
 
     private var rowTitle: some View {
         Text(title)
-            .font(.body.weight(.semibold))
+            .font(.callout.weight(.semibold))
             .foregroundStyle(.primary)
             .fixedSize(horizontal: false, vertical: true)
     }

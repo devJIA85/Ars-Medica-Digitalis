@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct PatientMedicalHistoryView: View {
 
@@ -25,6 +26,9 @@ struct PatientMedicalHistoryView: View {
     @State private var showingNewHospitalization: Bool = false
     @State private var infoMedication: Medication? = nil
     @State private var genogramData: Data? = nil
+    @State private var showingContactOptions: Bool = false
+    @State private var contactAlertMessage: String = ""
+    @State private var showingContactAlert: Bool = false
 
     var body: some View {
         ClinicalDashboardView(
@@ -117,27 +121,97 @@ struct PatientMedicalHistoryView: View {
                                 infoMedication = nil
                             }
                         }
-                    }
+                }
             }
+        }
+        .confirmationDialog("Contacto", isPresented: $showingContactOptions, titleVisibility: .visible) {
+            if let normalizedPhoneNumber {
+                Button("Llamar al paciente") {
+                    startPhoneCall(with: normalizedPhoneNumber)
+                }
+
+                Button("Copiar número") {
+                    copyPhoneNumberToPasteboard()
+                    presentContactAlert("Se copió el número del paciente.")
+                }
+            }
+
+            Button("Cancelar", role: .cancel) {}
+        } message: {
+            Text(contactDialogMessage)
+        }
+        .alert("Contacto del paciente", isPresented: $showingContactAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(contactAlertMessage)
         }
     }
 
     private func contactPatient() {
-        guard let phoneURL else { return }
+        guard normalizedPhoneNumber != nil else {
+            presentContactAlert("Este paciente no tiene un teléfono válido registrado.")
+            return
+        }
+
+        showingContactOptions = true
+    }
+
+    private func startPhoneCall(with phoneNumber: String) {
+        guard let phoneURL = URL(string: "tel://\(phoneNumber)") else {
+            presentContactAlert("No se pudo preparar la llamada.")
+            return
+        }
+
+        guard UIApplication.shared.canOpenURL(phoneURL) else {
+            copyPhoneNumberToPasteboard()
+            presentContactAlert("Este dispositivo no puede iniciar llamadas. Se copió el número para que puedas usarlo en otra app.")
+            return
+        }
+
         openURL(phoneURL)
     }
 
-    private var phoneURL: URL? {
-        let rawValue = patient.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard rawValue.isEmpty == false else { return nil }
+    private func copyPhoneNumberToPasteboard() {
+        UIPasteboard.general.string = rawPhoneNumber
+    }
+
+    private func presentContactAlert(_ message: String) {
+        contactAlertMessage = message
+        showingContactAlert = true
+    }
+
+    private var contactDialogMessage: String {
+        if let rawPhoneNumber {
+            return "Número registrado: \(phoneNumberLabel(from: rawPhoneNumber))"
+        }
+        return "No hay teléfono registrado."
+    }
+
+    private var rawPhoneNumber: String? {
+        let value = patient.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private var normalizedPhoneNumber: String? {
+        guard let rawPhoneNumber else { return nil }
 
         let allowedCharacters = CharacterSet(charactersIn: "+0123456789")
-        let normalized = rawValue.unicodeScalars.filter { scalar in
+        let normalized = rawPhoneNumber.unicodeScalars.filter { scalar in
             allowedCharacters.contains(scalar)
         }
 
         let phoneNumber = String(String.UnicodeScalarView(normalized))
-        guard phoneNumber.isEmpty == false else { return nil }
-        return URL(string: "tel://\(phoneNumber)")
+        return phoneNumber.isEmpty ? nil : phoneNumber
+    }
+
+    private func phoneNumberLabel(from rawValue: String) -> String {
+        let digits = rawValue.filter(\.isNumber)
+        guard digits.count >= 8 else { return rawValue }
+
+        let suffix = digits.suffix(8)
+        let prefix = digits.dropLast(8)
+        let groupedSuffix = "\(suffix.prefix(4)) \(suffix.suffix(4))"
+        let prefixText = prefix.isEmpty ? "" : "\(prefix) "
+        return "\(prefixText)\(groupedSuffix)"
     }
 }

@@ -35,7 +35,9 @@ struct ContentView: View {
     @State private var isAuthenticating: Bool = false
     @State private var lockErrorMessage: String? = nil
     @State private var isRunningSessionRepair: Bool = false
+    @State private var isRunningPatientRecordRepair: Bool = false
     @State private var didResolveSessionRepairForCurrentLaunch: Bool = false
+    @State private var didResolvePatientRecordRepairForCurrentLaunch: Bool = false
     @State private var biometricCapability = BiometricCapability(
         kind: .none,
         isAvailable: false,
@@ -64,6 +66,9 @@ struct ContentView: View {
         .task(id: professionals.first?.id) {
             await runSessionRepairIfNeeded()
         }
+        .task(id: "patient-records-\(professionals.first?.id.uuidString ?? "none")") {
+            await runPatientRecordRepairIfNeeded()
+        }
         .onChange(of: professionals.first?.id) { _, _ in
             handleProtectionContextChange()
         }
@@ -80,7 +85,7 @@ struct ContentView: View {
     @ViewBuilder
     private var rootContent: some View {
         if let professional = professionals.first {
-            if didResolveSessionRepairForCurrentLaunch == false || isRunningSessionRepair {
+            if didResolveLaunchRepairsForCurrentLaunch == false {
                 ProgressView()
             } else if shouldRequireLock && !isAppUnlocked {
                 AppLockView(
@@ -106,6 +111,13 @@ struct ContentView: View {
                 didCompleteOnboarding = true
             }
         }
+    }
+
+    private var didResolveLaunchRepairsForCurrentLaunch: Bool {
+        didResolveSessionRepairForCurrentLaunch
+        && didResolvePatientRecordRepairForCurrentLaunch
+        && isRunningSessionRepair == false
+        && isRunningPatientRecordRepair == false
     }
 
     @ViewBuilder
@@ -298,6 +310,33 @@ struct ContentView: View {
             didRunSessionPhantomRepair = true
         } catch {
             print("SessionPhantomRepairService failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Asegura que todos los pacientes tengan un número de HC legible.
+    /// Corre en cada launch para cubrir pacientes viejos o sincronizados
+    /// desde otros dispositivos con datos incompletos.
+    @MainActor
+    private func runPatientRecordRepairIfNeeded() async {
+        guard professionals.first != nil else {
+            didResolvePatientRecordRepairForCurrentLaunch = true
+            return
+        }
+
+        guard isRunningPatientRecordRepair == false else { return }
+
+        didResolvePatientRecordRepairForCurrentLaunch = false
+        isRunningPatientRecordRepair = true
+        defer {
+            isRunningPatientRecordRepair = false
+            didResolvePatientRecordRepairForCurrentLaunch = true
+        }
+
+        do {
+            _ = try PatientMedicalRecordNumberService()
+                .repairMissingRecordNumbers(in: modelContext)
+        } catch {
+            print("PatientMedicalRecordNumberService failed: \(error.localizedDescription)")
         }
     }
 }

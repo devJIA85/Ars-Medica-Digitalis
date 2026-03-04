@@ -64,11 +64,12 @@ struct SectionCard<Content: View, Action: View>: View {
         HStack(alignment: .center, spacing: AppSpacing.sm) {
             Label {
                 Text(title)
-                    .font(.headline)
+                    .font(.title3.weight(.bold))
                     .foregroundStyle(.primary)
             } icon: {
                 if let icon {
                     Image(systemName: icon)
+                        .font(.title3.weight(.semibold))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.secondary)
                 }

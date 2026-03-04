@@ -294,6 +294,70 @@ struct Ars_Medica_DigitalisTests {
         #expect(patient.currencyVersions?.first?.currencyCode == "ARS")
     }
 
+    @Test("PatientViewModel genera HC para altas con valor vacío o espacios")
+    func patientViewModelGeneratesMedicalRecordNumberForBlankInput() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+        let professional = Professional(fullName: "Profesional")
+        context.insert(professional)
+
+        let viewModel = PatientViewModel()
+        viewModel.firstName = "Ana"
+        viewModel.lastName = "García"
+        viewModel.medicalRecordNumber = "   "
+
+        let patient = viewModel.createPatient(for: professional, in: context)
+
+        #expect(patient.medicalRecordNumber.hasPrefix("HC-"))
+        #expect(patient.medicalRecordNumber.count == 11)
+    }
+
+    @Test("PatientViewModel repara HC faltante al editar un paciente existente")
+    func patientViewModelRepairsMissingMedicalRecordNumberOnUpdate() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "García",
+            medicalRecordNumber: "   "
+        )
+        context.insert(patient)
+
+        let viewModel = PatientViewModel()
+        viewModel.load(from: patient)
+        viewModel.occupation = "Docente"
+        viewModel.update(patient, in: context)
+
+        #expect(patient.medicalRecordNumber.hasPrefix("HC-"))
+        #expect(patient.medicalRecordNumber.count == 11)
+        #expect(patient.occupation == "Docente")
+    }
+
+    @Test("PatientMedicalRecordNumberService backfillea HC faltantes y normaliza espacios")
+    func patientMedicalRecordNumberServiceRepairsExistingPatients() throws {
+        let container = try makeInMemoryContainer()
+        let context = container.mainContext
+
+        let missing = Patient(firstName: "Ana", lastName: "García", medicalRecordNumber: "")
+        let spaced = Patient(firstName: "Luis", lastName: "Pérez", medicalRecordNumber: "  HC-1234  ")
+        let valid = Patient(firstName: "Mora", lastName: "Suárez", medicalRecordNumber: "HC-EXISTING")
+
+        context.insert(missing)
+        context.insert(spaced)
+        context.insert(valid)
+
+        let result = try PatientMedicalRecordNumberService().repairMissingRecordNumbers(in: context)
+
+        #expect(result.generatedCount == 1)
+        #expect(result.normalizedCount == 1)
+        #expect(result.skippedCount == 1)
+        #expect(missing.medicalRecordNumber.hasPrefix("HC-"))
+        #expect(missing.medicalRecordNumber.count == 11)
+        #expect(spaced.medicalRecordNumber == "HC-1234")
+        #expect(valid.medicalRecordNumber == "HC-EXISTING")
+    }
+
     @Test("El primer honorario queda sugerido por defecto para nuevas sesiones")
     func firstHonorariumBecomesSuggestedFinancialType() throws {
         let container = try makeInMemoryContainer()

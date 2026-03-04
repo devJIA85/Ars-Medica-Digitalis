@@ -13,6 +13,7 @@ struct PatientSummaryCard: View {
     let age: Int
     let sex: String
     let medicalRecordNumber: String
+    let birthCountryFlag: String?
     let photoData: Data?
     let firstName: String
     let lastName: String
@@ -74,10 +75,17 @@ struct PatientSummaryCard: View {
                 .foregroundStyle(.primary)
                 .lineLimit(2)
 
-            Text("\(age) • \(sex)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            HStack(spacing: 6) {
+                Text("\(age) • \(sex)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                if let birthCountryFlag {
+                    Text(birthCountryFlag)
+                        .font(.subheadline)
+                }
+            }
 
             Text(medicalRecordNumber)
                 .font(.footnote.monospaced())
@@ -105,26 +113,74 @@ struct PatientSummaryCard: View {
 
     private var contactButton: some View {
         Button(action: onContact) {
-            Label("Contact", systemImage: "phone.fill")
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
+            actionButtonContent(
+                title: "Llamar",
+                systemImage: "phone.fill",
+                tint: .green,
+                isProminent: false,
+                isEnabled: isContactEnabled
+            )
         }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
+        .buttonStyle(.plain)
         .disabled(!isContactEnabled)
         .accessibilityLabel("Contactar paciente")
-        .accessibilityHint(isContactEnabled ? "Inicia una llamada al paciente" : "No hay teléfono registrado")
+        .accessibilityHint(isContactEnabled ? "Muestra opciones para llamar o copiar el número" : "No hay teléfono registrado")
     }
 
     private var newSessionButton: some View {
         Button(action: onNewSession) {
-            Label("New Session", systemImage: "plus.circle.fill")
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
+            actionButtonContent(
+                title: "Nueva sesión",
+                systemImage: "plus.circle.fill",
+                tint: .accentColor,
+                isProminent: true,
+                isEnabled: true
+            )
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(.plain)
         .accessibilityLabel("Nueva sesión")
         .accessibilityHint("Abre el formulario para registrar una nueva sesión")
+    }
+
+    private func actionButtonContent(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        isProminent: Bool,
+        isEnabled: Bool
+    ) -> some View {
+        HStack(spacing: AppSpacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(isProminent ? .white.opacity(0.18) : tint.opacity(0.14))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(isProminent ? .white : tint)
+            }
+            .accessibilityHidden(true)
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isProminent ? .white : .primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, AppSpacing.sm)
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .background(
+            isProminent ? AnyShapeStyle(tint.gradient) : AnyShapeStyle(Color(uiColor: .secondarySystemBackground)),
+            in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+        )
+        .overlay {
+            if isProminent == false {
+                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                    .strokeBorder(tint.opacity(0.18), lineWidth: 1)
+            }
+        }
+        .opacity(isEnabled ? 1 : 0.6)
     }
 }

@@ -22,6 +22,7 @@ struct CardContainer<Content: View>: View {
     var title: String? = nil
     var systemImage: String? = nil
     var style: Style = .flat
+    var usesGlassEffect: Bool = true
     @ViewBuilder var content: Content
 
     private var cornerRadius: CGFloat {
@@ -33,35 +34,45 @@ struct CardContainer<Content: View>: View {
     }
 
     var body: some View {
-        GlassEffectContainer {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                if let title {
-                    Label {
-                        Text(title)
-                            .font(.title3.bold())
-                    } icon: {
-                        if let systemImage {
-                            Image(systemName: systemImage)
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+        Group {
+            if usesGlassEffect {
+                GlassEffectContainer {
+                    cardContent
                 }
-                content
+                .glassEffect(style == .elevated ? .regular : .clear, in: shape)
+            } else {
+                cardContent
             }
-            .padding(AppSpacing.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                style == .elevated ? .regularMaterial : .thinMaterial,
-                in: shape
-            )
         }
-        .glassEffect(style == .elevated ? .regular : .clear, in: shape)
         .clipShape(shape)
         .shadow(
             color: .black.opacity(style == .elevated ? 0.10 : 0.08),
             radius: style == .elevated ? 10 : 8,
             y: style == .elevated ? 4 : 2
+        )
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            if let title {
+                Label {
+                    Text(title)
+                        .font(.title3.bold())
+                } icon: {
+                    if let systemImage {
+                        Image(systemName: systemImage)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            content
+        }
+        .padding(AppSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            style == .elevated ? .regularMaterial : .thinMaterial,
+            in: shape
         )
     }
 }

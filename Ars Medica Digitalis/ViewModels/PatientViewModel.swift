@@ -187,11 +187,10 @@ final class PatientViewModel {
     func createPatient(for professional: Professional, in context: ModelContext) -> Patient {
         applyCreationDefaults(from: professional)
         let data = PatientFormData(viewModel: self)
+        let recordNumberService = PatientMedicalRecordNumberService()
 
-        // Autogenerar número de historia clínica si está vacío
-        let recordNumber = data.medicalRecordNumber.isEmpty
-            ? "HC-\(UUID().uuidString.prefix(8).uppercased())"
-            : data.medicalRecordNumber
+        // Autogenerar número de historia clínica si está vacío o viene con espacios.
+        let recordNumber = recordNumberService.resolvedRecordNumber(from: data.medicalRecordNumber)
 
         let patient = data.makePatient(recordNumber: recordNumber, professional: professional)
         context.insert(patient)
@@ -204,6 +203,8 @@ final class PatientViewModel {
     /// Actualiza un Patient existente con los valores del formulario
     func update(_ patient: Patient, in context: ModelContext? = nil) {
         PatientFormData(viewModel: self).apply(to: patient)
+        patient.medicalRecordNumber = PatientMedicalRecordNumberService()
+            .resolvedRecordNumber(from: patient.medicalRecordNumber)
         if let context {
             syncCurrencyVersionIfNeeded(for: patient, in: context)
         }

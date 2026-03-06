@@ -111,7 +111,10 @@ struct AppearanceSettingsView: View {
             Text(themeColor.displayName)
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 

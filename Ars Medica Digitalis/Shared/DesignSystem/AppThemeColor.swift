@@ -16,6 +16,8 @@ enum AppThemeColor: String, CaseIterable, Sendable, Identifiable {
     case orange
     case red
     case teal
+    case indigo
+    case pink
 
     var id: String { rawValue }
 
@@ -27,6 +29,8 @@ enum AppThemeColor: String, CaseIterable, Sendable, Identifiable {
         case .orange: .orange
         case .red:    .red
         case .teal:   .teal
+        case .indigo: .indigo
+        case .pink:   .pink
         }
     }
 
@@ -39,6 +43,8 @@ enum AppThemeColor: String, CaseIterable, Sendable, Identifiable {
         case .orange: "Naranja"
         case .red:    "Rojo"
         case .teal:   "Verde azulado"
+        case .indigo: "Indigo"
+        case .pink:   "Rosa"
         }
     }
 }

@@ -331,12 +331,10 @@ struct PatientDashboardView: View {
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
     @State private var selectedPriorityBucket: ClinicalPriorityBucket? = nil
-    @State private var insightsCollapsed = false
+    @State private var insightsCollapsed = true
     @State private var insightsHeaderHeight: CGFloat = 0
     private let minCollapseDistance: CGFloat = 72
-    private let minExpandDistance: CGFloat = 16
     private let collapseDistanceRatio: CGFloat = 0.45
-    private let expandDistanceRatio: CGFloat = 0.12
 
     var body: some View {
         ScrollView {
@@ -349,6 +347,11 @@ struct PatientDashboardView: View {
                         onSelectRadarBucket: { bucket in
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                                 selectedPriorityBucket = bucket
+                            }
+                        },
+                        onToggleCollapse: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                insightsCollapsed.toggle()
                             }
                         }
                     )
@@ -404,25 +407,25 @@ struct PatientDashboardView: View {
         }
         .onPreferenceChange(InsightsHeaderMinYPreferenceKey.self) { minY in
             guard insightsHeaderHeight > 0 else { return }
+            guard insightsCollapsed == false else { return }
             let collapseDistance = max(minCollapseDistance, insightsHeaderHeight * collapseDistanceRatio)
-            let expandDistance = max(minExpandDistance, insightsHeaderHeight * expandDistanceRatio)
             let collapseThreshold = -collapseDistance
-            let expandThreshold = -expandDistance
 
-            if insightsCollapsed {
-                guard minY >= expandThreshold else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    insightsCollapsed = false
-                }
-            } else {
-                guard minY <= collapseThreshold else { return }
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                    insightsCollapsed = true
-                }
+            guard minY <= collapseThreshold else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                insightsCollapsed = true
+            }
+        }
+        .onAppear {
+            insightsCollapsed = true
+        }
+        .onChange(of: state.hasPatients) { _, hasPatients in
+            if hasPatients == false {
+                selectedPriorityBucket = nil
             }
         }
         .onChange(of: state.summary.totalPatients) { _, _ in
-            insightsCollapsed = false
+            insightsCollapsed = true
         }
         .onChange(of: state.summary.radarModel) { _, newValue in
             guard let selectedPriorityBucket else { return }

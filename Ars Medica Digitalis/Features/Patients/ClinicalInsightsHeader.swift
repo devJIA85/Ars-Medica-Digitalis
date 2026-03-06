@@ -13,17 +13,20 @@ struct ClinicalInsightsHeader: View {
     let isCollapsed: Bool
     let selectedRadarBucket: ClinicalPriorityBucket?
     let onSelectRadarBucket: (ClinicalPriorityBucket?) -> Void
+    let onToggleCollapse: () -> Void
 
     init(
         summary: ClinicalInsightsSummary,
         isCollapsed: Bool = false,
         selectedRadarBucket: ClinicalPriorityBucket? = nil,
-        onSelectRadarBucket: @escaping (ClinicalPriorityBucket?) -> Void = { _ in }
+        onSelectRadarBucket: @escaping (ClinicalPriorityBucket?) -> Void = { _ in },
+        onToggleCollapse: @escaping () -> Void = {}
     ) {
         self.summary = summary
         self.isCollapsed = isCollapsed
         self.selectedRadarBucket = selectedRadarBucket
         self.onSelectRadarBucket = onSelectRadarBucket
+        self.onToggleCollapse = onToggleCollapse
     }
 
     init(
@@ -130,6 +133,7 @@ struct ClinicalInsightsHeader: View {
         self.isCollapsed = false
         self.selectedRadarBucket = nil
         self.onSelectRadarBucket = { _ in }
+        self.onToggleCollapse = {}
     }
 
     var body: some View {
@@ -141,9 +145,9 @@ struct ClinicalInsightsHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, isCollapsed ? AppSpacing.md : AppSpacing.lg)
-        .padding(.vertical, isCollapsed ? 12 : AppSpacing.lg)
-        .frame(minHeight: isCollapsed ? 64 : nil)
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, isCollapsed ? 10 : AppSpacing.md)
+        .frame(minHeight: isCollapsed ? 60 : nil)
         .background(
             RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
                 .fill(Color(uiColor: .systemBackground))
@@ -158,8 +162,8 @@ struct ClinicalInsightsHeader: View {
     }
 
     private var expandedLayout: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            titleBlock(titleFont: .title3.weight(.semibold), subtitleFont: .footnote)
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            headerRow(titleFont: .title3.weight(.semibold), subtitleFont: .footnote)
 
             ClinicalPriorityRadar(
                 model: summary.radarModel,
@@ -173,7 +177,7 @@ struct ClinicalInsightsHeader: View {
             ClinicalTrendBar(trends: summary.trends)
                 .transition(.opacity.combined(with: .move(edge: .top)))
 
-            InsightMetricsGrid(metrics: summary.metrics)
+            InsightMetricsGrid(metrics: summary.metrics, isCompact: true)
                 .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
@@ -190,8 +194,18 @@ struct ClinicalInsightsHeader: View {
             titleBlock(titleFont: .headline.weight(.semibold), subtitleFont: .caption)
 
             Spacer(minLength: 0)
+
+            collapseToggleButton
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func headerRow(titleFont: Font, subtitleFont: Font) -> some View {
+        HStack(alignment: .top, spacing: AppSpacing.sm) {
+            titleBlock(titleFont: titleFont, subtitleFont: subtitleFont)
+            Spacer(minLength: 0)
+            collapseToggleButton
+        }
     }
 
     private func titleBlock(titleFont: Font, subtitleFont: Font) -> some View {
@@ -208,9 +222,30 @@ struct ClinicalInsightsHeader: View {
         .accessibilitySortPriority(1)
     }
 
+    private var collapseToggleButton: some View {
+        Button(action: onToggleCollapse) {
+            Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 30, height: 30)
+                .background(
+                    Circle()
+                        .fill(Color.secondary.opacity(0.14))
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(toggleAccessibilityLabel)
+    }
+
     private var insightsStateAccessibilityText: String {
         isCollapsed
             ? L10n.tr("patient.dashboard.insights.state.collapsed")
             : L10n.tr("patient.dashboard.insights.state.expanded")
+    }
+
+    private var toggleAccessibilityLabel: String {
+        isCollapsed
+            ? "\(summary.title), \(L10n.tr("patient.dashboard.insights.state.expanded"))"
+            : "\(summary.title), \(L10n.tr("patient.dashboard.insights.state.collapsed"))"
     }
 }

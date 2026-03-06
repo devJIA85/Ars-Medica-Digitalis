@@ -14,7 +14,7 @@ enum ClinicalRadarSize: Sendable, Equatable {
     var diameter: CGFloat {
         switch self {
         case .large:
-            160
+            136
         case .mini:
             30
         }
@@ -23,7 +23,7 @@ enum ClinicalRadarSize: Sendable, Equatable {
     var lineWidth: CGFloat {
         switch self {
         case .large:
-            18
+            15
         case .mini:
             4
         }

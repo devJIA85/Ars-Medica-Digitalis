@@ -10,8 +10,14 @@ import SwiftUI
 struct InsightMetricsGrid: View {
 
     let metrics: [InsightMetric]
+    let isCompact: Bool
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(metrics: [InsightMetric], isCompact: Bool = false) {
+        self.metrics = metrics
+        self.isCompact = isCompact
+    }
 
     private var columns: [GridItem] {
         if dynamicTypeSize.isAccessibilitySize {
@@ -27,7 +33,7 @@ struct InsightMetricsGrid: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: AppSpacing.md) {
             ForEach(metrics) { metric in
-                InsightMetricCard(metric: metric)
+                InsightMetricCard(metric: metric, isCompact: isCompact)
             }
         }
     }

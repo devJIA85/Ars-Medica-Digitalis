@@ -71,13 +71,6 @@ struct PatientFormView: View {
                     displayedComponents: .date
                 )
 
-                Picker("Sexo Biológico", selection: $viewModel.biologicalSex) {
-                    Text("No especificado").tag("")
-                    Text("Masculino").tag("masculino")
-                    Text("Femenino").tag("femenino")
-                    Text("Intersexual").tag("intersexual")
-                }
-
                 Picker("Género", selection: $viewModel.gender) {
                     ForEach(PatientViewModel.genderOptions, id: \.0) { value, label in
                         Text(label).tag(value)

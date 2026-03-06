@@ -396,7 +396,7 @@ struct PatientDashboardView: View {
             .padding(.bottom, AppSpacing.xl)
             .backgroundExtensionEffect()
         }
-        .background(backgroundGradient)
+        .themedBackground()
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollEdgeEffectStyle(.soft, for: .all)
@@ -432,33 +432,6 @@ struct PatientDashboardView: View {
             guard newValue.count(for: selectedPriorityBucket) == 0 else { return }
             self.selectedPriorityBucket = nil
         }
-    }
-
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [
-                Color(uiColor: .systemGroupedBackground),
-                Color(uiColor: .secondarySystemGroupedBackground),
-                Color(uiColor: .systemGroupedBackground),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .overlay(alignment: .topTrailing) {
-            Circle()
-                .fill(Color.teal.opacity(0.08))
-                .frame(width: 240, height: 240)
-                .blur(radius: 26)
-                .offset(x: 70, y: -30)
-        }
-        .overlay(alignment: .topLeading) {
-            Circle()
-                .fill(Color.blue.opacity(0.06))
-                .frame(width: 200, height: 200)
-                .blur(radius: 34)
-                .offset(x: -40, y: 40)
-        }
-        .ignoresSafeArea()
     }
 
     private var filteredSections: [PatientDashboardSection] {

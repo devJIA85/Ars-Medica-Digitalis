@@ -15,20 +15,10 @@ struct ProfileView: View {
 
     let professional: Professional
 
-    @AppStorage("security.biometricEnabled") private var biometricLockEnabled: Bool = false
-    @AppStorage("appearance.colorScheme") private var colorSchemePreference: String = ProfileColorSchemeOption.system.rawValue
-
     @State private var viewModel = ProfessionalViewModel()
-    @State private var biometricCapability = BiometricCapability(
-        kind: .none,
-        isAvailable: false,
-        unavailableReason: nil
-    )
     @State private var showingFinanceDashboard: Bool = false
     @State private var showingHonorarios: Bool = false
     @State private var saveErrorMessage: String?
-
-    private let biometricAuthService = BiometricAuthService()
 
     private enum ScrollTarget: Hashable {
         case professionalData
@@ -57,19 +47,36 @@ struct ProfileView: View {
                         onShowFees: { showingHonorarios = true }
                     )
 
+                    // MARK: - Ajustes
+                    NavigationLink {
+                        ProfileSettingsView(professional: professional)
+                    } label: {
+                        CardContainer(style: .flat) {
+                            HStack(spacing: AppSpacing.md) {
+                                Label {
+                                    Text("Ajustes")
+                                        .font(.headline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                } icon: {
+                                    Image(systemName: "gearshape")
+                                        .symbolRenderingMode(.hierarchical)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer(minLength: AppSpacing.md)
+                                settingsChevron
+                            }
+                        }
+                        .glassCardEntrance()
+                    }
+                    .buttonStyle(.plain)
+
                     FinanceSection(
                         defaultPatientCurrencyCode: $viewModel.defaultPatientCurrencyCode,
                         defaultFinancialSessionTypeID: $viewModel.defaultFinancialSessionTypeID,
                         sessionTypes: activeSessionTypes,
                         onManageFees: { showingHonorarios = true }
                     )
-
-                    PrivacySection(
-                        biometricLockEnabled: $biometricLockEnabled,
-                        capability: biometricCapability
-                    )
-
-                    AppearanceSection(selection: appearanceBinding)
 
                     ProfessionalDataSection(
                         fullName: $viewModel.fullName,
@@ -79,11 +86,6 @@ struct ProfileView: View {
                     .id(ScrollTarget.professionalData)
 
                     ContactSection(email: $viewModel.email)
-
-                    MetadataSection(
-                        createdDate: professional.createdAt.esShortDate(),
-                        lastModifiedDate: professional.updatedAt.esShortDateTime()
-                    )
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.lg)
@@ -91,8 +93,8 @@ struct ProfileView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
-            .background(profileBackground)
         }
+        .themedBackground()
         .navigationTitle("Perfil")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -124,11 +126,6 @@ struct ProfileView: View {
     @MainActor
     private func loadViewModel() async {
         viewModel.load(from: professional)
-        biometricCapability = biometricAuthService.capability()
-
-        if biometricLockEnabled && !biometricCapability.isAvailable {
-            biometricLockEnabled = false
-        }
     }
 
     @MainActor
@@ -152,17 +149,6 @@ struct ProfileView: View {
 
                 return lhs.sortOrder < rhs.sortOrder
             }
-    }
-
-    private var appearanceBinding: Binding<ProfileColorSchemeOption> {
-        Binding(
-            get: {
-                ProfileColorSchemeOption(rawValue: colorSchemePreference) ?? .system
-            },
-            set: { newValue in
-                colorSchemePreference = newValue.rawValue
-            }
-        )
     }
 
     private var saveErrorBinding: Binding<Bool> {
@@ -189,32 +175,11 @@ struct ProfileView: View {
 
         return String(name.prefix(1)).uppercased()
     }
-
-    private var profileBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(uiColor: .systemGroupedBackground),
-                    Color.cyan.opacity(0.10),
-                    Color.blue.opacity(0.08)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            Circle()
-                .fill(.tint.opacity(0.14))
-                .frame(width: 280, height: 280)
-                .blur(radius: 28)
-                .offset(x: -120, y: -250)
-
-            Circle()
-                .fill(Color.blue.opacity(0.10))
-                .frame(width: 320, height: 320)
-                .blur(radius: 36)
-                .offset(x: 180, y: 220)
-        }
-        .ignoresSafeArea()
+    private var settingsChevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
     }
 }
 

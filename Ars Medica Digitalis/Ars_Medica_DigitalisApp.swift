@@ -19,6 +19,9 @@ struct Ars_Medica_DigitalisApp: App {
     /// Valores posibles: "system", "light", "dark".
     @AppStorage("appearance.colorScheme") private var colorSchemePreference: String = "system"
 
+    /// Color de acento elegido por el profesional. Se aplica como tint global.
+    @AppStorage("appearance.themeColor") private var themeColorRaw: String = AppThemeColor.blue.rawValue
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Professional.self,
@@ -71,6 +74,7 @@ struct Ars_Medica_DigitalisApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
+                .tint(resolvedThemeColor)
         }
         .modelContainer(sharedModelContainer)
     }
@@ -83,5 +87,10 @@ struct Ars_Medica_DigitalisApp: App {
         case "dark": .dark
         default: nil
         }
+    }
+
+    /// Resuelve el color de tema desde el string persistido.
+    private var resolvedThemeColor: Color {
+        (AppThemeColor(rawValue: themeColorRaw) ?? .blue).color
     }
 }

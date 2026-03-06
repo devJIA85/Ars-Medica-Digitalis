@@ -18,7 +18,6 @@ struct ContentView: View {
     @Query private var professionals: [Professional]
     @AppStorage("security.biometricEnabled") private var biometricLockEnabled: Bool = false
     @AppStorage("repairs.sessionPhantoms.v1") private var didRunSessionPhantomRepair: Bool = false
-
     /// Namespace para la transición zoom entre la fila de paciente
     /// en la lista y su vista de detalle.
     @Namespace private var patientTransition

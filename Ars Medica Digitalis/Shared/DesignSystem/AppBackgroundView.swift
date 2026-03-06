@@ -43,3 +43,28 @@ struct AppBackgroundView: View {
         .allowsHitTesting(false)
     }
 }
+
+// MARK: - Modifier conveniente
+
+/// Aplica AppBackgroundView como fondo leyendo el color de tema de AppStorage.
+/// Uso: `.themedBackground()` en cualquier vista principal.
+private struct ThemedBackgroundModifier: ViewModifier {
+
+    @AppStorage("appearance.themeColor") private var themeColorRaw: String = AppThemeColor.blue.rawValue
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                AppBackgroundView(
+                    baseColor: (AppThemeColor(rawValue: themeColorRaw) ?? .blue).color
+                )
+            }
+            .animation(.easeInOut(duration: 0.35), value: themeColorRaw)
+    }
+}
+
+extension View {
+    func themedBackground() -> some View {
+        modifier(ThemedBackgroundModifier())
+    }
+}

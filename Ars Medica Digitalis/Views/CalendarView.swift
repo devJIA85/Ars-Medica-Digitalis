@@ -31,6 +31,7 @@ struct CalendarView: View {
 
             sessionListForSelectedDay
         }
+        .themedBackground()
         .navigationTitle("Calendario")
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(monthYearText)

@@ -39,12 +39,14 @@ final class ProfessionalViewModel {
 
     // Crea un nuevo Professional y lo inserta en el contexto
     func createProfessional(in context: ModelContext) {
+        let normalizedCurrencyCode = defaultPatientCurrencyCode.trimmed.uppercased()
+
         let professional = Professional(
             fullName: fullName.trimmed,
             licenseNumber: licenseNumber.trimmed,
             specialty: specialty.trimmed,
             email: email.trimmed,
-            defaultPatientCurrencyCode: defaultPatientCurrencyCode,
+            defaultPatientCurrencyCode: normalizedCurrencyCode,
             defaultFinancialSessionTypeID: defaultFinancialSessionTypeID
         )
         context.insert(professional)
@@ -52,11 +54,13 @@ final class ProfessionalViewModel {
 
     // Actualiza un Professional existente con los valores del formulario
     func update(_ professional: Professional) {
+        let normalizedCurrencyCode = defaultPatientCurrencyCode.trimmed.uppercased()
+
         professional.fullName = fullName.trimmed
         professional.licenseNumber = licenseNumber.trimmed
         professional.specialty = specialty.trimmed
         professional.email = email.trimmed
-        professional.defaultPatientCurrencyCode = defaultPatientCurrencyCode
+        professional.defaultPatientCurrencyCode = normalizedCurrencyCode
         professional.defaultFinancialSessionTypeID = defaultFinancialSessionTypeID
         professional.updatedAt = Date()
     }

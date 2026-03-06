@@ -11,6 +11,10 @@ import SwiftData
 @main
 struct Ars_Medica_DigitalisApp: App {
 
+    private enum LaunchArgument {
+        static let onboardingUITest = "UITEST_ONBOARDING"
+    }
+
     /// Preferencia de apariencia local (por dispositivo, no se sincroniza vía CloudKit).
     /// Valores posibles: "system", "light", "dark".
     @AppStorage("appearance.colorScheme") private var colorSchemePreference: String = "system"
@@ -35,13 +39,26 @@ struct Ars_Medica_DigitalisApp: App {
             Medication.self,
         ])
 
-        // cloudKitDatabase: .automatic habilita sincronización con la zona privada
-        // de iCloud del usuario. Requiere el entitlement de CloudKit configurado en Xcode.
-        let modelConfiguration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: false,
-            cloudKitDatabase: .automatic
-        )
+        let launchArguments = ProcessInfo.processInfo.arguments
+        let isOnboardingUITest = launchArguments.contains(LaunchArgument.onboardingUITest)
+
+        // En UI tests de onboarding usamos almacenamiento en memoria para
+        // garantizar estado vacío y flujo determinista.
+        let modelConfiguration: ModelConfiguration
+        if isOnboardingUITest {
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true
+            )
+        } else {
+            // cloudKitDatabase: .automatic habilita sincronización con la zona privada
+            // de iCloud del usuario. Requiere el entitlement de CloudKit configurado en Xcode.
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .automatic
+            )
+        }
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

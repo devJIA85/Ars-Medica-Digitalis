@@ -10,6 +10,7 @@ import Foundation
 
 enum ClinicalSnapshotBuilder {
 
+    @MainActor
     static func buildSnapshots(patients: [Patient]) -> ClinicalSnapshotCache {
         buildSnapshots(
             patients: patients,
@@ -18,6 +19,7 @@ enum ClinicalSnapshotBuilder {
         )
     }
 
+    @MainActor
     static func buildSnapshots(
         patients: [Patient],
         referenceDate: Date,
@@ -383,6 +385,7 @@ private struct PatientClinicalSource: Sendable {
     let currencyVersions: [PatientCurrencyVersionSource]
     let professionalSessionTypes: [SessionCatalogTypeSource]
 
+    @MainActor
     init(_ patient: Patient) {
         patientID = patient.id
         fallbackCurrencyCode = patient.currencyCode
@@ -405,6 +408,7 @@ private struct SessionClinicalSource: Sendable {
     let totalPaid: Decimal
     let financialSessionType: SessionCatalogTypeSource?
 
+    @MainActor
     init(_ session: Session) {
         sessionDate = session.sessionDate
         status = SessionClinicalStatus(rawValue: session.status)
@@ -441,6 +445,7 @@ private struct DiagnosisClinicalSource: Sendable {
     let displayTitle: String
     let diagnosisType: String
 
+    @MainActor
     init(_ diagnosis: Diagnosis) {
         displayTitle = diagnosis.displayTitle
         diagnosisType = diagnosis.diagnosisType
@@ -454,6 +459,7 @@ private struct PatientSessionDefaultPriceSource: Sendable {
     let createdAt: Date
     let updatedAt: Date
 
+    @MainActor
     init(_ price: PatientSessionDefaultPrice) {
         sessionCatalogTypeID = price.sessionCatalogType?.id
         self.price = price.price
@@ -468,6 +474,7 @@ private struct PatientCurrencyVersionSource: Sendable {
     let effectiveFrom: Date
     let updatedAt: Date
 
+    @MainActor
     init(_ version: PatientCurrencyVersion) {
         currencyCode = version.currencyCode
         effectiveFrom = version.effectiveFrom
@@ -481,6 +488,7 @@ private struct SessionCatalogTypeSource: Sendable {
     let isActive: Bool
     let priceVersions: [SessionTypePriceVersionSource]
 
+    @MainActor
     init(_ sessionType: SessionCatalogType) {
         id = sessionType.id
         name = sessionType.name
@@ -495,6 +503,7 @@ private struct SessionTypePriceVersionSource: Sendable {
     let currencyCode: String
     let updatedAt: Date
 
+    @MainActor
     init(_ version: SessionTypePriceVersion) {
         effectiveFrom = version.effectiveFrom
         price = version.price

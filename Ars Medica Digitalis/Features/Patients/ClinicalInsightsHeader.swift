@@ -10,15 +10,18 @@ import SwiftUI
 struct ClinicalInsightsHeader: View {
 
     let summary: ClinicalInsightsSummary
+    let isCollapsed: Bool
     let selectedRadarBucket: ClinicalPriorityBucket?
     let onSelectRadarBucket: (ClinicalPriorityBucket?) -> Void
 
     init(
         summary: ClinicalInsightsSummary,
+        isCollapsed: Bool = false,
         selectedRadarBucket: ClinicalPriorityBucket? = nil,
         onSelectRadarBucket: @escaping (ClinicalPriorityBucket?) -> Void = { _ in }
     ) {
         self.summary = summary
+        self.isCollapsed = isCollapsed
         self.selectedRadarBucket = selectedRadarBucket
         self.onSelectRadarBucket = onSelectRadarBucket
     }
@@ -124,32 +127,23 @@ struct ClinicalInsightsHeader: View {
             ],
             radarModel: radarModel
         )
+        self.isCollapsed = false
         self.selectedRadarBucket = nil
         self.onSelectRadarBucket = { _ in }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.lg) {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                Text(summary.title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text(summary.subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+        Group {
+            if isCollapsed {
+                collapsedLayout
+            } else {
+                expandedLayout
             }
-
-            ClinicalPriorityRadar(
-                model: summary.radarModel,
-                selectedBucket: selectedRadarBucket,
-                onSelectBucket: onSelectRadarBucket
-            )
-
-            ClinicalTrendBar(trends: summary.trends)
-            InsightMetricsGrid(metrics: summary.metrics)
         }
-        .padding(AppSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, isCollapsed ? AppSpacing.md : AppSpacing.lg)
+        .padding(.vertical, isCollapsed ? 12 : AppSpacing.lg)
+        .frame(minHeight: isCollapsed ? 64 : nil)
         .background(
             RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous)
                 .fill(Color(uiColor: .systemBackground))
@@ -159,6 +153,64 @@ struct ClinicalInsightsHeader: View {
                 .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.06), radius: 16, y: 10)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isCollapsed)
         .glassCardEntrance()
+    }
+
+    private var expandedLayout: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+            titleBlock(titleFont: .title3.weight(.semibold), subtitleFont: .footnote)
+
+            ClinicalPriorityRadar(
+                model: summary.radarModel,
+                size: .large,
+                selectedBucket: selectedRadarBucket,
+                onSelectBucket: onSelectRadarBucket
+            )
+            .frame(maxWidth: .infinity, alignment: .center)
+            .transition(.opacity.combined(with: .scale(scale: 1.04, anchor: .top)))
+
+            ClinicalTrendBar(trends: summary.trends)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+
+            InsightMetricsGrid(metrics: summary.metrics)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private var collapsedLayout: some View {
+        HStack(spacing: 12) {
+            MiniClinicalRadarView(
+                model: summary.radarModel,
+                selectedBucket: selectedRadarBucket,
+                onSelectBucket: onSelectRadarBucket
+            )
+            .transition(.opacity.combined(with: .scale(scale: 0.86, anchor: .topLeading)))
+
+            titleBlock(titleFont: .headline.weight(.semibold), subtitleFont: .caption)
+
+            Spacer(minLength: 0)
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func titleBlock(titleFont: Font, subtitleFont: Font) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(summary.title)
+                .font(titleFont)
+                .foregroundStyle(.primary)
+                .accessibilityLabel("\(summary.title), \(insightsStateAccessibilityText)")
+
+            Text(summary.subtitle)
+                .font(subtitleFont)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilitySortPriority(1)
+    }
+
+    private var insightsStateAccessibilityText: String {
+        isCollapsed
+            ? L10n.tr("patient.dashboard.insights.state.collapsed")
+            : L10n.tr("patient.dashboard.insights.state.expanded")
     }
 }

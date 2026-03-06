@@ -45,10 +45,46 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
     }
 
     @MainActor
+    func testOnboardingAllowsTypingInProfessionalFields() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["UITEST_ONBOARDING"]
+        app.launch()
+
+        let fullNameField = app.textFields["onboarding.fullName"]
+        let specialtyField = app.textFields["onboarding.specialty"]
+        let licenseField = app.textFields["onboarding.licenseNumber"]
+        let emailField = app.textFields["onboarding.email"]
+
+        XCTAssertTrue(fullNameField.waitForExistence(timeout: 6))
+        XCTAssertTrue(specialtyField.exists)
+        XCTAssertTrue(licenseField.exists)
+        XCTAssertTrue(emailField.exists)
+
+        type("Dra Ana Perez", in: fullNameField)
+        type("Psicologia Clinica", in: specialtyField)
+        type("MN12345", in: licenseField)
+        type("ana@example.com", in: emailField)
+
+        XCTAssertTrue(value(of: fullNameField).contains("Dra Ana Perez"))
+        XCTAssertTrue(value(of: specialtyField).contains("Psicologia Clinica"))
+        XCTAssertTrue(value(of: licenseField).contains("MN12345"))
+        XCTAssertTrue(value(of: emailField).contains("ana@example.com"))
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
+    }
+
+    private func type(_ text: String, in textField: XCUIElement) {
+        textField.tap()
+        textField.typeText(text)
+    }
+
+    private func value(of textField: XCUIElement) -> String {
+        textField.value as? String ?? ""
     }
 }

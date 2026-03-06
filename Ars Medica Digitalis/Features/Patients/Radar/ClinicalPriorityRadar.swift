@@ -2,14 +2,69 @@
 //  ClinicalPriorityRadar.swift
 //  Ars Medica Digitalis
 //
-//  Radar de prioridad clínica para filtrar pacientes por bucket.
+//  Radar de prioridad clínica reutilizable en tamaño grande y mini.
 //
 
 import SwiftUI
 
+enum ClinicalRadarSize: Sendable, Equatable {
+    case large
+    case mini
+
+    var diameter: CGFloat {
+        switch self {
+        case .large:
+            160
+        case .mini:
+            30
+        }
+    }
+
+    var lineWidth: CGFloat {
+        switch self {
+        case .large:
+            18
+        case .mini:
+            4
+        }
+    }
+
+    var segmentGapDegrees: Double {
+        switch self {
+        case .large:
+            4
+        case .mini:
+            2
+        }
+    }
+
+    var showsCenterContent: Bool {
+        self == .large
+    }
+
+    var pulseBoost: CGFloat {
+        switch self {
+        case .large:
+            1.5
+        case .mini:
+            0.7
+        }
+    }
+
+    var centerWidthRatio: CGFloat {
+        switch self {
+        case .large:
+            0.56
+        case .mini:
+            0
+        }
+    }
+}
+
 struct ClinicalPriorityRadar: View {
 
     let model: ClinicalPriorityRadarModel
+    let size: ClinicalRadarSize
     let selectedBucket: ClinicalPriorityBucket?
     let onSelectBucket: (ClinicalPriorityBucket?) -> Void
 
@@ -18,48 +73,35 @@ struct ClinicalPriorityRadar: View {
     @State private var hasAppeared = false
     @State private var shouldPulseCritical = false
     @State private var lastPulseToken = ""
-    @ScaledMetric(relativeTo: .title2) private var ringDiameter: CGFloat = 162
-
-    private let ringLineWidth: CGFloat = 18
-    private let segmentGapDegrees: Double = 4
 
     init(
         model: ClinicalPriorityRadarModel,
+        size: ClinicalRadarSize = .large,
         selectedBucket: ClinicalPriorityBucket? = nil,
         onSelectBucket: @escaping (ClinicalPriorityBucket?) -> Void = { _ in }
     ) {
         self.model = model
+        self.size = size
         self.selectedBucket = selectedBucket
         self.onSelectBucket = onSelectBucket
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            titleRow
-
-            ZStack {
-                ringTrack
-                ringSegments
-                ringHitAreas
+        ZStack {
+            ringTrack
+            ringSegments
+            ringHitAreas
+            if size.showsCenterContent {
                 centerLabel
-                Circle()
-                    .fill(Color.clear)
-                    .frame(width: ringDiameter, height: ringDiameter)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(distributionAccessibilityLabel)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: ringDiameter)
+            Circle()
+                .fill(Color.clear)
+                .frame(width: size.diameter, height: size.diameter)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(distributionAccessibilityLabel)
         }
-        .padding(AppSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                .fill(.thinMaterial)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        }
+        .frame(width: size.diameter, height: size.diameter)
+        .contentShape(Circle())
         .contextMenu {
             Button(L10n.tr("patient.dashboard.radar.menu.show_critical")) {
                 select(bucket: .critical)
@@ -87,24 +129,12 @@ struct ClinicalPriorityRadar: View {
             animateFractions(to: newValue)
             triggerCriticalPulseIfNeeded(using: newValue)
         }
-    }
-
-    private var titleRow: some View {
-        Label {
-            Text(L10n.tr("patient.dashboard.radar.title"))
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.primary)
-        } icon: {
-            Image(systemName: "scope")
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.secondary)
-        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: size)
     }
 
     private var ringTrack: some View {
         Circle()
-            .stroke(Color.secondary.opacity(0.16), lineWidth: ringLineWidth)
-            .frame(width: ringDiameter, height: ringDiameter)
+            .stroke(Color.secondary.opacity(0.16), lineWidth: size.lineWidth)
     }
 
     private var ringSegments: some View {
@@ -123,7 +153,6 @@ struct ClinicalPriorityRadar: View {
             )
             .foregroundStyle(color(for: segment.bucket))
             .opacity(opacity(for: segment.bucket))
-            .frame(width: ringDiameter, height: ringDiameter)
         }
     }
 
@@ -132,17 +161,16 @@ struct ClinicalPriorityRadar: View {
             RingSectorHitShape(
                 startAngle: segment.startAngle,
                 endAngle: segment.endAngle,
-                innerRadiusFactor: 0.62
+                innerRadiusFactor: innerRadiusFactor
             )
             .fill(Color.clear)
             .contentShape(
                 RingSectorHitShape(
                     startAngle: segment.startAngle,
                     endAngle: segment.endAngle,
-                    innerRadiusFactor: 0.62
+                    innerRadiusFactor: innerRadiusFactor
                 )
             )
-            .frame(width: ringDiameter, height: ringDiameter)
             .onTapGesture {
                 let next = localSelection == segment.bucket ? nil : segment.bucket
                 select(bucket: next)
@@ -177,7 +205,7 @@ struct ClinicalPriorityRadar: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
         }
-        .frame(width: ringDiameter * 0.56)
+        .frame(width: size.diameter * size.centerWidthRatio)
         .allowsHitTesting(false)
     }
 
@@ -213,7 +241,7 @@ struct ClinicalPriorityRadar: View {
             let span = end - start
             guard span > minimumSpan else { continue }
 
-            let gap = min(segmentGapDegrees / 360, span * 0.45)
+            let gap = min(size.segmentGapDegrees / 360, span * 0.45)
             let adjustedStart = start + (gap * 0.5)
             let adjustedEnd = end - (gap * 0.5)
 
@@ -231,10 +259,19 @@ struct ClinicalPriorityRadar: View {
         return result
     }
 
+    private var innerRadiusFactor: CGFloat {
+        switch size {
+        case .large:
+            0.62
+        case .mini:
+            0.46
+        }
+    }
+
     private func lineWidth(for bucket: ClinicalPriorityBucket) -> CGFloat {
-        let base = ringLineWidth
-        let selectionBoost = localSelection == bucket ? 2.0 : 0
-        let pulseBoost = bucket == .critical && shouldPulseCritical ? 1.5 : 0
+        let base = size.lineWidth
+        let selectionBoost: CGFloat = localSelection == bucket ? (size == .large ? 2 : 1) : 0
+        let pulseBoost = bucket == .critical && shouldPulseCritical ? size.pulseBoost : 0
         return base + selectionBoost + pulseBoost
     }
 
@@ -251,22 +288,21 @@ struct ClinicalPriorityRadar: View {
 
     private func opacity(for bucket: ClinicalPriorityBucket) -> Double {
         guard let localSelection else { return 1 }
-        return localSelection == bucket ? 1 : 0.28
+        return localSelection == bucket ? 1 : 0.3
     }
 
     private func select(bucket: ClinicalPriorityBucket?) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             localSelection = bucket
         }
         onSelectBucket(bucket)
     }
 
     private func animateFractions(to model: ClinicalPriorityRadarModel) {
-        let applyAnimation = hasAppeared
         let target = AnimatedFractions(model: model)
 
-        if applyAnimation {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.8)) {
+        if hasAppeared {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 animatedFractions = target
             }
         } else {

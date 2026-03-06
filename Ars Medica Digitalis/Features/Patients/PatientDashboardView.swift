@@ -331,6 +331,12 @@ struct PatientDashboardView: View {
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
     @State private var selectedPriorityBucket: ClinicalPriorityBucket? = nil
+    @State private var insightsCollapsed = false
+    @State private var insightsHeaderHeight: CGFloat = 0
+    private let minCollapseDistance: CGFloat = 72
+    private let minExpandDistance: CGFloat = 16
+    private let collapseDistanceRatio: CGFloat = 0.45
+    private let expandDistanceRatio: CGFloat = 0.12
 
     var body: some View {
         ScrollView {
@@ -338,6 +344,7 @@ struct PatientDashboardView: View {
                 if state.hasPatients {
                     ClinicalInsightsHeader(
                         summary: state.summary,
+                        isCollapsed: insightsCollapsed,
                         selectedRadarBucket: selectedPriorityBucket,
                         onSelectRadarBucket: { bucket in
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
@@ -345,6 +352,19 @@ struct PatientDashboardView: View {
                             }
                         }
                     )
+                    .background {
+                        GeometryReader { geometry in
+                            Color.clear
+                                .preference(
+                                    key: InsightsHeaderMinYPreferenceKey.self,
+                                    value: geometry.frame(in: .named("patientDashboardScroll")).minY
+                                )
+                                .preference(
+                                    key: InsightsHeaderHeightPreferenceKey.self,
+                                    value: geometry.size.height
+                                )
+                        }
+                    }
 
                     ForEach(filteredSections) { section in
                         PatientRiskSection(
@@ -377,6 +397,33 @@ struct PatientDashboardView: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollEdgeEffectStyle(.soft, for: .all)
+        .coordinateSpace(name: "patientDashboardScroll")
+        .onPreferenceChange(InsightsHeaderHeightPreferenceKey.self) { height in
+            guard height > 0 else { return }
+            insightsHeaderHeight = height
+        }
+        .onPreferenceChange(InsightsHeaderMinYPreferenceKey.self) { minY in
+            guard insightsHeaderHeight > 0 else { return }
+            let collapseDistance = max(minCollapseDistance, insightsHeaderHeight * collapseDistanceRatio)
+            let expandDistance = max(minExpandDistance, insightsHeaderHeight * expandDistanceRatio)
+            let collapseThreshold = -collapseDistance
+            let expandThreshold = -expandDistance
+
+            if insightsCollapsed {
+                guard minY >= expandThreshold else { return }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    insightsCollapsed = false
+                }
+            } else {
+                guard minY <= collapseThreshold else { return }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    insightsCollapsed = true
+                }
+            }
+        }
+        .onChange(of: state.summary.totalPatients) { _, _ in
+            insightsCollapsed = false
+        }
         .onChange(of: state.summary.radarModel) { _, newValue in
             guard let selectedPriorityBucket else { return }
             guard newValue.count(for: selectedPriorityBucket) == 0 else { return }
@@ -493,6 +540,22 @@ private extension ClinicalPriorityBucket {
         case .stable:
             L10n.tr("patient.dashboard.radar.bucket.stable")
         }
+    }
+}
+
+private struct InsightsHeaderMinYPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct InsightsHeaderHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

@@ -327,6 +327,7 @@ final class PatientDashboardStore {
 
 struct PatientDashboardView: View {
 
+    let professional: Professional
     let state: PatientDashboardState
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
@@ -372,6 +373,7 @@ struct PatientDashboardView: View {
                     ForEach(filteredSections) { section in
                         PatientRiskSection(
                             section: section,
+                            professional: professional,
                             namespace: namespace,
                             onDelete: onDelete,
                             activePriorityFilterTitle: activePriorityFilterTitle,

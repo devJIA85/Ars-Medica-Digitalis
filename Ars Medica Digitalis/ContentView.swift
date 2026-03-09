@@ -130,15 +130,6 @@ struct ContentView: View {
                         onAddPatient: { showingNewPatient = true },
                         enablesSearch: false
                     )
-                        .navigationDestination(for: UUID.self) { patientID in
-                            PatientDestinationView(
-                                patientID: patientID,
-                                professional: professional
-                            )
-                            // Transición zoom: la fila de la lista se expande
-                            // hacia la vista de detalle del paciente.
-                            .navigationTransition(.zoom(sourceID: patientID, in: patientTransition))
-                        }
                 }
             }
 
@@ -156,13 +147,6 @@ struct ContentView: View {
                         onAddPatient: { showingNewPatient = true },
                         enablesSearch: true
                     )
-                    .navigationDestination(for: UUID.self) { patientID in
-                        PatientDestinationView(
-                            patientID: patientID,
-                            professional: professional
-                        )
-                        .navigationTransition(.zoom(sourceID: patientID, in: patientTransition))
-                    }
                 }
             }
         }
@@ -356,45 +340,6 @@ struct ContentView: View {
                 .repairMissingRecordNumbers(in: modelContext)
         } catch {
             print("PatientMedicalRecordNumberService failed: \(error.localizedDescription)")
-        }
-    }
-}
-
-/// Vista auxiliar que resuelve el Patient desde su UUID.
-/// Necesaria porque navigationDestination(for:) recibe un valor,
-/// no un objeto SwiftData directamente.
-private struct PatientDestinationView: View {
-
-    @Query private var patients: [Patient]
-
-    let patientID: UUID
-    let professional: Professional
-
-    /// Trigger para haptic al llegar a la vista de detalle.
-    /// Se activa una sola vez en onAppear.
-    @State private var didAppear: Bool = false
-
-    init(patientID: UUID, professional: Professional) {
-        self.patientID = patientID
-        self.professional = professional
-
-        let id = patientID
-        _patients = Query(
-            filter: #Predicate<Patient> { $0.id == id }
-        )
-    }
-
-    var body: some View {
-        if let patient = patients.first {
-            PatientDetailView(patient: patient, professional: professional)
-                // Haptic sutil al navegar — feedback de "aterrizaje" en el detalle
-                .onAppear { didAppear = true }
-                .sensoryFeedback(.impact(flexibility: .soft), trigger: didAppear)
-        } else {
-            ContentUnavailableView(
-                "Paciente no encontrado",
-                systemImage: "exclamationmark.triangle"
-            )
         }
     }
 }

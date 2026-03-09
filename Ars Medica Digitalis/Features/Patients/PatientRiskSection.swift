@@ -10,6 +10,7 @@ import SwiftUI
 struct PatientRiskSection: View {
 
     let section: PatientDashboardSection
+    let professional: Professional
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
     let activePriorityFilterTitle: String?
@@ -21,7 +22,10 @@ struct PatientRiskSection: View {
 
             LazyVStack(spacing: AppSpacing.sm) {
                 ForEach(section.rows) { row in
-                    NavigationLink(value: row.id) {
+                    NavigationLink {
+                        PatientDetailView(patient: row.patient, professional: professional)
+                            .navigationTransition(.zoom(sourceID: row.id, in: namespace))
+                    } label: {
                         PatientCard(model: row)
                             .equatable()
                     }

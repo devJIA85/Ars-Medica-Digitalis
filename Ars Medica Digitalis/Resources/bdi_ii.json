@@ -1,0 +1,243 @@
+{
+  "id": "BDI-II",
+  "domain": "depression",
+  "name": "Inventario de Depresión de Beck II",
+  "description": "Cuestionario clínico que evalúa la gravedad de los síntomas depresivos durante las últimas dos semanas.",
+  "timeframe": {
+    "label": "Últimas dos semanas",
+    "value": 14,
+    "unit": "days"
+  },
+  "meta": {
+    "itemsCount": 21,
+    "maxScore": 63,
+    "version": "BDI-II"
+  },
+  "items": [
+    {
+      "id": 1,
+      "title": "Tristeza",
+      "options": [
+        { "id": "1-0", "text": "No me siento triste", "score": 0 },
+        { "id": "1-1", "text": "Me siento triste gran parte del tiempo", "score": 1 },
+        { "id": "1-2", "text": "Me siento triste todo el tiempo", "score": 2 },
+        { "id": "1-3", "text": "Soy tan infeliz que no puedo soportarlo", "score": 3 }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pesimismo",
+      "options": [
+        { "id": "2-0", "text": "No estoy desalentado respecto a mi futuro", "score": 0 },
+        { "id": "2-1", "text": "Me siento más desalentado respecto a mi futuro que lo que solía estar", "score": 1 },
+        { "id": "2-2", "text": "No espero que las cosas funcionen para mí", "score": 2 },
+        { "id": "2-3", "text": "Siento que mi futuro es desesperanzador y que sólo puede empeorar", "score": 3 }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Fracaso",
+      "options": [
+        { "id": "3-0", "text": "No me siento como un fracaso", "score": 0 },
+        { "id": "3-1", "text": "He fracasado más de lo que debería", "score": 1 },
+        { "id": "3-2", "text": "Cuando miro hacia atrás, veo muchos fracasos", "score": 2 },
+        { "id": "3-3", "text": "Siento que como persona soy un fracaso total", "score": 3 }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Pérdida de Placer",
+      "options": [
+        { "id": "4-0", "text": "Obtengo tanto placer como siempre de las cosas de las que disfruto", "score": 0 },
+        { "id": "4-1", "text": "No disfruto tanto de las cosas como solía hacerlo", "score": 1 },
+        { "id": "4-2", "text": "Obtengo muy poco placer de las cosas de las que solía disfrutar", "score": 2 },
+        { "id": "4-3", "text": "No puedo obtener ningún placer de las cosas de las que solía disfrutar", "score": 3 }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Sentimiento de Culpa",
+      "options": [
+        { "id": "5-0", "text": "No me siento especialmente culpable", "score": 0 },
+        { "id": "5-1", "text": "Me siento culpable respecto a varias cosas que he hecho o que debería haber hecho", "score": 1 },
+        { "id": "5-2", "text": "Me siento bastante culpable la mayor parte del tiempo", "score": 2 },
+        { "id": "5-3", "text": "Me siento culpable todo el tiempo", "score": 3 }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Sentimiento de Castigo",
+      "options": [
+        { "id": "6-0", "text": "No siento que esté siendo castigado", "score": 0 },
+        { "id": "6-1", "text": "Siento que puedo ser castigado", "score": 1 },
+        { "id": "6-2", "text": "Espero ser castigado", "score": 2 },
+        { "id": "6-3", "text": "Siento que estoy siendo castigado", "score": 3 }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Disconformidad con uno mismo",
+      "options": [
+        { "id": "7-0", "text": "Siento lo mismo que siempre acerca de mí mismo", "score": 0 },
+        { "id": "7-1", "text": "He perdido la confianza en mí mismo", "score": 1 },
+        { "id": "7-2", "text": "Estoy decepcionado de mí mismo", "score": 2 },
+        { "id": "7-3", "text": "No me gusto a mí mismo", "score": 3 }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Autocrítica",
+      "options": [
+        { "id": "8-0", "text": "No me critico ni me culpo más de lo habitual", "score": 0 },
+        { "id": "8-1", "text": "Estoy más crítico conmigo mismo de lo que solía estarlo", "score": 1 },
+        { "id": "8-2", "text": "Me critico a mí mismo por todos mis errores", "score": 2 },
+        { "id": "8-3", "text": "Me culpo a mí mismo por todo lo malo que sucede", "score": 3 }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Pensamientos o Deseos Suicidas",
+      "flags": ["suicide_risk"],
+      "options": [
+        { "id": "9-0", "text": "No tengo ningún pensamiento de suicidio", "score": 0 },
+        { "id": "9-1", "text": "Tengo pensamientos de suicidio, pero no los llevaría a cabo", "score": 1 },
+        { "id": "9-2", "text": "Desearía suicidarme", "score": 2 },
+        { "id": "9-3", "text": "Me suicidaría si tuviese la oportunidad", "score": 3 }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Llanto",
+      "options": [
+        { "id": "10-0", "text": "No lloro más de lo que solía hacerlo", "score": 0 },
+        { "id": "10-1", "text": "Lloro más de lo que solía hacerlo", "score": 1 },
+        { "id": "10-2", "text": "Lloro por cualquier pequeñez", "score": 2 },
+        { "id": "10-3", "text": "Siento ganas de llorar pero no puedo", "score": 3 }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Agitación",
+      "options": [
+        { "id": "11-0", "text": "No estoy más inquieto o tenso que lo habitual", "score": 0 },
+        { "id": "11-1", "text": "Me siento más inquieto o tenso que lo habitual", "score": 1 },
+        { "id": "11-2", "text": "Estoy tan inquieto o agitado que me es difícil quedarme quieto", "score": 2 },
+        { "id": "11-3", "text": "Estoy tan inquieto o agitado que tengo que estar siempre en movimiento", "score": 3 }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Pérdida de Interés",
+      "options": [
+        { "id": "12-0", "text": "No he perdido el interés en otras personas o actividades", "score": 0 },
+        { "id": "12-1", "text": "Estoy menos interesado en otras personas o actividades que antes", "score": 1 },
+        { "id": "12-2", "text": "He perdido la mayor parte de mi interés por los demás", "score": 2 },
+        { "id": "12-3", "text": "Me resulta difícil interesarme en algo", "score": 3 }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Indecisión",
+      "options": [
+        { "id": "13-0", "text": "Tomo mis propias decisiones tan bien como siempre", "score": 0 },
+        { "id": "13-1", "text": "Me resulta más difícil tomar decisiones que lo habitual", "score": 1 },
+        { "id": "13-2", "text": "Me encuentro con mucha más dificultad para tomar decisiones que lo habitual", "score": 2 },
+        { "id": "13-3", "text": "Tengo problemas para tomar cualquier decisión", "score": 3 }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Desvalorización",
+      "options": [
+        { "id": "14-0", "text": "No siento que yo no sea valioso", "score": 0 },
+        { "id": "14-1", "text": "No me considero tan valioso y útil como solía serlo", "score": 1 },
+        { "id": "14-2", "text": "Me siento menos valioso cuando me comparo con los demás", "score": 2 },
+        { "id": "14-3", "text": "Siento que no valgo nada", "score": 3 }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Pérdida de Energía",
+      "options": [
+        { "id": "15-0", "text": "Tengo tanta energía como siempre", "score": 0 },
+        { "id": "15-1", "text": "Tengo menos energía de la que solía tener", "score": 1 },
+        { "id": "15-2", "text": "No tengo suficiente energía para hacer demasiado", "score": 2 },
+        { "id": "15-3", "text": "No tengo energía suficiente para hacer nada", "score": 3 }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Cambios en el Patrón de Sueño",
+      "options": [
+        { "id": "16-0", "text": "No he experimentado ningún cambio en mis hábitos de sueño", "score": 0 },
+        { "id": "16-1a", "text": "Duermo un poco más que lo habitual", "score": 1, "variant": "increase" },
+        { "id": "16-1b", "text": "Duermo un poco menos que lo habitual", "score": 1, "variant": "decrease" },
+        { "id": "16-2a", "text": "Duermo mucho más que lo habitual", "score": 2, "variant": "increase" },
+        { "id": "16-2b", "text": "Duermo mucho menos que lo habitual", "score": 2, "variant": "decrease" },
+        { "id": "16-3a", "text": "Duermo la mayor parte del día", "score": 3, "variant": "increase" },
+        { "id": "16-3b", "text": "Me despierto 1-2 horas antes de lo habitual y no puedo volver a dormirme", "score": 3, "variant": "decrease" }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Irritabilidad",
+      "options": [
+        { "id": "17-0", "text": "No estoy más irritable que lo habitual", "score": 0 },
+        { "id": "17-1", "text": "Estoy más irritable que lo habitual", "score": 1 },
+        { "id": "17-2", "text": "Estoy mucho más irritable que lo habitual", "score": 2 },
+        { "id": "17-3", "text": "Estoy irritable todo el tiempo", "score": 3 }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "Cambios en el Apetito",
+      "options": [
+        { "id": "18-0", "text": "No he experimentado ningún cambio en mi apetito", "score": 0 },
+        { "id": "18-1a", "text": "Mi apetito es un poco mayor que lo habitual", "score": 1, "variant": "increase" },
+        { "id": "18-1b", "text": "Mi apetito es un poco menor que lo habitual", "score": 1, "variant": "decrease" },
+        { "id": "18-2a", "text": "Mi apetito es mucho mayor que lo habitual", "score": 2, "variant": "increase" },
+        { "id": "18-2b", "text": "Mi apetito es mucho menor que lo habitual", "score": 2, "variant": "decrease" },
+        { "id": "18-3a", "text": "Tengo ganas de comer todo el tiempo", "score": 3, "variant": "increase" },
+        { "id": "18-3b", "text": "No tengo nada de apetito", "score": 3, "variant": "decrease" }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Dificultad de Concentración",
+      "options": [
+        { "id": "19-0", "text": "Puedo concentrarme tan bien como siempre", "score": 0 },
+        { "id": "19-1", "text": "No puedo concentrarme tan bien como habitualmente", "score": 1 },
+        { "id": "19-2", "text": "Me es difícil mantener la mente en algo por mucho tiempo", "score": 2 },
+        { "id": "19-3", "text": "Encuentro que no puedo concentrarme en nada", "score": 3 }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Cansancio o Fatiga",
+      "options": [
+        { "id": "20-0", "text": "No estoy más cansado o fatigado que lo habitual", "score": 0 },
+        { "id": "20-1", "text": "Me canso o me fatigo más fácilmente que lo habitual", "score": 1 },
+        { "id": "20-2", "text": "Estoy demasiado cansado o fatigado para hacer muchas de las cosas que solía hacer", "score": 2 },
+        { "id": "20-3", "text": "Estoy demasiado cansado o fatigado para hacer cualquier cosa", "score": 3 }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Pérdida de Interés Sexual",
+      "options": [
+        { "id": "21-0", "text": "No he notado ningún cambio reciente en mi interés por el sexo", "score": 0 },
+        { "id": "21-1", "text": "Estoy menos interesado en el sexo de lo que solía estarlo", "score": 1 },
+        { "id": "21-2", "text": "Estoy mucho menos interesado en el sexo ahora", "score": 2 },
+        { "id": "21-3", "text": "He perdido completamente el interés por el sexo", "score": 3 }
+      ]
+    }
+  ],
+  "scoring": {
+    "ranges": [
+      { "min": 0, "max": 13, "label": "Depresión mínima", "severity": "minimal", "color": "green" },
+      { "min": 14, "max": 19, "label": "Depresión leve", "severity": "mild", "color": "yellow" },
+      { "min": 20, "max": 28, "label": "Depresión moderada", "severity": "moderate", "color": "orange" },
+      { "min": 29, "max": 63, "label": "Depresión grave", "severity": "severe", "color": "red" }
+    ]
+  }
+}

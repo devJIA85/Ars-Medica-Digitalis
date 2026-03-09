@@ -12,29 +12,17 @@ struct ClinicalDashboardView: View {
 
     let professional: Professional
 
-    @Query private var patients: [Patient]
+    @Query(sort: \Patient.lastName) private var allPatients: [Patient]
     @State private var filter: ClinicalDashboardFilter = .all
-    @State private var state = ClinicalDashboardState.empty
-
-    init(professional: Professional) {
-        self.professional = professional
-        let professionalID = professional.id
-        _patients = Query(
-            filter: #Predicate<Patient> { patient in
-                patient.professional?.id == professionalID && patient.deletedAt == nil
-            },
-            sort: \Patient.lastName
-        )
-    }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.lg) {
                 ClinicalInsightsHeader(
-                    criticalPatients: state.criticalPatients,
-                    riskPatients: state.riskPatients,
-                    averageAdherence: state.averageAdherence,
-                    patientsWithoutSession30Days: state.patientsWithoutSession30Days
+                    criticalPatients: dashboardState.criticalPatients,
+                    riskPatients: dashboardState.riskPatients,
+                    averageAdherence: dashboardState.averageAdherence,
+                    patientsWithoutSession30Days: dashboardState.patientsWithoutSession30Days
                 )
 
                 ClinicalDashboardPatientSections(sections: filteredSections)
@@ -61,32 +49,34 @@ struct ClinicalDashboardView: View {
                 .buttonStyle(.glass)
             }
         }
-        .navigationDestination(for: UUID.self) { patientID in
+        .navigationDestination(for: ClinicalDashboardPatientRoute.self) { route in
             ClinicalDashboardPatientDestinationView(
-                patientID: patientID,
+                patientID: route.patientID,
                 professional: professional
             )
-        }
-        .task(id: refreshToken) {
-            state = buildState(from: patients)
         }
     }
 
     private var filteredSections: [ClinicalDashboardSection] {
         switch filter {
         case .all:
-            state.sections
+            dashboardState.sections
         case .highRisk:
-            state.sections.filter { $0.kind != .stable }
+            dashboardState.sections.filter { $0.kind != .stable }
         case .stable:
-            state.sections.filter { $0.kind == .stable }
+            dashboardState.sections.filter { $0.kind == .stable }
         }
     }
 
-    private var refreshToken: String {
-        patients.reduce(into: "\(patients.count)") { partialResult, patient in
-            partialResult.append("|\(patient.id.uuidString)|\(patient.updatedAt.timeIntervalSince1970)")
+    private var patients: [Patient] {
+        let professionalID = professional.id
+        return allPatients.filter { patient in
+            patient.deletedAt == nil && patient.professional?.id == professionalID
         }
+    }
+
+    private var dashboardState: ClinicalDashboardState {
+        buildState(from: patients)
     }
 
     private func buildState(from patients: [Patient]) -> ClinicalDashboardState {
@@ -140,6 +130,10 @@ struct ClinicalDashboardView: View {
             sections: sections
         )
     }
+}
+
+private struct ClinicalDashboardPatientRoute: Hashable {
+    let patientID: UUID
 }
 
 private enum ClinicalDashboardFilter: String, CaseIterable, Identifiable {
@@ -204,7 +198,9 @@ private struct ClinicalDashboardPatientSections: View {
 
                             VStack(spacing: AppSpacing.sm) {
                                 ForEach(section.rows) { row in
-                                    NavigationLink(value: row.id) {
+                                    NavigationLink(
+                                        value: ClinicalDashboardPatientRoute(patientID: row.id)
+                                    ) {
                                         ClinicalDashboardPatientRow(row: row)
                                     }
                                     .buttonStyle(.plain)

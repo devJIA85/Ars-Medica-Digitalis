@@ -13,6 +13,7 @@ struct Ars_Medica_DigitalisApp: App {
 
     private enum LaunchArgument {
         static let onboardingUITest = "UITEST_ONBOARDING"
+        static let profileDashboardUITest = "UITEST_PROFILE_DASHBOARD"
     }
 
     /// Preferencia de apariencia local (por dispositivo, no se sincroniza vía CloudKit).
@@ -40,15 +41,22 @@ struct Ars_Medica_DigitalisApp: App {
             AnthropometricRecord.self,
             ICD11Entry.self,
             Medication.self,
+            PatientScaleResult.self,
         ])
 
         let launchArguments = ProcessInfo.processInfo.arguments
         let isOnboardingUITest = launchArguments.contains(LaunchArgument.onboardingUITest)
+        let isProfileDashboardUITest = launchArguments.contains(LaunchArgument.profileDashboardUITest)
+        let isUITestLaunch = isOnboardingUITest || isProfileDashboardUITest
+
+        if isUITestLaunch {
+            UserDefaults.standard.set(false, forKey: "security.biometricEnabled")
+        }
 
         // En UI tests de onboarding usamos almacenamiento en memoria para
         // garantizar estado vacío y flujo determinista.
         let modelConfiguration: ModelConfiguration
-        if isOnboardingUITest {
+        if isUITestLaunch {
             modelConfiguration = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: true
@@ -64,7 +72,13 @@ struct Ars_Medica_DigitalisApp: App {
         }
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+
+            if isProfileDashboardUITest {
+                seedProfileDashboardUITestDataIfNeeded(in: container.mainContext)
+            }
+
+            return container
         } catch {
             fatalError("No se pudo crear el ModelContainer: \(error)")
         }
@@ -92,5 +106,41 @@ struct Ars_Medica_DigitalisApp: App {
     /// Resuelve el color de tema desde el string persistido.
     private var resolvedThemeColor: Color {
         (AppThemeColor(rawValue: themeColorRaw) ?? .blue).color
+    }
+
+    private static func seedProfileDashboardUITestDataIfNeeded(in context: ModelContext) {
+        let descriptor = FetchDescriptor<Professional>()
+        if let existing = try? context.fetch(descriptor), existing.isEmpty == false {
+            return
+        }
+
+        let professional = Professional(
+            fullName: "Dra. Test",
+            licenseNumber: "MN 99999",
+            specialty: "Psicología",
+            email: "test@example.com"
+        )
+        context.insert(professional)
+
+        let patient = Patient(
+            firstName: "Paciente",
+            lastName: "Demo",
+            medicalRecordNumber: "HC-00000001",
+            professional: professional
+        )
+        context.insert(patient)
+
+        let session = Session(
+            sessionDate: Date().addingTimeInterval(-86_400),
+            status: SessionStatusMapping.completada.rawValue,
+            patient: patient
+        )
+        context.insert(session)
+
+        do {
+            try context.save()
+        } catch {
+            assertionFailure("No se pudieron seedear datos UI test: \(error.localizedDescription)")
+        }
     }
 }

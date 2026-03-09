@@ -79,6 +79,47 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testProfileCanOpenClinicalDashboardWithoutFreezing() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["UITEST_PROFILE_DASHBOARD"]
+        app.launch()
+
+        openClinicalDashboard(from: app)
+
+        let dashboardTitle = app.navigationBars["Dashboard Clínico"]
+        XCTAssertTrue(
+            dashboardTitle.waitForExistence(timeout: 6),
+            "La navegación debe abrir la vista de charts (Dashboard) sin colgar la app."
+        )
+    }
+
+    @MainActor
+    func testProfileClinicalDashboardCanNavigateBackToProfile() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["UITEST_PROFILE_DASHBOARD"]
+        app.launch()
+
+        openClinicalDashboard(from: app)
+
+        let dashboardTitle = app.navigationBars["Dashboard Clínico"]
+        XCTAssertTrue(dashboardTitle.waitForExistence(timeout: 6))
+
+        let backButton = dashboardTitle.buttons["Perfil"]
+        if backButton.exists {
+            backButton.tap()
+        } else {
+            XCTAssertTrue(dashboardTitle.buttons.firstMatch.waitForExistence(timeout: 2))
+            dashboardTitle.buttons.firstMatch.tap()
+        }
+
+        let profileTitle = app.navigationBars["Perfil"]
+        XCTAssertTrue(
+            profileTitle.waitForExistence(timeout: 6),
+            "Luego de abrir Dashboard (charts), volver atrás debe seguir respondiendo."
+        )
+    }
+
     private func type(_ text: String, in textField: XCUIElement) {
         textField.tap()
         textField.typeText(text)
@@ -86,5 +127,39 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
 
     private func value(of textField: XCUIElement) -> String {
         textField.value as? String ?? ""
+    }
+
+    private func openClinicalDashboard(from app: XCUIApplication) {
+        let patientsTab = app.tabBars.buttons["Pacientes"]
+        XCTAssertTrue(patientsTab.waitForExistence(timeout: 5))
+        patientsTab.tap()
+
+        let profileButton = app.buttons["main.profile"]
+        XCTAssertTrue(profileButton.waitForExistence(timeout: 5))
+        profileButton.tap()
+
+        let profileTitle = app.navigationBars["Perfil"]
+        XCTAssertTrue(profileTitle.waitForExistence(timeout: 5))
+
+        let clinicalDashboardEntry = firstExistingElement(
+            for: "profile.stats.clinicalDashboard",
+            in: app
+        )
+        XCTAssertTrue(clinicalDashboardEntry.waitForExistence(timeout: 5))
+        clinicalDashboardEntry.tap()
+    }
+
+    private func firstExistingElement(for identifier: String, in app: XCUIApplication) -> XCUIElement {
+        let linksMatch = app.links[identifier]
+        if linksMatch.exists {
+            return linksMatch
+        }
+
+        let buttonMatch = app.buttons[identifier]
+        if buttonMatch.exists {
+            return buttonMatch
+        }
+
+        return app.otherElements[identifier]
     }
 }

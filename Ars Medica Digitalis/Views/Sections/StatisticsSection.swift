@@ -20,7 +20,7 @@ struct StatisticsSection: View {
             subtitle: "Accesos rapidos para revisar la actividad de la practica."
         ) {
             NavigationLink {
-                ClinicalDashboardView(professional: professional)
+                DashboardView(professional: professional)
             } label: {
                 SettingsRow(
                     systemImage: "chart.bar.xaxis",
@@ -31,6 +31,7 @@ struct StatisticsSection: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("profile.stats.clinicalDashboard")
 
             Divider()
 

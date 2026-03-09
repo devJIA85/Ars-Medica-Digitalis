@@ -55,6 +55,42 @@ struct PatientDetailView: View {
                     count: activeMedicationCount
                 )
 
+                NavigationLink {
+                    ScalesListView(
+                        patientID: patient.id,
+                        patientName: patient.fullName
+                    )
+                } label: {
+                    CardContainer(style: .flat) {
+                        HStack(spacing: AppSpacing.md) {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.14))
+                                .frame(width: 40, height: 40)
+                                .overlay {
+                                    Image(systemName: "list.bullet.clipboard")
+                                        .foregroundStyle(Color.accentColor)
+                                }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Escalas clínicas")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+
+                                Text("BDI-II y próximas escalas psicométricas")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer(minLength: AppSpacing.md)
+
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+
                 if patient.hasOutstandingDebt {
                     PatientFinanceCard(
                         patient: patient,

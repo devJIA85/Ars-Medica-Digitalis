@@ -27,6 +27,7 @@ extension ModelContainer {
             AnthropometricRecord.self,
             ICD11Entry.self,
             Medication.self,
+            PatientScaleResult.self,
         ]
     }
 

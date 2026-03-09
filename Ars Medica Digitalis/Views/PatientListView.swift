@@ -66,6 +66,7 @@ struct PatientListView: View {
                     } label: {
                         Label("Perfil", systemImage: "person.crop.circle")
                     }
+                    .accessibilityIdentifier("main.profile")
                 }
 
                 // El CTA principal vive en el top bar, junto a perfil.
@@ -108,6 +109,7 @@ private struct PatientFilteredList: View {
     @Query private var patients: [Patient]
     @State private var store = PatientDashboardStore()
 
+    let professional: Professional
     let onDelete: (Patient) -> Void
     let namespace: Namespace.ID
 
@@ -118,6 +120,7 @@ private struct PatientFilteredList: View {
         namespace: Namespace.ID,
         onDelete: @escaping (Patient) -> Void
     ) {
+        self.professional = professional
         self.onDelete = onDelete
         self.namespace = namespace
 
@@ -144,6 +147,7 @@ private struct PatientFilteredList: View {
 
     var body: some View {
         PatientDashboardView(
+            professional: professional,
             state: store.state,
             namespace: namespace,
             onDelete: onDelete

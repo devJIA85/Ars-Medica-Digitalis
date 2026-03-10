@@ -2,6 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.arsmedicadigitalis.session</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>arsmedicadigitalis</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Ars Medica Digitalis necesita acceso al calendario para sincronizar sesiones clínicas con tu agenda de iOS.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Ars Medica Digitalis necesita acceso al calendario para crear turnos clínicos desde la app.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Ars Medica Digitalis utiliza Face ID para proteger el acceso a información clínica sensible.</string>
 	<key>UIBackgroundModes</key>

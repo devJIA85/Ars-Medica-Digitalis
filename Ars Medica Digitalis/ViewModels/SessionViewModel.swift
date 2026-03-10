@@ -10,6 +10,13 @@
 import Foundation
 import SwiftData
 
+private extension AttributedString {
+    /// Normaliza la lectura plana del rich text para validaciones y compatibilidad.
+    var plainText: String {
+        String(characters)
+    }
+}
+
 /// Intención de pago elegida por la UI antes de persistir movimientos.
 /// Se separa de la ejecución real para validar la decisión del usuario
 /// antes de escribir Payment y evitar lógica financiera en la vista.
@@ -71,10 +78,45 @@ struct SessionFormSnapshot: Sendable {
     let chiefComplaint: String
     let notes: String
     let treatmentPlan: String
+    let sessionSummary: String
+    let notesRichText: AttributedString
+    let treatmentPlanRichText: AttributedString
     let status: String
     let financialSessionTypeID: UUID?
     let isCourtesy: Bool
     let selectedDiagnoses: [ICD11SearchResult]
+
+    /// Mantiene el init histórico (notes/treatmentPlan en plano) y agrega
+    /// rich text opcional para no romper tests ni consumidores existentes.
+    init(
+        sessionDate: Date,
+        sessionType: String,
+        durationMinutes: Int,
+        chiefComplaint: String,
+        notes: String,
+        treatmentPlan: String,
+        sessionSummary: String = "",
+        notesRichText: AttributedString? = nil,
+        treatmentPlanRichText: AttributedString? = nil,
+        status: String,
+        financialSessionTypeID: UUID?,
+        isCourtesy: Bool,
+        selectedDiagnoses: [ICD11SearchResult]
+    ) {
+        self.sessionDate = sessionDate
+        self.sessionType = sessionType
+        self.durationMinutes = durationMinutes
+        self.chiefComplaint = chiefComplaint
+        self.notes = notes
+        self.treatmentPlan = treatmentPlan
+        self.sessionSummary = sessionSummary
+        self.notesRichText = notesRichText ?? AttributedString(notes)
+        self.treatmentPlanRichText = treatmentPlanRichText ?? AttributedString(treatmentPlan)
+        self.status = status
+        self.financialSessionTypeID = financialSessionTypeID
+        self.isCourtesy = isCourtesy
+        self.selectedDiagnoses = selectedDiagnoses
+    }
 
     /// Cuando el guardado requiere sheet de cobro, persistimos primero como
     /// programada y cerramos recién tras confirmar la intención de pago.
@@ -87,6 +129,9 @@ struct SessionFormSnapshot: Sendable {
             chiefComplaint: chiefComplaint,
             notes: notes,
             treatmentPlan: treatmentPlan,
+            sessionSummary: sessionSummary,
+            notesRichText: notesRichText,
+            treatmentPlanRichText: treatmentPlanRichText,
             status: SessionStatusMapping.programada.rawValue,
             financialSessionTypeID: financialSessionTypeID,
             isCourtesy: isCourtesy,
@@ -168,11 +213,27 @@ final class SessionViewModel {
     var sessionType: String = SessionTypeMapping.presencial.rawValue
     var durationMinutes: Int = 50
     var chiefComplaint: String = ""
-    var notes: String = ""
-    var treatmentPlan: String = ""
+    /// Fuente de verdad para el editor enriquecido iOS 26.
+    var notesRichText: AttributedString = AttributedString()
+    /// Fuente de verdad para el editor enriquecido iOS 26.
+    var treatmentPlanRichText: AttributedString = AttributedString()
+    /// Campo editable para resumen clínico manual o generado por IA local.
+    var sessionSummary: String = ""
     var status: String = SessionStatusMapping.completada.rawValue
     var financialSessionTypeID: UUID? = nil
     var isCourtesy: Bool = false
+
+    /// Compatibilidad con tests y flujos legacy que siguen leyendo/escribiendo String.
+    var notes: String {
+        get { notesRichText.plainText }
+        set { notesRichText = AttributedString(newValue) }
+    }
+
+    /// Compatibilidad con texto plano fuera del editor rich text.
+    var treatmentPlan: String {
+        get { treatmentPlanRichText.plainText }
+        set { treatmentPlanRichText = AttributedString(newValue) }
+    }
 
     /// Flag interno para evitar ajustar el status al cargar datos
     /// de una sesión existente (modo edición).
@@ -264,8 +325,9 @@ final class SessionViewModel {
         sessionType = session.sessionType
         durationMinutes = session.durationMinutes
         chiefComplaint = session.chiefComplaint
-        notes = session.notes
-        treatmentPlan = session.treatmentPlan
+        notesRichText = session.notesRichText
+        treatmentPlanRichText = session.treatmentPlanRichText
+        sessionSummary = session.sessionSummary
         status = session.status
         financialSessionTypeID = session.financialSessionType?.id
         isCourtesy = session.isCourtesy
@@ -286,8 +348,11 @@ final class SessionViewModel {
             sessionType: sessionType,
             durationMinutes: durationMinutes,
             chiefComplaint: chiefComplaint.trimmed,
-            notes: notes.trimmed,
-            treatmentPlan: treatmentPlan.trimmed,
+            notes: notesRichText.plainText.trimmed,
+            treatmentPlan: treatmentPlanRichText.plainText.trimmed,
+            sessionSummary: sessionSummary.trimmed,
+            notesRichText: notesRichText,
+            treatmentPlanRichText: treatmentPlanRichText,
             status: status,
             financialSessionTypeID: financialSessionTypeID,
             isCourtesy: isCourtesy,
@@ -365,8 +430,11 @@ final class SessionViewModel {
             sessionType: snapshot.sessionType,
             durationMinutes: snapshot.durationMinutes,
             notes: snapshot.notes,
+            notesRichText: snapshot.notesRichText,
             chiefComplaint: snapshot.chiefComplaint,
             treatmentPlan: snapshot.treatmentPlan,
+            sessionSummary: snapshot.sessionSummary,
+            treatmentPlanRichText: snapshot.treatmentPlanRichText,
             status: snapshot.status,
             patient: patient,
             financialSessionType: selectedFinancialSessionType,
@@ -439,9 +507,10 @@ final class SessionViewModel {
         session.sessionDate = snapshot.sessionDate
         session.sessionType = snapshot.sessionType
         session.durationMinutes = snapshot.durationMinutes
-        session.notes = snapshot.notes
+        session.notesRichText = snapshot.notesRichText
         session.chiefComplaint = snapshot.chiefComplaint
-        session.treatmentPlan = snapshot.treatmentPlan
+        session.treatmentPlanRichText = snapshot.treatmentPlanRichText
+        session.sessionSummary = snapshot.sessionSummary
         session.status = snapshot.status
         session.financialSessionType = selectedFinancialSessionType
         session.isCourtesy = snapshot.isCourtesy
@@ -516,6 +585,27 @@ final class SessionViewModel {
         )
         try completeSession(updatedSession, in: context, paymentIntent: paymentIntent)
         return updatedSession
+    }
+
+    /// Elimina una sesión y limpia su evento de calendario asociado.
+    /// Se expone como API reutilizable para futuros flujos de borrado explícito.
+    @MainActor
+    func deleteSession(
+        _ session: Session,
+        in context: ModelContext,
+        calendarService: CalendarIntegrationService = CalendarIntegrationService()
+    ) async throws {
+        if session.calendarEventIdentifier?.isEmpty == false {
+            do {
+                try await calendarService.deleteEvent(for: session)
+            } catch {
+                // Si el evento ya no existe en EventKit, no bloqueamos el borrado clínico.
+                print("SessionViewModel calendar cleanup failed: \(error.localizedDescription)")
+            }
+        }
+
+        context.delete(session)
+        try context.save()
     }
 
     // MARK: - Finalización clínica y pagos

@@ -120,6 +120,38 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testScalesFlowCanOpenScaleIntroWithoutFreezing() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["UITEST_SCALES"]
+        app.launch()
+
+        openPatientDetail(from: app)
+
+        let scalesEntry = firstExistingElement(
+            for: "patient.detail.scales",
+            in: app
+        )
+        XCTAssertTrue(scalesEntry.waitForExistence(timeout: 6))
+        scalesEntry.tap()
+
+        let scaleRow = firstExistingElement(
+            for: "scale.row.BDI-II",
+            in: app
+        )
+        XCTAssertTrue(
+            scaleRow.waitForExistence(timeout: 6),
+            "La escala BDI-II debería poder abrirse desde la lista."
+        )
+        scaleRow.tap()
+
+        let beginButton = app.buttons["scale.intro.begin"]
+        XCTAssertTrue(
+            beginButton.waitForExistence(timeout: 6),
+            "Al tocar la escala, la intro debe mostrarse sin congelar la app."
+        )
+    }
+
     private func type(_ text: String, in textField: XCUIElement) {
         textField.tap()
         textField.typeText(text)
@@ -130,9 +162,7 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
     }
 
     private func openClinicalDashboard(from app: XCUIApplication) {
-        let patientsTab = app.tabBars.buttons["Pacientes"]
-        XCTAssertTrue(patientsTab.waitForExistence(timeout: 5))
-        patientsTab.tap()
+        openPatientList(from: app)
 
         let profileButton = app.buttons["main.profile"]
         XCTAssertTrue(profileButton.waitForExistence(timeout: 5))
@@ -149,6 +179,23 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
         clinicalDashboardEntry.tap()
     }
 
+    private func openPatientDetail(from app: XCUIApplication) {
+        openPatientList(from: app)
+
+        let patientCard = firstExistingElement(
+            for: "patient.card.Paciente Demo",
+            in: app
+        )
+        XCTAssertTrue(patientCard.waitForExistence(timeout: 6))
+        patientCard.tap()
+    }
+
+    private func openPatientList(from app: XCUIApplication) {
+        let patientsTab = app.tabBars.buttons["Pacientes"]
+        XCTAssertTrue(patientsTab.waitForExistence(timeout: 5))
+        patientsTab.tap()
+    }
+
     private func firstExistingElement(for identifier: String, in app: XCUIApplication) -> XCUIElement {
         let linksMatch = app.links[identifier]
         if linksMatch.exists {
@@ -158,6 +205,11 @@ final class Ars_Medica_DigitalisUITests: XCTestCase {
         let buttonMatch = app.buttons[identifier]
         if buttonMatch.exists {
             return buttonMatch
+        }
+
+        let staticTextMatch = app.staticTexts[identifier]
+        if staticTextMatch.exists {
+            return staticTextMatch
         }
 
         return app.otherElements[identifier]

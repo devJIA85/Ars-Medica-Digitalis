@@ -1,39 +1,45 @@
 //
-//  ScaleIntroView.swift
+//  MMSEIntroView.swift
 //  Ars Medica Digitalis
 //
-//  Pantalla inicial de una escala antes de comenzar la sesión.
+//  Pantalla intermedia de MMSE con resumen y evolución histórica.
 //
 
 import SwiftUI
+import SwiftData
 
-struct ScaleIntroView: View {
-
-    @Environment(\.dismiss) private var dismiss
-
-    let scale: ClinicalScale
+struct MMSEIntroView: View {
+    let test: MMSETest
     let patientID: UUID
     let patientName: String
-    let savedResults: [SavedScaleResultSnapshot]
     let onSessionSaved: () -> Void
 
-    @State private var route: ScaleIntroRoute? = nil
+    @Query private var savedResults: [PatientScaleResult]
+
+    @State private var route: MMSEIntroRoute? = nil
     @State private var showFullHistory: Bool = false
-    private static let historyVisibleLimit: Int = 5
     @Namespace private var glassNamespace
+    private static let historyVisibleLimit: Int = 5
 
     init(
-        scale: ClinicalScale,
+        test: MMSETest,
         patientID: UUID,
         patientName: String,
-        savedResults: [SavedScaleResultSnapshot] = [],
         onSessionSaved: @escaping () -> Void = {}
     ) {
-        self.scale = scale
+        self.test = test
         self.patientID = patientID
         self.patientName = patientName
-        self.savedResults = savedResults
         self.onSessionSaved = onSessionSaved
+
+        let patientIdentifier = patientID
+        let scaleIdentifier = test.id
+        _savedResults = Query(
+            filter: #Predicate<PatientScaleResult> { result in
+                result.patientID == patientIdentifier && result.scaleID == scaleIdentifier
+            },
+            sort: [SortDescriptor(\PatientScaleResult.date, order: .reverse)]
+        )
     }
 
     var body: some View {
@@ -70,7 +76,7 @@ struct ScaleIntroView: View {
                                         .padding(.top, AppSpacing.xs)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityIdentifier("scale.history.toggle")
+                                .accessibilityIdentifier("mmse.history.toggle")
                             }
                         }
                         .animation(.smooth(duration: 0.28), value: showFullHistory)
@@ -82,6 +88,8 @@ struct ScaleIntroView: View {
             .padding(.bottom, 80)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .safeAreaInset(edge: .bottom) {
             beginButton
@@ -89,13 +97,15 @@ struct ScaleIntroView: View {
                 .padding(.vertical, AppSpacing.md)
                 .glassEffect(.regular)
         }
-        .navigationTitle(scale.id)
+        .navigationTitle(test.id)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $route) { route in
             destination(for: route)
         }
     }
 
+    /// Encabezado visual equivalente al flujo BDI para mantener consistencia de producto.
+    /// Se usa liquid glass en el ícono para igualar lenguaje visual.
     private var heroTitle: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             ZStack {
@@ -107,14 +117,14 @@ struct ScaleIntroView: View {
             .glassEffect(.regular.tint(.blue.opacity(0.18)).interactive(), in: .circle)
             .accessibilityHidden(true)
 
-            Text(scale.name)
+            Text(test.name)
                 .font(.title.weight(.bold))
                 .foregroundStyle(.primary)
         }
     }
 
     private var descriptionSection: some View {
-        Text(scale.description)
+        Text(test.description)
             .font(.body)
             .foregroundStyle(.secondary)
             .lineSpacing(4)
@@ -123,6 +133,7 @@ struct ScaleIntroView: View {
             .frame(maxWidth: 500, alignment: .leading)
     }
 
+    /// Panel de resumen con liquid glass para reflejar exactamente la jerarquía de BDI.
     private var summaryPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             summaryRow(label: "Paciente", value: patientName)
@@ -143,7 +154,7 @@ struct ScaleIntroView: View {
 
                 Divider().frame(height: 32)
 
-                summaryRow(label: "Preguntas", value: "\(scale.items.count)")
+                summaryRow(label: "Preguntas", value: "\(test.scorableItems.count)")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -167,56 +178,8 @@ struct ScaleIntroView: View {
         .accessibilityValue(value)
     }
 
-    private func lastResultButton(_ result: SavedScaleResultSnapshot) -> some View {
-        let interpretation = scale.scoring.interpretation(for: result.totalScore)
-        let ringColor = Color.clinicalRingColor(
-            named: interpretation?.color ?? "",
-            severity: result.severity
-        )
-
-        return Button {
-            route = .savedResult(result.id)
-        } label: {
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                HStack {
-                    Label("Último resultado", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-
-                HStack(spacing: AppSpacing.sm) {
-                    Circle()
-                        .fill(ringColor)
-                        .frame(width: 10, height: 10)
-
-                    Text(interpretation?.label ?? result.severity.capitalized)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Text("·")
-                        .foregroundStyle(.secondary)
-
-                    Text("Score \(result.totalScore)/\(scale.maximumScore)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, AppSpacing.md)
-            .padding(.vertical, AppSpacing.sm + 2)
-            .glassEffect(.regular.tint(ringColor.opacity(0.16)).interactive(), in: .rect(cornerRadius: AppCornerRadius.sm))
-            .glassEffectID("result-\(result.id.uuidString)", in: glassNamespace)
-        }
-        .buttonStyle(.plain)
-    }
-
     private func resultButton(_ result: SavedScaleResultSnapshot, isLatest: Bool) -> some View {
-        let interpretation = scale.scoring.interpretation(for: result.totalScore)
+        let interpretation = test.scoring.interpretation(for: result.totalScore)
         let ringColor = Color.clinicalRingColor(
             named: interpretation?.color ?? "",
             severity: result.severity
@@ -263,7 +226,7 @@ struct ScaleIntroView: View {
                     Text("·")
                         .foregroundStyle(.secondary)
 
-                    Text("Score \(result.totalScore)/\(scale.maximumScore)")
+                    Text("Score \(result.totalScore)/\(test.maximumScore)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -271,45 +234,35 @@ struct ScaleIntroView: View {
             .padding(.horizontal, AppSpacing.md)
             .padding(.vertical, AppSpacing.sm + 2)
             .glassEffect(.regular.tint(ringColor.opacity(0.16)).interactive(), in: .rect(cornerRadius: AppCornerRadius.sm))
-            .glassEffectID("result-\(result.id.uuidString)", in: glassNamespace)
+            .glassEffectID("mmse-result-\(result.id.uuidString)", in: glassNamespace)
         }
         .buttonStyle(.plain)
     }
 
     private var beginButton: some View {
         Button {
-            route = .questionnaire
+            route = .assessment
         } label: {
             Text("Comenzar evaluación")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.glassProminent)
         .controlSize(.large)
-        .accessibilityLabel("Comenzar evaluación \(scale.name)")
-        .accessibilityIdentifier("scale.intro.begin")
+        .accessibilityIdentifier("mmse.intro.begin")
     }
 
     @ViewBuilder
-    private func destination(for route: ScaleIntroRoute) -> some View {
+    private func destination(for route: MMSEIntroRoute) -> some View {
         switch route {
-        case .questionnaire:
-            ScaleQuestionView(
-                viewModel: ScaleSessionViewModel(
-                    scale: scale,
-                    patientID: patientID
-                ),
-                onSessionSaved: {
-                    dismiss()
-                    DispatchQueue.main.async {
-                        onSessionSaved()
-                    }
-                }
+        case .assessment:
+            MMSEAssessmentView(
+                patientID: patientID,
+                onResultSaved: onSessionSaved
             )
-
         case .savedResult(let resultID):
-            if let result = savedResults.first(where: { $0.id == resultID }) {
-                ScaleSavedResultView(
-                    scale: scale,
+            if let result = snapshots.first(where: { $0.id == resultID }) {
+                MMSESavedResultView(
+                    test: test,
                     patientName: patientName,
                     result: result
                 )
@@ -323,16 +276,17 @@ struct ScaleIntroView: View {
         }
     }
 
-    private var estimatedDurationMinutes: Int {
-        max(2, Int(ceil(Double(scale.items.count) * 0.3)))
+    @MainActor
+    private var snapshots: [SavedScaleResultSnapshot] {
+        savedResults.map(SavedScaleResultSnapshot.init)
     }
 
     private var latestResult: SavedScaleResultSnapshot? {
-        savedResults.first
+        sortedResults.first
     }
 
     private var sortedResults: [SavedScaleResultSnapshot] {
-        savedResults.sorted { $0.date > $1.date }
+        snapshots.sorted { $0.date > $1.date }
     }
 
     private var visibleResults: [SavedScaleResultSnapshot] {
@@ -347,13 +301,13 @@ struct ScaleIntroView: View {
 
     private var latestResultSummaryText: String {
         guard let latestResult else { return "Sin registros" }
-        return historySummaryText(for: latestResult)
+        let interpretation = test.scoring.interpretation(for: latestResult.totalScore)?.label
+            ?? latestResult.severity.capitalized
+        return "\(interpretation) · Score \(latestResult.totalScore)"
     }
 
-    private func historySummaryText(for result: SavedScaleResultSnapshot) -> String {
-        let interpretation = scale.scoring.interpretation(for: result.totalScore)?.label
-            ?? result.severity.capitalized
-        return "\(interpretation) · Score \(result.totalScore)"
+    private var estimatedDurationMinutes: Int {
+        max(5, Int(ceil(Double(test.scorableItems.count) * 0.35)))
     }
 
     private var latestAdministrationFormatter: DateFormatter {
@@ -367,14 +321,14 @@ struct ScaleIntroView: View {
     private var historyDateFormatter: DateFormatter { latestAdministrationFormatter }
 }
 
-private enum ScaleIntroRoute: Identifiable, Hashable {
-    case questionnaire
+private enum MMSEIntroRoute: Identifiable, Hashable {
+    case assessment
     case savedResult(UUID)
 
     var id: String {
         switch self {
-        case .questionnaire:
-            "questionnaire"
+        case .assessment:
+            "assessment"
         case .savedResult(let resultID):
             "savedResult-\(resultID.uuidString)"
         }
@@ -383,32 +337,19 @@ private enum ScaleIntroRoute: Identifiable, Hashable {
 
 #Preview {
     NavigationStack {
-        ScaleIntroView(
-            scale: ClinicalScale(
-                id: "BDI-II",
-                name: "Inventario de Depresión de Beck II",
-                description: "Escala breve para valorar síntomas depresivos.",
-                timeframe: ScaleTimeframe(label: "Últimas dos semanas", value: 14, unit: "days"),
-                items: [
-                    ScaleItem(
-                        id: 1,
-                        title: "Tristeza",
-                        options: [
-                            ScaleOption(text: "No me siento triste", score: 0),
-                            ScaleOption(text: "Me siento triste", score: 1),
-                        ]
-                    ),
-                ],
-                scoring: ScaleScoring(
-                    ranges: [
-                        ScoreRange(min: 0, max: 13, label: "Depresión mínima", severity: "minimal", color: "green")
-                    ]
-                )
+        MMSEIntroView(
+            test: MMSETest(
+                id: "MMSE",
+                domain: "cognition",
+                name: "Mini Mental State Examination",
+                description: "Prueba breve para cribado cognitivo.",
+                timeframe: nil,
+                meta: MMSEMeta(maxScore: 30, version: nil, administeredBy: nil),
+                sections: [],
+                scoring: MMSEScoring(ranges: [])
             ),
             patientID: UUID(),
-            patientName: "Ana García",
-            savedResults: []
+            patientName: "Ana García"
         )
     }
 }
-

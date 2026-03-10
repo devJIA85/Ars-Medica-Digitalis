@@ -8,25 +8,26 @@
 import SwiftUI
 import Observation
 import OSLog
+import SwiftData
 
 @MainActor
 @Observable
 final class PatientDashboardStore {
 
-    private(set) var state = PatientDashboardState.empty
-
-    func load(from patients: [Patient]) {
-        state = Self.buildState(from: patients)
+    func load(from patients: [Patient], context: ModelContext? = nil) {
+        state = Self.buildState(from: patients, context: context)
     }
 
-    private static func buildState(from patients: [Patient]) -> PatientDashboardState {
+    private(set) var state = PatientDashboardState.empty
+
+    private static func buildState(from patients: [Patient], context: ModelContext? = nil) -> PatientDashboardState {
         let overallState = PatientDashboardProfiler.signposter.beginInterval("Build Patient Dashboard")
         defer {
             PatientDashboardProfiler.signposter.endInterval("Build Patient Dashboard", overallState)
         }
 
         let snapshotsState = PatientDashboardProfiler.signposter.beginInterval("Build Snapshot Cache")
-        let snapshotCache = ClinicalSnapshotBuilder.buildSnapshots(patients: patients)
+        let snapshotCache = ClinicalSnapshotBuilder.buildSnapshots(patients: patients, context: context)
         PatientDashboardProfiler.signposter.endInterval("Build Snapshot Cache", snapshotsState)
 
         let insightsState = PatientDashboardProfiler.signposter.beginInterval("Build Insight Cache")
@@ -341,7 +342,7 @@ struct PatientDashboardView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.xl) {
                 if state.hasPatients {
-                    ClinicalInsightsHeader(
+                    ClinicalInsightsCard(
                         summary: state.summary,
                         isCollapsed: insightsCollapsed,
                         selectedRadarBucket: selectedPriorityBucket,
@@ -654,6 +655,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
     let alertKinds: Set<PatientAlert.Kind>
     let daysSinceLastSession: Int?
     let sessionSummary: String
+    let bdiSeverity: String?
     let transitionDelay: Double
 
     var sectionKind: PatientDashboardSection.Kind {
@@ -739,6 +741,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
         alertKinds = Set(insight.alerts.map(\.kind))
         daysSinceLastSession = snapshot.daysSinceLastSession
         sessionSummary = Self.makeSessionSummary(snapshot: snapshot)
+        bdiSeverity = snapshot.bdiSeverity
         transitionDelay = 0
     }
 
@@ -763,6 +766,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
         alertKinds: Set<PatientAlert.Kind>,
         daysSinceLastSession: Int?,
         sessionSummary: String,
+        bdiSeverity: String?,
         transitionDelay: Double
     ) {
         self.patient = patient
@@ -785,6 +789,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
         self.alertKinds = alertKinds
         self.daysSinceLastSession = daysSinceLastSession
         self.sessionSummary = sessionSummary
+        self.bdiSeverity = bdiSeverity
         self.transitionDelay = transitionDelay
     }
 
@@ -810,6 +815,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
             alertKinds: alertKinds,
             daysSinceLastSession: daysSinceLastSession,
             sessionSummary: sessionSummary,
+            bdiSeverity: bdiSeverity,
             transitionDelay: transitionDelay
         )
     }
@@ -892,6 +898,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
             && lhs.alertKinds == rhs.alertKinds
             && lhs.daysSinceLastSession == rhs.daysSinceLastSession
             && lhs.sessionSummary == rhs.sessionSummary
+            && lhs.bdiSeverity == rhs.bdiSeverity
             && lhs.transitionDelay == rhs.transitionDelay
     }
 }
@@ -904,3 +911,4 @@ private enum PatientDashboardProfiler {
         )
     )
 }
+

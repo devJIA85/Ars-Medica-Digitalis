@@ -28,26 +28,27 @@ struct ScaleQuestionView: View {
         VStack(spacing: AppSpacing.lg) {
             header
 
-            ZStack {
-                if let currentItem = viewModel.currentItem {
-                    questionContent(item: currentItem)
-                        .id(currentItem.id)
-                        .transition(
-                            .move(edge: transitionEdge)
-                                .combined(with: .opacity)
-                        )
+            ScrollView {
+                ZStack {
+                    if let currentItem = viewModel.currentItem {
+                        questionContent(item: currentItem)
+                            .id(currentItem.id)
+                            .transition(
+                                .move(edge: transitionEdge)
+                                    .combined(with: .opacity)
+                            )
+                    }
                 }
+                .animation(.easeInOut(duration: 0.25), value: viewModel.currentQuestionIndex)
             }
-            .animation(.easeInOut(duration: 0.25), value: viewModel.currentQuestionIndex)
-
-            Spacer(minLength: 0)
+            .scrollBounceBehavior(.basedOnSize)
 
             footerControls
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, AppSpacing.lg)
         .padding(.bottom, AppSpacing.lg)
-        .themedBackground()
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle(viewModel.scale.id)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showingResult) {
@@ -84,21 +85,38 @@ struct ScaleQuestionView: View {
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.primary)
 
-            ProgressView(value: viewModel.progress)
-                .progressViewStyle(.linear)
+            ProgressView(
+                value: Double(viewModel.currentQuestionIndex + 1),
+                total: Double(viewModel.totalQuestions)
+            )
+            .progressViewStyle(.linear)
+            .tint(.blue)
+            .animation(.easeInOut(duration: 0.25), value: viewModel.currentQuestionIndex)
+
+            Text("Progreso \(progressPercentage)%")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var progressPercentage: Int {
+        guard viewModel.totalQuestions > 0 else { return 0 }
+        return ((viewModel.currentQuestionIndex + 1) * 100) / viewModel.totalQuestions
+    }
+
     private func questionContent(item: ScaleItem) -> some View {
         VStack(spacing: AppSpacing.md) {
-            CardContainer(style: .elevated) {
+            CardContainer(
+                style: .elevated,
+                usesGlassEffect: false,
+                backgroundStyle: .solid(Color(uiColor: .systemBackground))
+            ) {
                 Text(item.title)
                     .font(.title3.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .foregroundStyle(.primary)
             }
-            .glassCardEntrance()
 
             VStack(spacing: AppSpacing.sm) {
                 ForEach(item.options) { option in
@@ -119,27 +137,29 @@ struct ScaleQuestionView: View {
             HStack(spacing: AppSpacing.md) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    .foregroundStyle(isSelected ? .blue : .secondary)
                     .accessibilityHidden(true)
 
                 Text(option.text)
                     .font(.body)
                     .multilineTextAlignment(.leading)
                     .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(AppSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+                    .fill(isSelected ? Color.blue.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                    .strokeBorder(isSelected ? Color.accentColor.opacity(0.30) : Color.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(isSelected ? Color.blue.opacity(0.35) : Color.primary.opacity(0.08), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
+        .tint(.blue)
         .accessibilityLabel("\(option.text). Puntaje \(option.score)")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }

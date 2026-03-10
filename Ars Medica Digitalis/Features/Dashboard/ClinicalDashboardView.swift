@@ -12,13 +12,14 @@ struct ClinicalDashboardView: View {
 
     let professional: Professional
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Patient.lastName) private var allPatients: [Patient]
     @State private var filter: ClinicalDashboardFilter = .all
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.lg) {
-                ClinicalInsightsHeader(
+                ClinicalInsightsCard(
                     criticalPatients: dashboardState.criticalPatients,
                     riskPatients: dashboardState.riskPatients,
                     averageAdherence: dashboardState.averageAdherence,
@@ -80,7 +81,7 @@ struct ClinicalDashboardView: View {
     }
 
     private func buildState(from patients: [Patient]) -> ClinicalDashboardState {
-        let snapshotCache = ClinicalSnapshotBuilder.buildSnapshots(patients: patients)
+        let snapshotCache = ClinicalSnapshotBuilder.buildSnapshots(patients: patients, context: modelContext)
         let insightEngine = PatientInsightEngine()
 
         let rows = patients.compactMap { patient -> ClinicalDashboardPatientRowModel? in
@@ -255,6 +256,9 @@ private struct ClinicalDashboardPatientRow: View {
                         if row.hasDebt {
                             StatusBadge(label: "Saldo pendiente", variant: .warning, systemImage: "exclamationmark.circle")
                         }
+                        if BDISeverityLevel.from(rawSeverity: row.bdiSeverity)?.isHighDepression == true {
+                            StatusBadge(label: "BDI alto", variant: .danger, systemImage: "exclamationmark.triangle")
+                        }
                     }
                 }
             }
@@ -287,6 +291,7 @@ private struct ClinicalDashboardPatientRowModel: Identifiable {
     let daysSinceLastSession: Int?
     let subtitle: String
     let sectionKind: ClinicalDashboardSection.Kind
+    let bdiSeverity: String?
 
     init(patient: Patient, snapshot: PatientClinicalSnapshot, insight: PatientInsight) {
         id = patient.id
@@ -307,6 +312,7 @@ private struct ClinicalDashboardPatientRowModel: Identifiable {
         daysSinceLastSession = snapshot.daysSinceLastSession
         subtitle = Self.makeSubtitle(snapshot: snapshot)
         sectionKind = Self.makeSectionKind(for: insight.priorityLevel)
+        bdiSeverity = snapshot.bdiSeverity
     }
 
     private static func makeAdherenceLabel(from adherence: Double) -> String {

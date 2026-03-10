@@ -108,6 +108,7 @@ private struct PatientFilteredList: View {
 
     @Query private var patients: [Patient]
     @State private var store = PatientDashboardStore()
+    @Environment(\.modelContext) private var modelContext
 
     let professional: Professional
     let onDelete: (Patient) -> Void
@@ -153,7 +154,7 @@ private struct PatientFilteredList: View {
             onDelete: onDelete
         )
         .task(id: refreshToken) {
-            store.load(from: patients)
+            store.load(from: patients, context: modelContext)
         }
     }
 
@@ -227,3 +228,4 @@ private struct PatientFilteredList: View {
     return PreviewWrapper(professional: professional)
         .modelContainer(container)
 }
+

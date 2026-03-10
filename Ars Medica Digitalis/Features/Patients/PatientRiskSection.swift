@@ -30,6 +30,7 @@ struct PatientRiskSection: View {
                             .equatable()
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("patient.card.\(row.fullName)")
                     .matchedTransitionSource(id: row.id, in: namespace)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if row.isActive {
@@ -76,11 +77,8 @@ struct PatientRiskSection: View {
                             .symbolRenderingMode(.hierarchical)
                     }
                     .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.thinMaterial, in: Capsule(style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glass)
                 .accessibilityLabel(L10n.tr("patient.dashboard.priority_filter.clear"))
             }
 
@@ -89,7 +87,7 @@ struct PatientRiskSection: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(.thinMaterial, in: Capsule(style: .continuous))
+                .glassEffect(in: Capsule(style: .continuous))
         }
     }
 }

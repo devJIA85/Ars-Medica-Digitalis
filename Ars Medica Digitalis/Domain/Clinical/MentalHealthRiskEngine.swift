@@ -34,13 +34,16 @@ struct MentalHealthRiskEngine: Sendable {
     func computeRisk(snapshot: PatientClinicalSnapshot) -> MentalHealthRiskScore {
         let adherenceRisk = Self.computeAdherenceRisk(snapshot: snapshot)
         let dropoutRisk = Self.computeDropoutRisk(snapshot: snapshot)
+        let clinicalModifier = BDISeverityLevel
+            .from(rawSeverity: snapshot.bdiSeverity)?
+            .clinicalRiskModifier ?? 0
         let totalScore = Self.clamp(
             Int(
                 round(
                     (Double(adherenceRisk) * 0.45)
                     + (Double(dropoutRisk) * 0.55)
                 )
-            ),
+            ) + clinicalModifier,
             lower: 0,
             upper: 100
         )

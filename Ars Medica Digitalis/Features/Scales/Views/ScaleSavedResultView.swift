@@ -11,7 +11,7 @@ struct ScaleSavedResultView: View {
 
     let scale: ClinicalScale
     let patientName: String
-    let result: PatientScaleResult
+    let result: SavedScaleResultSnapshot
 
     var body: some View {
         ScrollView {
@@ -30,43 +30,48 @@ struct ScaleSavedResultView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
-        .themedBackground()
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Resultado guardado")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private var summaryCard: some View {
-        CardContainer(style: .elevated) {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                Text("Paciente: \(patientName)")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+        VStack(spacing: AppSpacing.lg) {
+            // Score ring
+            ClinicalScoreRing(
+                score: result.totalScore,
+                maxScore: scale.maximumScore,
+                ranges: scale.scoring.ranges,
+                colorName: scale.scoring.interpretation(for: result.totalScore)?.color ?? "",
+                severity: result.severity
+            )
 
-                Text(dateFormatter.string(from: result.date))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            Text(interpretationLabel)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.clinicalRingColor(
+                    named: scale.scoring.interpretation(for: result.totalScore)?.color ?? "",
+                    severity: result.severity
+                ))
 
-                Divider()
-
-                Text("Score: \(result.totalScore) / \(scale.maximumScore)")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .monospacedDigit()
-
-                Text(interpretationLabel)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Text("Severidad: \(result.severity)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            // Details card
+            VStack(spacing: AppSpacing.md) {
+                LabeledContent("Paciente", value: patientName)
+                LabeledContent("Fecha", value: dateFormatter.string(from: result.date))
+                LabeledContent("Severidad", value: result.severity.capitalized)
             }
+            .font(.body)
+            .padding(20)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
         }
-        .glassCardEntrance()
     }
 
     private func answerCard(_ answered: AnsweredItem) -> some View {
-        CardContainer(style: .flat) {
+        CardContainer(
+            style: .flat,
+            usesGlassEffect: false,
+            backgroundStyle: .solid(Color(uiColor: .secondarySystemGroupedBackground))
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 Text("Pregunta \(answered.itemID)")
                     .font(.caption.weight(.semibold))
@@ -87,7 +92,6 @@ struct ScaleSavedResultView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .glassCardEntrance()
     }
 
     private var interpretationLabel: String {

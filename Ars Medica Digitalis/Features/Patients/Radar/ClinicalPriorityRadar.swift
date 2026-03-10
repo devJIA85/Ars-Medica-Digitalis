@@ -9,12 +9,15 @@ import SwiftUI
 
 enum ClinicalRadarSize: Sendable, Equatable {
     case large
+    case compact
     case mini
 
     var diameter: CGFloat {
         switch self {
         case .large:
             136
+        case .compact:
+            80
         case .mini:
             30
         }
@@ -24,6 +27,8 @@ enum ClinicalRadarSize: Sendable, Equatable {
         switch self {
         case .large:
             15
+        case .compact:
+            9
         case .mini:
             4
         }
@@ -33,6 +38,8 @@ enum ClinicalRadarSize: Sendable, Equatable {
         switch self {
         case .large:
             4
+        case .compact:
+            3
         case .mini:
             2
         }
@@ -46,6 +53,8 @@ enum ClinicalRadarSize: Sendable, Equatable {
         switch self {
         case .large:
             1.5
+        case .compact:
+            1
         case .mini:
             0.7
         }
@@ -55,6 +64,8 @@ enum ClinicalRadarSize: Sendable, Equatable {
         switch self {
         case .large:
             0.56
+        case .compact:
+            0
         case .mini:
             0
         }
@@ -263,6 +274,8 @@ struct ClinicalPriorityRadar: View {
         switch size {
         case .large:
             0.62
+        case .compact:
+            0.6
         case .mini:
             0.46
         }
@@ -270,7 +283,16 @@ struct ClinicalPriorityRadar: View {
 
     private func lineWidth(for bucket: ClinicalPriorityBucket) -> CGFloat {
         let base = size.lineWidth
-        let selectionBoost: CGFloat = localSelection == bucket ? (size == .large ? 2 : 1) : 0
+        let selectionBoost: CGFloat = localSelection == bucket ? {
+            switch size {
+            case .large:
+                2
+            case .compact:
+                1.5
+            case .mini:
+                1
+            }
+        }() : 0
         let pulseBoost = bucket == .critical && shouldPulseCritical ? size.pulseBoost : 0
         return base + selectionBoost + pulseBoost
     }

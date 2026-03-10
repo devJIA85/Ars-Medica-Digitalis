@@ -24,9 +24,21 @@ final class Session {
     var sessionType: String = SessionTypeMapping.presencial.rawValue   // "presencial" | "videollamada" | "telefónica"
     var durationMinutes: Int = 50
     var notes: String = ""                   // ⚠️ CRÍTICO — contenido clínico privado
+    /// Persistencia rica (iOS 26): AttributedString codificado en Data.
+    /// Se guarda aparte para preservar formato (negrita, listas, encabezados).
+    @Attribute(.externalStorage)
+    var notesRichTextData: Data = Data()
     var chiefComplaint: String = ""          // Motivo de consulta
     var treatmentPlan: String = ""
+    /// Resumen clínico breve (editable) generado por Apple Intelligence.
+    var sessionSummary: String = ""
+    /// Persistencia rica (iOS 26): plan terapéutico con formato.
+    @Attribute(.externalStorage)
+    var treatmentPlanRichTextData: Data = Data()
     var status: String = SessionStatusMapping.completada.rawValue      // "programada" | "completada" | "cancelada"
+    /// Identificador del evento en el calendario del sistema (EventKit).
+    /// Permite actualizar/eliminar la misma cita sin duplicar eventos.
+    var calendarEventIdentifier: String? = nil
 
     // Trazabilidad
     var createdAt: Date = Date()
@@ -66,6 +78,36 @@ final class Session {
     @Relationship(deleteRule: .cascade, inverse: \Payment.session)
     var payments: [Payment]? = []
 
+    /// API rica para la UI de edición.
+    /// Conserva `notes` como fallback plano para compatibilidad y exportación.
+    var notesRichText: AttributedString {
+        get {
+            Self.decodeRichText(
+                from: notesRichTextData,
+                fallbackPlainText: notes
+            )
+        }
+        set {
+            notes = String(newValue.characters)
+            notesRichTextData = Self.encodeRichText(newValue)
+        }
+    }
+
+    /// API rica para el plan terapéutico.
+    /// Mantiene `treatmentPlan` como lectura plana en vistas que aún no renderizan atributos.
+    var treatmentPlanRichText: AttributedString {
+        get {
+            Self.decodeRichText(
+                from: treatmentPlanRichTextData,
+                fallbackPlainText: treatmentPlan
+            )
+        }
+        set {
+            treatmentPlan = String(newValue.characters)
+            treatmentPlanRichTextData = Self.encodeRichText(newValue)
+        }
+    }
+
     /// Acceso tipado para modalidad sin romper compatibilidad de persistencia.
     var sessionTypeValue: SessionTypeMapping {
         get { SessionTypeMapping(sessionTypeRawValue: sessionType) ?? .presencial }
@@ -83,6 +125,18 @@ final class Session {
     var scheduledAt: Date {
         get { sessionDate }
         set { sessionDate = newValue }
+    }
+
+    /// Alias semántico para sincronización con EventKit.
+    var startDate: Date {
+        get { sessionDate }
+        set { sessionDate = newValue }
+    }
+
+    /// Fin de sesión calculado por duración para agenda y calendario.
+    var endDate: Date {
+        let minutes = max(durationMinutes, 1)
+        return startDate.addingTimeInterval(TimeInterval(minutes * 60))
     }
 
     /// Indica si la sesión ya quedó cerrada clínicamente.
@@ -177,9 +231,13 @@ final class Session {
         sessionType: String = SessionTypeMapping.presencial.rawValue,
         durationMinutes: Int = 50,
         notes: String = "",
+        notesRichText: AttributedString? = nil,
         chiefComplaint: String = "",
         treatmentPlan: String = "",
+        sessionSummary: String = "",
+        treatmentPlanRichText: AttributedString? = nil,
         status: String = SessionStatusMapping.completada.rawValue,
+        calendarEventIdentifier: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         completedAt: Date? = nil,
@@ -198,10 +256,16 @@ final class Session {
         self.sessionDate = sessionDate
         self.sessionType = sessionType
         self.durationMinutes = durationMinutes
-        self.notes = notes
+        let resolvedNotesRichText = notesRichText ?? AttributedString(notes)
+        self.notes = String(resolvedNotesRichText.characters)
+        self.notesRichTextData = Self.encodeRichText(resolvedNotesRichText)
         self.chiefComplaint = chiefComplaint
-        self.treatmentPlan = treatmentPlan
+        let resolvedTreatmentPlanRichText = treatmentPlanRichText ?? AttributedString(treatmentPlan)
+        self.treatmentPlan = String(resolvedTreatmentPlanRichText.characters)
+        self.sessionSummary = sessionSummary
+        self.treatmentPlanRichTextData = Self.encodeRichText(resolvedTreatmentPlanRichText)
         self.status = status
+        self.calendarEventIdentifier = calendarEventIdentifier
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.completedAt = completedAt
@@ -215,5 +279,20 @@ final class Session {
         self.finalCurrencySnapshot = finalCurrencySnapshot
         self.isCourtesy = isCourtesy
         self.payments = payments
+    }
+
+    /// Encapsula la estrategia Codable -> Data para no repetirla fuera del modelo.
+    private static func encodeRichText(_ text: AttributedString) -> Data {
+        (try? JSONEncoder().encode(text)) ?? Data()
+    }
+
+    /// Decodifica rich text y cae a plano cuando se abre una sesión legada.
+    private static func decodeRichText(from data: Data, fallbackPlainText: String) -> AttributedString {
+        guard data.isEmpty == false,
+              let decoded = try? JSONDecoder().decode(AttributedString.self, from: data) else {
+            return AttributedString(fallbackPlainText)
+        }
+
+        return decoded
     }
 }

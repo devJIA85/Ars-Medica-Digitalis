@@ -39,9 +39,10 @@ struct SessionPhantomRepairService {
     /// Ejecuta una limpieza conservadora de sesiones fantasma.
     /// Solo elimina registros imposibles de haber sido creados desde la UI
     /// real para no tocar sesiones clínicas legítimas.
-    func repairIfNeeded(in context: ModelContext) throws -> SessionRepairResult {
+    func repairIfNeeded(in context: ModelContext) async throws -> SessionRepairResult {
         let descriptor = FetchDescriptor<Session>()
         let allSessions = try context.fetch(descriptor)
+        let calendarService = CalendarIntegrationService()
 
         let phantomSessions = allSessions.filter(SessionPhantomHeuristics.isPhantomCandidate)
         guard phantomSessions.isEmpty == false else {
@@ -50,6 +51,13 @@ struct SessionPhantomRepairService {
         }
 
         for session in phantomSessions {
+            if session.calendarEventIdentifier?.isEmpty == false {
+                do {
+                    try await calendarService.deleteEvent(for: session)
+                } catch {
+                    print("SessionPhantomRepairService calendar cleanup failed: \(error.localizedDescription)")
+                }
+            }
             context.delete(session)
         }
 

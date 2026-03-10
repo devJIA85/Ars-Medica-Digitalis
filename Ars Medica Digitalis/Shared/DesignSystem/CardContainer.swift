@@ -19,10 +19,16 @@ struct CardContainer<Content: View>: View {
         case flat
     }
 
+    enum BackgroundStyle {
+        case material
+        case solid(Color)
+    }
+
     var title: String? = nil
     var systemImage: String? = nil
     var style: Style = .flat
     var usesGlassEffect: Bool = true
+    var backgroundStyle: BackgroundStyle = .material
     @ViewBuilder var content: Content
 
     private var cornerRadius: CGFloat {
@@ -31,6 +37,15 @@ struct CardContainer<Content: View>: View {
 
     private var shape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    private var cardFillStyle: AnyShapeStyle {
+        switch backgroundStyle {
+        case .material:
+            return AnyShapeStyle(style == .elevated ? .regularMaterial : .thinMaterial)
+        case .solid(let color):
+            return AnyShapeStyle(color)
+        }
     }
 
     var body: some View {
@@ -71,7 +86,7 @@ struct CardContainer<Content: View>: View {
         .padding(AppSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            style == .elevated ? .regularMaterial : .thinMaterial,
+            cardFillStyle,
             in: shape
         )
     }

@@ -45,13 +45,9 @@ struct PatientCard: View, Equatable {
         }
         .padding(AppSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+            .thinMaterial,
+            in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 1)
-        }
         .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
         .opacity(isVisible ? 1 : 0)
         .offset(y: isVisible ? 0 : 12)
@@ -111,6 +107,11 @@ struct PatientCard: View, Equatable {
 
                 StatusBadge(label: model.activeBadgeLabel, variant: model.activeBadgeVariant, systemImage: "person.fill")
                     .accessibilityLabel(L10n.tr("patient.dashboard.badge.status.accessibility", model.activeBadgeLabel))
+
+                if BDISeverityLevel.from(rawSeverity: model.bdiSeverity)?.isHighDepression == true {
+                    StatusBadge(label: "BDI alto", variant: .danger, systemImage: "exclamationmark.triangle")
+                        .accessibilityLabel("BDI alto: severidad de depresión elevada")
+                }
             }
             .padding(.vertical, 2)
         }
@@ -137,11 +138,7 @@ private struct PatientRiskAvatar: View {
                 size: 54
             )
             .padding(4)
-            .background(Circle().fill(Color(uiColor: .systemBackground)))
-            .overlay {
-                Circle()
-                    .strokeBorder(ringTint.opacity(0.22), lineWidth: 1)
-            }
+            .background(Circle().fill(.ultraThinMaterial))
 
             Circle()
                 .stroke(ringTint, style: StrokeStyle(lineWidth: 4, lineCap: .round))

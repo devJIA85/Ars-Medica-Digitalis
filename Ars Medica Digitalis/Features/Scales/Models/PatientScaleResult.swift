@@ -37,3 +37,23 @@ final class PatientScaleResult {
         self.answers = answers
     }
 }
+
+struct SavedScaleResultSnapshot: Identifiable, Equatable, Hashable {
+    let id: UUID
+    let patientID: UUID
+    let scaleID: String
+    let date: Date
+    let totalScore: Int
+    let severity: String
+    let answers: [ScaleAnswer]
+
+    init(result: PatientScaleResult) {
+        id = result.id
+        patientID = result.patientID
+        scaleID = result.scaleID
+        date = result.date
+        totalScore = result.totalScore
+        severity = result.severity
+        answers = result.answers
+    }
+}

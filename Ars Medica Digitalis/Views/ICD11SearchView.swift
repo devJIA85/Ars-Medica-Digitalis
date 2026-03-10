@@ -53,19 +53,13 @@ struct ICD11SearchView: View {
         .navigationTitle("Buscar CIE-11")
         .searchable(
             text: $searchText,
-            placement: searchPlacement,
+            placement: .automatic,
             prompt: "Ej: depresión, fractura, diabetes..."
         )
+        .searchToolbarBehavior(.minimize)
         .onChange(of: searchText) { _, newValue in
             viewModel.search(query: newValue, context: modelContext)
         }
-    }
-
-    private var searchPlacement: SearchFieldPlacement {
-        if #available(iOS 26.0, *) {
-            return .toolbar
-        }
-        return .automatic
     }
 
     // MARK: - Badge Offline

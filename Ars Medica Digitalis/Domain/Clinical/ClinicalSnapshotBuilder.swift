@@ -7,15 +7,20 @@
 //
 
 import Foundation
+import SwiftData
 
 enum ClinicalSnapshotBuilder {
 
     @MainActor
-    static func buildSnapshots(patients: [Patient]) -> ClinicalSnapshotCache {
+    static func buildSnapshots(
+        patients: [Patient],
+        context: ModelContext? = nil
+    ) -> ClinicalSnapshotCache {
         buildSnapshots(
             patients: patients,
             referenceDate: Date(),
-            calendar: .current
+            calendar: .current,
+            context: context
         )
     }
 
@@ -23,26 +28,30 @@ enum ClinicalSnapshotBuilder {
     static func buildSnapshots(
         patients: [Patient],
         referenceDate: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        context: ModelContext? = nil
     ) -> ClinicalSnapshotCache {
         let sources = patients.map(PatientClinicalSource.init)
         return buildSnapshots(
             sources: sources,
             referenceDate: referenceDate,
-            calendar: calendar
+            calendar: calendar,
+            context: context
         )
     }
 
     private static func buildSnapshots(
         sources: [PatientClinicalSource],
         referenceDate: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        context: ModelContext?
     ) -> ClinicalSnapshotCache {
         sources.reduce(into: ClinicalSnapshotCache()) { partialResult, patient in
             partialResult[patient.patientID] = snapshot(
                 for: patient,
                 referenceDate: referenceDate,
-                calendar: calendar
+                calendar: calendar,
+                context: context
             )
         }
     }
@@ -50,7 +59,8 @@ enum ClinicalSnapshotBuilder {
     private static func snapshot(
         for patient: PatientClinicalSource,
         referenceDate: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        context: ModelContext?
     ) -> PatientClinicalSnapshot {
         let completedSessions = patient.sessions.filter { $0.status == .completed }
         let cancelledSessions = patient.sessions.filter { $0.status == .cancelled }
@@ -64,6 +74,18 @@ enum ClinicalSnapshotBuilder {
             .filter { $0.status == .scheduled && $0.sessionDate >= today }
             .map(\.sessionDate)
             .min()
+
+        var bdiScore: Int? = nil
+        var bdiSeverity: String? = nil
+        var lastBDIDate: Date? = nil
+        if let context {
+            let instrumentEngine = ClinicalInstrumentEngine()
+            if let latestBDI = instrumentEngine.latestResult(for: patient.patientID, scaleID: "BDI-II", in: context) {
+                bdiScore = latestBDI.totalScore
+                bdiSeverity = latestBDI.severity
+                lastBDIDate = latestBDI.date
+            }
+        }
 
         return PatientClinicalSnapshot(
             patientID: patient.patientID,
@@ -82,7 +104,10 @@ enum ClinicalSnapshotBuilder {
                 calendar: calendar
             ),
             diagnosisSummary: diagnosisSummary(for: patient, completedSessions: completedSessions),
-            hasDebt: hasDebt(for: patient, calendar: calendar)
+            hasDebt: hasDebt(for: patient, calendar: calendar),
+            bdiScore: bdiScore,
+            bdiSeverity: bdiSeverity,
+            lastBDIDate: lastBDIDate
         )
     }
 
@@ -511,3 +536,4 @@ private struct SessionTypePriceVersionSource: Sendable {
         updatedAt = version.updatedAt
     }
 }
+

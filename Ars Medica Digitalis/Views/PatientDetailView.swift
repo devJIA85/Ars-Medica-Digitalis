@@ -32,10 +32,13 @@ struct PatientDetailView: View {
         ScrollView {
             VStack(spacing: AppSpacing.sectionGap) {
 
-                // 1. Avatar + próxima cita (sin card, sin nombre)
+                // 1. Compact header — avatar + name + clinical status
                 PatientQuickInfo(patient: patient)
 
-                // 2. Diagnósticos activos — card elevada Apple Health
+                // Context badges — next appointment, currency, debt
+                contextBadges
+
+                // 2. Primary diagnosis — the most clinically important card
                 ActiveDiagnosesCard(
                     patient: patient,
                     diagnoses: sortedActiveDiagnoses,
@@ -48,48 +51,29 @@ struct PatientDetailView: View {
                 .scaleEffect(didAppearDiagnoses ? 1 : 0.97)
                 .animation(.smooth(duration: 0.4), value: didAppearDiagnoses)
 
-                // 3. Historia clínica — acceso rápido siempre visible
-                MedicationCard(
-                    patient: patient,
-                    professional: professional,
-                    count: activeMedicationCount
-                )
+                // 3. Clinical activity timeline — recent events summary
+                ClinicalActivityTimeline(patient: patient)
 
-                NavigationLink {
+                // 4. Clinical modules — historia clínica + escalas
+                ClinicalModuleRow(
+                    title: "Historia clínica",
+                    systemImage: "heart.text.clipboard",
+                    detail: medicationDetail
+                ) {
+                    PatientMedicalHistoryView(patient: patient, professional: professional)
+                }
+
+                ClinicalModuleRow(
+                    title: "Escalas clínicas",
+                    systemImage: "list.bullet.clipboard",
+                    detail: scalesDetail
+                ) {
                     ScalesListView(
                         patientID: patient.id,
                         patientName: patient.fullName
                     )
-                } label: {
-                    CardContainer(style: .flat) {
-                        HStack(spacing: AppSpacing.md) {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.14))
-                                .frame(width: 40, height: 40)
-                                .overlay {
-                                    Image(systemName: "list.bullet.clipboard")
-                                        .foregroundStyle(Color.accentColor)
-                                }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Escalas clínicas")
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(.primary)
-
-                                Text("BDI-II y próximas escalas psicométricas")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer(minLength: AppSpacing.md)
-
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
                 }
-                .buttonStyle(.plain)
+                .accessibilityIdentifier("patient.detail.scales")
 
                 if patient.hasOutstandingDebt {
                     PatientFinanceCard(
@@ -98,7 +82,7 @@ struct PatientDetailView: View {
                     )
                 }
 
-                // 4. Sesiones — timeline protagonista
+                // 5. Sessions — timeline
                 SessionsSection(
                     patient: patient,
                     onCreateSession: { showingNewSession = true }
@@ -107,7 +91,7 @@ struct PatientDetailView: View {
                 .offset(y: didAppearSessions ? 0 : 16)
                 .animation(.smooth(duration: 0.4).delay(0.08), value: didAppearSessions)
 
-                // 5. Contexto plegable — datos personales, HC, contacto, audit, acciones
+                // 6. Patient info — collapsible, reduced dividers
                 CollapsibleContextSection(
                     patient: patient,
                     professional: professional,
@@ -237,6 +221,62 @@ struct PatientDetailView: View {
         return parts.joined(separator: " · ")
     }
 
+    // MARK: - Context badges
+
+    @ViewBuilder
+    private var contextBadges: some View {
+        let next = nextAppointmentDate
+        let currency = patient.currencyCode.trimmed
+        let hasDebt = patient.hasOutstandingDebt
+
+        if next != nil || currency.isEmpty == false || hasDebt {
+            HStack(spacing: AppSpacing.sm) {
+                if let next {
+                    StatusBadge(
+                        label: "Próxima: \(next.esDayMonthAbbrev())",
+                        variant: .warning,
+                        systemImage: "calendar.badge.clock"
+                    )
+                }
+
+                if currency.isEmpty == false {
+                    StatusBadge(
+                        label: currency,
+                        variant: .custom(.blue),
+                        systemImage: "dollarsign.circle"
+                    )
+                }
+
+                if hasDebt {
+                    StatusBadge(
+                        label: L10n.tr("patient.list.badge.debt"),
+                        variant: .danger,
+                        systemImage: "exclamationmark.circle"
+                    )
+                }
+            }
+        }
+    }
+
+    private var nextAppointmentDate: Date? {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (patient.sessions ?? [])
+            .filter { $0.sessionStatusValue == .programada && $0.sessionDate >= today }
+            .map(\.sessionDate)
+            .min()
+    }
+
+    // MARK: - Clinical module details
+
+    private var medicationDetail: String {
+        let count = activeMedicationCount
+        return count > 0 ? "\(count) med. activa\(count == 1 ? "" : "s")" : "Sin med. activa"
+    }
+
+    private var scalesDetail: String {
+        "BDI-II disponible"
+    }
+
     // MARK: - Medicación
 
     private var activeMedicationCount: Int {
@@ -341,88 +381,84 @@ private struct PatientFinanceCard: View {
                     Text(L10n.tr("patient.debt.card.action"))
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
             }
         }
     }
 }
 
-// MARK: - Header (toolbar principal)
+// MARK: - Header (toolbar principal — compact)
 
 private struct PatientHeaderContent: View {
     let patient: Patient
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text(patient.fullName)
-                .font(.headline)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(patient.fullName), \(subtitle)")
-    }
-
-    private var subtitle: String {
-        var parts = ["\(patient.age) años"]
-        if let nextBirthday = patient.nextBirthday {
-            parts.append("Cumple \(nextBirthday.esDayMonthAbbrev())")
-        }
-        return parts.joined(separator: " · ")
+        Text(patient.fullName)
+            .font(.headline)
+            .lineLimit(1)
+            .accessibilityLabel(patient.fullName)
     }
 }
 
-// MARK: - Quick Info (avatar + próxima cita)
+// MARK: - Quick Info (compact header — avatar + identity + status)
 
 private struct PatientQuickInfo: View {
     let patient: Patient
 
     var body: some View {
-        VStack(spacing: AppSpacing.sm) {
+        HStack(alignment: .center, spacing: AppSpacing.md) {
             PatientAvatarView(
                 photoData: patient.photoData,
                 firstName: patient.firstName,
                 lastName: patient.lastName,
                 genderHint: patient.gender.isEmpty ? patient.biologicalSex : patient.gender,
                 clinicalStatus: patient.clinicalStatus,
-                size: 56
+                size: 52
             )
             .accessibilityHidden(true)
 
-            // Reúne la próxima cita y la moneda asignada en el mismo bloque
-            // para que el profesional vea de un vistazo agenda y contexto financiero.
-            if nextAppointmentDate != nil || assignedCurrencyCode.isEmpty == false || patient.hasOutstandingDebt {
-                HStack(spacing: AppSpacing.sm) {
-                    if let next = nextAppointmentDate {
-                        StatusBadge(
-                            label: "Próxima: \(next.esDayMonthAbbrev())",
-                            variant: .warning,
-                            systemImage: "calendar.badge.clock"
-                        )
-                    }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(patient.fullName)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-                    if assignedCurrencyCode.isEmpty == false {
-                        StatusBadge(
-                            label: assignedCurrencyCode,
-                            variant: .custom(.blue),
-                            systemImage: "dollarsign.circle"
-                        )
-                    }
+                ClinicalStatusBadge(status: patient.clinicalStatusValue)
 
-                    if patient.hasOutstandingDebt {
-                        StatusBadge(
-                            label: L10n.tr("patient.list.badge.debt"),
-                            variant: .danger,
-                            systemImage: "exclamationmark.circle"
-                        )
-                    }
-                }
+                Text(metadataLine)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, AppSpacing.xs)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var metadataLine: String {
+        var parts = ["\(patient.age) años"]
+        if let nextBirthday = patient.nextBirthday {
+            parts.append("Cumple \(nextBirthday.esDayMonthAbbrev())")
+        }
+        if let flag = patient.nationality.flagEmoji {
+            parts.append(flag)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var accessibilityDescription: String {
+        var parts = [patient.fullName, "Estado clínico: \(patient.clinicalStatusValue.label)"]
+        parts.append("\(patient.age) años")
+        if let next = nextAppointmentDate {
+            parts.append("Próxima cita: \(next.esDayMonthAbbrev())")
+        }
+        if patient.hasOutstandingDebt {
+            parts.append("Con deuda pendiente")
+        }
+        return parts.joined(separator: ". ")
     }
 
     private var nextAppointmentDate: Date? {
@@ -432,27 +468,9 @@ private struct PatientQuickInfo: View {
             .map(\.sessionDate)
             .min()
     }
-
-    private var assignedCurrencyCode: String {
-        patient.currencyCode.trimmed
-    }
-
-    private var accessibilityDescription: String {
-        var parts = ["Estado clínico: \(patient.clinicalStatus)"]
-        if let next = nextAppointmentDate {
-            parts.append("Próxima cita: \(next.esDayMonthAbbrev())")
-        }
-        if assignedCurrencyCode.isEmpty == false {
-            parts.append("Moneda asignada: \(assignedCurrencyCode)")
-        }
-        if patient.hasOutstandingDebt {
-            parts.append("Con deuda pendiente")
-        }
-        return parts.joined(separator: ". ")
-    }
 }
 
-// MARK: - Diagnósticos Activos (card Apple Health)
+// MARK: - Diagnóstico principal (card protagonista)
 
 private struct ActiveDiagnosesCard: View {
     let patient: Patient
@@ -464,11 +482,11 @@ private struct ActiveDiagnosesCard: View {
 
     var body: some View {
         if diagnoses.isEmpty {
-            // Estado vacío: card con botón "Agregar diagnóstico"
             CardContainer(style: .elevated) {
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    Text("Diagnósticos Activos")
-                        .font(.title3.bold())
+                    Label("Diagnóstico principal", systemImage: "cross.case")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
 
                     Text("Sin diagnósticos activos")
                         .font(.subheadline)
@@ -481,16 +499,15 @@ private struct ActiveDiagnosesCard: View {
                         )
                     } label: {
                         Label("Agregar diagnóstico", systemImage: "plus.circle")
-                            .font(.body)
+                            .font(.subheadline)
                     }
                     .padding(.top, AppSpacing.xs)
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Diagnósticos activos. Sin diagnósticos activos.")
+            .accessibilityLabel("Diagnóstico principal. Sin diagnósticos activos.")
             .accessibilityHint("Toque para agregar un diagnóstico")
         } else {
-            // Card con resumen de diagnósticos — tap navega a lista completa
             NavigationLink {
                 ActiveDiagnosesListView(
                     patient: patient,
@@ -504,8 +521,8 @@ private struct ActiveDiagnosesCard: View {
                 CardContainer(style: .elevated) {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         HStack {
-                            Text("Diagnósticos Activos")
-                                .font(.title3.bold())
+                            Label("Diagnóstico principal", systemImage: "cross.case")
+                                .font(.headline)
                                 .foregroundStyle(.primary)
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right")
@@ -514,23 +531,17 @@ private struct ActiveDiagnosesCard: View {
                                 .accessibilityHidden(true)
                         }
 
-                        Text(subtitleText)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        // Diagnóstico principal visible
                         if let primary = diagnoses.first {
                             Text(primary.displayTitle)
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(.primary)
-                                .lineLimit(2)
+                                .lineLimit(3)
                                 .multilineTextAlignment(.leading)
                         }
 
-                        // Adicionales
                         if diagnoses.count > 1 {
-                            Text("+\(diagnoses.count - 1) adicionales")
-                                .font(.footnote)
+                            Text("+\(diagnoses.count - 1) diagnóstico\(diagnoses.count - 1 == 1 ? "" : "s") adicional\(diagnoses.count - 1 == 1 ? "" : "es")")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -538,14 +549,18 @@ private struct ActiveDiagnosesCard: View {
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Diagnósticos activos, \(subtitleText)")
+            .accessibilityLabel(accessibilityDescription)
             .accessibilityHint("Abre la lista completa de diagnósticos")
         }
     }
 
-    private var subtitleText: String {
-        let count = diagnoses.count
-        return "\(count) activo\(count == 1 ? "" : "s")"
+    private var accessibilityDescription: String {
+        guard let primary = diagnoses.first else { return "Sin diagnósticos" }
+        var label = "Diagnóstico principal: \(primary.displayTitle)"
+        if diagnoses.count > 1 {
+            label += ". \(diagnoses.count - 1) adicionales"
+        }
+        return label
     }
 }
 
@@ -661,11 +676,9 @@ private struct ActiveDiagnosesListView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
                     .padding(6)
-                    .background(.quaternary, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
             .frame(minWidth: 44, minHeight: 44)
             .accessibilityLabel("Eliminar diagnóstico \(diagnosis.displayTitle)")
         }
@@ -686,38 +699,36 @@ private struct ActiveDiagnosesListView: View {
     }
 }
 
-// MARK: - Medicación (condicional)
+// MARK: - Clinical module row (reusable navigation row with metadata)
 
-private struct MedicationCard: View {
-    let patient: Patient
-    let professional: Professional
-    let count: Int
-
-    private var summaryText: String {
-        count > 0 ? "\(count) med. activa\(count == 1 ? "" : "s")" : "Sin med. activa"
-    }
-
-    private var accessibilitySummary: String {
-        count > 0
-            ? "\(count) medicación activa\(count == 1 ? "" : "s")"
-            : "sin medicación activa"
-    }
+private struct ClinicalModuleRow<Destination: View>: View {
+    let title: String
+    let systemImage: String
+    let detail: String
+    @ViewBuilder let destination: Destination
 
     var body: some View {
         NavigationLink {
-            PatientMedicalHistoryView(patient: patient, professional: professional)
+            destination
         } label: {
             CardContainer(style: .flat) {
-                HStack {
-                    Label("Historia Clínica", systemImage: "heart.text.clipboard")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                HStack(spacing: AppSpacing.md) {
+                    Image(systemName: systemImage)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Spacer(minLength: 0)
-
-                    Text(summaryText)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
 
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -728,8 +739,7 @@ private struct MedicationCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Historia clínica, \(accessibilitySummary)")
-        .accessibilityHint("Abre la historia clínica")
+        .accessibilityLabel("\(title), \(detail)")
     }
 }
 
@@ -772,19 +782,27 @@ private struct SessionsSection: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(.white)
                             .frame(width: 28, height: 28)
-                            .background(.tint, in: Circle())
                     }
+                    .buttonStyle(.glass)
                     .frame(minWidth: 44, minHeight: 44)
                     .accessibilityLabel("Nueva sesión")
                 }
 
                 if sortedSessions.isEmpty {
-                    Text("Sin sesiones. Creá la primera sesión para este paciente.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        Text("No hay sesiones registradas")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            onCreateSession()
+                        } label: {
+                            Label("Crear primera sesión", systemImage: "plus.circle")
+                                .font(.subheadline.weight(.medium))
+                        }
+                    }
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(visibleSessions.enumerated()), id: \.element.id) { index, session in
@@ -851,10 +869,8 @@ private struct SessionsSection: View {
                 } label: {
                     Text("Completar")
                         .font(.footnote.weight(.semibold))
-                        .frame(minWidth: 104)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.glass)
                 .padding(.top, 18)
                 .accessibilityLabel(completionButtonLabel(for: session))
                 .accessibilityHint("Abre el flujo de cierre y cobro de la sesión")
@@ -1061,28 +1077,17 @@ private struct CollapsibleContextSection: View {
                         coverageContent
                     }
 
-                    Divider()
-
-                    // — Historia clínica
-                    medicalHistoryLink
-
-                    Divider()
-
                     // — Contacto (condicional)
                     if hasContactData {
                         sectionHeader("Contacto")
                         contactContent
-
-                        Divider()
                     }
 
                     // — Registro
                     sectionHeader("Registro")
                     auditContent
 
-                    Divider()
-
-                    // — Acciones
+                    // — Acciones (subdued)
                     actionsContent
                 }
                 .padding(.top, AppSpacing.sm)
@@ -1161,24 +1166,6 @@ private struct CollapsibleContextSection: View {
         }
     }
 
-    private var medicalHistoryLink: some View {
-        NavigationLink {
-            PatientMedicalHistoryView(patient: patient, professional: professional)
-        } label: {
-            HStack {
-                Label("Historia Clínica", systemImage: "heart.text.clipboard")
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
     @ViewBuilder
     private var contactContent: some View {
         VStack(spacing: 12) {
@@ -1231,7 +1218,8 @@ private struct CollapsibleContextSection: View {
                 onDeactivate()
             } label: {
                 Label("Dar de Baja", systemImage: "person.crop.circle.badge.xmark")
-                    .font(.body)
+                    .font(.footnote)
+                    .foregroundStyle(.red.opacity(0.7))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
@@ -1239,7 +1227,7 @@ private struct CollapsibleContextSection: View {
                 onRestore()
             } label: {
                 Label("Restaurar Paciente", systemImage: "arrow.counterclockwise")
-                    .font(.body)
+                    .font(.footnote)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }

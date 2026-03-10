@@ -1,0 +1,125 @@
+{
+  "id": "MMSE",
+  "domain": "cognition",
+  "name": "Mini Mental State Examination",
+  "description": "Prueba breve de cribado cognitivo utilizada para evaluar orientación, memoria, atención, cálculo y lenguaje.",
+  "timeframe": null,
+  "meta": {
+    "maxScore": 30,
+    "version": "Folstein 1975 / Lobo 1979",
+    "administeredBy": "clinician"
+  },
+  "sections": [
+    {
+      "id": "orientation_time",
+      "title": "Orientación temporal",
+      "maxScore": 5,
+      "items": [
+        { "id": "year", "type": "boolean", "title": "¿En qué año estamos?", "maxScore": 1 },
+        { "id": "season", "type": "boolean", "title": "¿En qué estación estamos?", "maxScore": 1 },
+        { "id": "date", "type": "boolean", "title": "¿Qué día del mes es hoy?", "maxScore": 1 },
+        { "id": "month", "type": "boolean", "title": "¿En qué mes estamos?", "maxScore": 1 },
+        { "id": "weekday", "type": "boolean", "title": "¿Qué día de la semana es hoy?", "maxScore": 1 }
+      ]
+    },
+    {
+      "id": "orientation_space",
+      "title": "Orientación espacial",
+      "maxScore": 5,
+      "items": [
+        { "id": "place", "type": "boolean", "title": "¿En qué hospital o lugar estamos?", "maxScore": 1 },
+        { "id": "floor", "type": "boolean", "title": "¿En qué piso o planta estamos?", "maxScore": 1 },
+        { "id": "city", "type": "boolean", "title": "¿En qué ciudad estamos?", "maxScore": 1 },
+        { "id": "province", "type": "boolean", "title": "¿En qué provincia estamos?", "maxScore": 1 },
+        { "id": "country", "type": "boolean", "title": "¿En qué país estamos?", "maxScore": 1 }
+      ]
+    },
+    {
+      "id": "fixation",
+      "title": "Fijación (memoria inmediata)",
+      "maxScore": 3,
+      "items": [
+        {
+          "id": "fixation_instruction",
+          "type": "instruction",
+          "text": "Diga al paciente tres palabras (por ejemplo: Balón, Bandera, Árbol) a razón de una por segundo y pídale que las repita."
+        },
+        { "id": "word1", "type": "boolean", "title": "Primera palabra recordada", "maxScore": 1 },
+        { "id": "word2", "type": "boolean", "title": "Segunda palabra recordada", "maxScore": 1 },
+        { "id": "word3", "type": "boolean", "title": "Tercera palabra recordada", "maxScore": 1 }
+      ]
+    },
+    {
+      "id": "attention_calculation",
+      "title": "Atención y cálculo",
+      "maxScore": 5,
+      "items": [
+        {
+          "id": "calculation_instruction",
+          "type": "instruction",
+          "text": "Pida al paciente que reste 3 sucesivamente comenzando desde 30."
+        },
+        { "id": "calc1", "type": "boolean", "title": "30 → 27", "maxScore": 1 },
+        { "id": "calc2", "type": "boolean", "title": "27 → 24", "maxScore": 1 },
+        { "id": "calc3", "type": "boolean", "title": "24 → 21", "maxScore": 1 },
+        { "id": "calc4", "type": "boolean", "title": "21 → 18", "maxScore": 1 },
+        { "id": "calc5", "type": "boolean", "title": "18 → 15", "maxScore": 1 }
+      ]
+    },
+    {
+      "id": "recall",
+      "title": "Recuerdo diferido",
+      "maxScore": 3,
+      "items": [
+        { "id": "recall_word1", "type": "boolean", "title": "Recuerda palabra 1", "maxScore": 1 },
+        { "id": "recall_word2", "type": "boolean", "title": "Recuerda palabra 2", "maxScore": 1 },
+        { "id": "recall_word3", "type": "boolean", "title": "Recuerda palabra 3", "maxScore": 1 }
+      ]
+    },
+    {
+      "id": "language",
+      "title": "Lenguaje",
+      "maxScore": 9,
+      "items": [
+        { "id": "naming_pencil", "type": "boolean", "title": "Denominación: lápiz", "maxScore": 1 },
+        { "id": "naming_watch", "type": "boolean", "title": "Denominación: reloj", "maxScore": 1 },
+        {
+          "id": "repetition",
+          "type": "boolean",
+          "title": "Repetición de frase: 'Ni sí, ni no, ni pero'",
+          "maxScore": 1
+        },
+        { "id": "command1", "type": "boolean", "title": "Toma el papel con la mano derecha", "maxScore": 1 },
+        { "id": "command2", "type": "boolean", "title": "Dobla el papel por la mitad", "maxScore": 1 },
+        { "id": "command3", "type": "boolean", "title": "Coloca el papel en el suelo", "maxScore": 1 },
+        {
+          "id": "reading",
+          "type": "boolean",
+          "title": "Lee y ejecuta la instrucción 'Cierre los ojos'",
+          "maxScore": 1
+        },
+        {
+          "id": "writing",
+          "type": "boolean",
+          "title": "Escribe una frase con sujeto y predicado",
+          "maxScore": 1
+        },
+        {
+          "id": "drawing",
+          "type": "drawing",
+          "title": "Copia correctamente dos pentágonos intersectados",
+          "maxScore": 1
+        }
+      ]
+    }
+  ],
+  "scoring": {
+    "ranges": [
+      { "min": 27, "max": 30, "label": "Normal", "severity": "normal", "color": "green" },
+      { "min": 24, "max": 26, "label": "Sospecha de deterioro cognitivo", "severity": "possibleImpairment", "color": "yellow" },
+      { "min": 18, "max": 23, "label": "Deterioro cognitivo leve", "severity": "mild", "color": "orange" },
+      { "min": 10, "max": 17, "label": "Deterioro cognitivo moderado", "severity": "moderate", "color": "red" },
+      { "min": 0, "max": 9, "label": "Deterioro cognitivo severo", "severity": "severe", "color": "purple" }
+    ]
+  }
+}

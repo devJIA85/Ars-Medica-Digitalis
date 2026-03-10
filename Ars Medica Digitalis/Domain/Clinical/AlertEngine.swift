@@ -14,6 +14,7 @@ struct PatientAlert: Sendable, Equatable, Hashable {
         case highDropoutRisk
         case lowAdherence
         case unpaidBalance
+        case highDepressionScore
     }
 
     let kind: Kind
@@ -22,6 +23,7 @@ struct PatientAlert: Sendable, Equatable, Hashable {
     static let highDropoutRisk = PatientAlert(kind: .highDropoutRisk)
     static let lowAdherence = PatientAlert(kind: .lowAdherence)
     static let unpaidBalance = PatientAlert(kind: .unpaidBalance)
+    static let highDepressionScore = PatientAlert(kind: .highDepressionScore)
 }
 
 struct AlertEngine: Sendable {
@@ -45,6 +47,10 @@ struct AlertEngine: Sendable {
 
         if snapshot.hasDebt {
             alerts.append(.unpaidBalance)
+        }
+
+        if BDISeverityLevel.from(rawSeverity: snapshot.bdiSeverity)?.isHighDepression == true {
+            alerts.append(.highDepressionScore)
         }
 
         return alerts

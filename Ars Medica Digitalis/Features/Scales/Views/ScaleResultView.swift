@@ -46,7 +46,7 @@ struct ScaleResultView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
-        .themedBackground()
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Resultado")
         .navigationBarTitleDisplayMode(.inline)
         .alert(
@@ -67,29 +67,42 @@ struct ScaleResultView: View {
     }
 
     private func resultCard(result: ScaleComputedResult) -> some View {
-        CardContainer(style: .elevated) {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
-                Text("Score: \(result.totalScore) / \(result.maximumScore)")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.primary)
+        VStack(spacing: AppSpacing.xl) {
+            // Score ring + interpretation
+            VStack(spacing: AppSpacing.lg) {
+                ClinicalScoreRing(
+                    score: result.totalScore,
+                    maxScore: result.maximumScore,
+                    ranges: viewModel.scale.scoring.ranges,
+                    colorName: result.color,
+                    severity: result.severity
+                )
 
                 Text(result.interpretationLabel)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(scaleColor(for: result))
-
-                Text("Severidad: \(result.severity)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Divider()
-
-                Text("Este resultado no constituye diagnóstico clínico.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(severityColor(for: result))
             }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Score \(result.totalScore) de \(result.maximumScore)")
+            .accessibilityValue(result.interpretationLabel)
+
+            // Details card
+            VStack(spacing: AppSpacing.md) {
+                LabeledContent("Severidad", value: result.severity.capitalized)
+                LabeledContent("Escala", value: result.scaleID)
+            }
+            .font(.body)
+            .padding(20)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.lg, style: .continuous))
+
+            // Disclaimer
+            Text("Este resultado no constituye diagnóstico clínico.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .glassCardEntrance()
     }
 
     private var saveButton: some View {
@@ -115,29 +128,7 @@ struct ScaleResultView: View {
         }
     }
 
-    private func scaleColor(for result: ScaleComputedResult) -> Color {
-        Color.scaleResultColor(named: result.color, severity: result.severity)
-    }
-}
-
-private extension Color {
-    static func scaleResultColor(named colorName: String, severity: String) -> Color {
-        switch colorName.lowercased() {
-        case "green": .green
-        case "yellow": .yellow
-        case "orange": .orange
-        case "red": .red
-        case "blue": .blue
-        case "purple": .purple
-        case "teal": .teal
-        default:
-            switch severity.lowercased() {
-            case "minimal": .green
-            case "mild": .yellow
-            case "moderate": .orange
-            case "severe": .red
-            default: .secondary
-            }
-        }
+    private func severityColor(for result: ScaleComputedResult) -> Color {
+        Color.clinicalRingColor(named: result.color, severity: result.severity)
     }
 }

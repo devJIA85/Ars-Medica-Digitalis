@@ -234,10 +234,12 @@
   ],
   "scoring": {
     "ranges": [
-      { "min": 0, "max": 13, "label": "Depresión mínima", "severity": "minimal", "color": "green" },
-      { "min": 14, "max": 19, "label": "Depresión leve", "severity": "mild", "color": "yellow" },
-      { "min": 20, "max": 28, "label": "Depresión moderada", "severity": "moderate", "color": "orange" },
-      { "min": 29, "max": 63, "label": "Depresión grave", "severity": "severe", "color": "red" }
+      { "min": 0, "max": 10, "label": "Altibajos normales", "severity": "normal", "color": "green" },
+      { "min": 11, "max": 16, "label": "Leve perturbación del estado de ánimo", "severity": "mildMoodDisturbance", "color": "yellow" },
+      { "min": 17, "max": 20, "label": "Depresión intermitente", "severity": "intermittentDepression", "color": "orange" },
+      { "min": 21, "max": 30, "label": "Depresión moderada", "severity": "moderateDepression", "color": "orange" },
+      { "min": 31, "max": 40, "label": "Depresión grave", "severity": "severeDepression", "color": "red" },
+      { "min": 41, "max": 63, "label": "Depresión extrema", "severity": "extremeDepression", "color": "purple" }
     ]
   }
 }

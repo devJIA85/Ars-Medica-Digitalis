@@ -40,11 +40,12 @@ struct PaymentFlowView: View {
 
     let draft: CompletionDraft
     let onCancel: @MainActor () -> Void
-    let onConfirm: (PaymentIntent) throws -> Void
+    let onConfirm: @MainActor (PaymentIntent) async throws -> Void
 
     @State private var selectedOption: PaymentOption = .full
     @State private var partialAmount: Decimal = 0
     @State private var errorMessage: String?
+    @State private var isConfirming = false
 
     var body: some View {
         NavigationStack {
@@ -118,7 +119,7 @@ struct PaymentFlowView: View {
                     Button("Confirmar") {
                         confirm()
                     }
-                    .disabled(canConfirm == false)
+                    .disabled(canConfirm == false || isConfirming)
                 }
             }
             .alert("No se pudo completar la sesión", isPresented: errorBinding) {
@@ -193,11 +194,23 @@ struct PaymentFlowView: View {
             return
         }
 
-        do {
-            try onConfirm(resolvedIntent)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+        guard isConfirming == false else {
+            return
+        }
+
+        isConfirming = true
+
+        Task { @MainActor in
+            defer {
+                isConfirming = false
+            }
+
+            do {
+                try await onConfirm(resolvedIntent)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

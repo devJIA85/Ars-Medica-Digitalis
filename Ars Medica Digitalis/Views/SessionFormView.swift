@@ -23,6 +23,8 @@ struct SessionFormView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("calendar.didResolveInitialSuggestion.v1")
+    private var didResolveInitialCalendarSuggestion = false
 
     let patient: Patient
 
@@ -38,13 +40,22 @@ struct SessionFormView: View {
     @State private var showingConflictAlert = false
     @State private var showAllDiagnoses = false
     @State private var persistenceErrorMessage: String?
+    @State private var summaryGenerationErrorMessage: String?
+    @State private var isGeneratingSummary = false
+    @State private var isPersistingSession = false
     @State private var pendingCompletionFlow: PendingSessionCompletion?
+    @State private var addToCalendar = false
+    @State private var calendarAuthorizationState: CalendarAuthorizationState = .notDetermined
+    @State private var calendarIntegrationService = CalendarIntegrationService()
+    @State private var showingInitialCalendarSuggestion = false
+    @State private var isCreatingSuggestedCalendar = false
     @State private var pricingPreview = SessionPricingPreview(
         amount: 0,
         currencyCode: "",
         isCourtesy: false,
         configurationIssue: .missingFinancialSessionType
     )
+    private let summaryGenerator = SessionSummaryGenerator()
 
     /// Límite de diagnósticos visibles cuando la lista está colapsada.
     private static let diagnosisVisibleLimit = 3
@@ -126,6 +137,14 @@ struct SessionFormView: View {
                 }
 
                 Toggle("Sesión de cortesía", isOn: $viewModel.isCourtesy)
+
+                Toggle("Agregar al calendario", isOn: calendarSyncToggleBinding)
+
+                if let calendarAccessMessage {
+                    Text(calendarAccessMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
 
                 if viewModel.isCourtesy == false {
                     if availableFinancialSessionTypes.isEmpty {
@@ -269,19 +288,79 @@ struct SessionFormView: View {
 
             // MARK: - Notas y Plan (unificados para layout compacto)
             Section("Notas y Plan") {
-                TextField(
-                    "Notas clínicas: observaciones, evolución...",
-                    text: $viewModel.notes,
-                    axis: .vertical
+                // Cards editoriales estilo Notes/Health para lectura extensa
+                // y edición con formato dentro del formulario clínico.
+                RichTextClinicalEditor(
+                    title: "Notas clínicas",
+                    placeholder: "Notas clínicas: observaciones, evolución...",
+                    text: $viewModel.notesRichText
                 )
-                .lineLimit(3...8)
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                .listRowBackground(Color.clear)
 
-                TextField(
-                    "Plan: indicaciones, derivaciones, próximos pasos...",
-                    text: $viewModel.treatmentPlan,
-                    axis: .vertical
+                RichTextClinicalEditor(
+                    title: "Plan terapéutico",
+                    placeholder: "Plan: indicaciones, derivaciones, próximos pasos...",
+                    text: $viewModel.treatmentPlanRichText
                 )
-                .lineLimit(2...6)
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                .listRowBackground(Color.clear)
+            }
+
+            Section("Resumen de sesión") {
+                Button {
+                    generateClinicalSummary()
+                } label: {
+                    HStack(spacing: AppSpacing.sm) {
+                        if isGeneratingSummary {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+
+                        Text(isGeneratingSummary ? "Generando resumen..." : "Generar resumen clínico")
+                            .fontWeight(.semibold)
+                    }
+                }
+                .disabled(canGenerateClinicalSummary == false)
+
+                VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    Text("Resumen de sesión")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    ZStack(alignment: .topLeading) {
+                        if viewModel.sessionSummary.trimmed.isEmpty {
+                            Text("El resumen generado aparecerá aquí. Podés editarlo manualmente.")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .allowsHitTesting(false)
+                        }
+
+                        TextEditor(text: $viewModel.sessionSummary)
+                            .font(.body)
+                            .frame(minHeight: 120)
+                            .scrollContentBackground(.hidden)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous)
+                            .fill(Color(uiColor: .systemBackground))
+                    )
+                }
+                .padding(AppSpacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                .listRowBackground(Color.clear)
             }
         }
         .navigationTitle(isEditing ? "Editar Sesión" : "Nueva Sesión")
@@ -291,7 +370,7 @@ struct SessionFormView: View {
                 Button(isEditing ? "Guardar" : "Crear") {
                     save()
                 }
-                .disabled(!viewModel.canSave)
+                .disabled(!viewModel.canSave || isPersistingSession)
             }
         }
         .alert(
@@ -312,25 +391,57 @@ struct SessionFormView: View {
         } message: {
             Text(persistenceErrorMessage ?? "Ocurrió un error al persistir la sesión.")
         }
+        .alert("No se pudo generar el resumen clínico", isPresented: summaryGenerationErrorBinding) {
+            Button("Aceptar", role: .cancel) {
+                summaryGenerationErrorMessage = nil
+            }
+        } message: {
+            Text(summaryGenerationErrorMessage ?? "Ocurrió un error al generar el resumen.")
+        }
         .sheet(item: $pendingCompletionFlow) { flow in
             PaymentFlowView(
                 draft: flow.completionDraft,
                 onCancel: {}
             ) { paymentIntent in
-                try persistPendingCompletion(flow, paymentIntent: paymentIntent)
+                try await persistPendingCompletion(flow, paymentIntent: paymentIntent)
                 dismiss()
             }
+        }
+        .confirmationDialog(
+            "Calendario para sesiones",
+            isPresented: $showingInitialCalendarSuggestion,
+            titleVisibility: .visible
+        ) {
+            Button("Crear \"\(suggestedCalendarName)\"") {
+                Task { @MainActor in
+                    await createSuggestedCalendarIfNeeded()
+                }
+            }
+            .disabled(isCreatingSuggestedCalendar)
+
+            Button("Usar calendario por defecto") {
+                didResolveInitialCalendarSuggestion = true
+            }
+
+            Button("Ahora no", role: .cancel) {}
+        } message: {
+            Text("Podés crear un calendario dedicado para separar las sesiones clínicas del resto de tus eventos.")
         }
         .onAppear {
             if let session {
                 viewModel.load(from: session)
+                addToCalendar = session.calendarEventIdentifier?.isEmpty == false
             } else {
                 // Pre-cargar diagnósticos vigentes del paciente
                 // para que el profesional no tenga que re-seleccionarlos manualmente
                 // en cada consulta de seguimiento.
                 // La fecha ya fue configurada en el init de la vista.
                 viewModel.preloadDiagnoses(from: patient)
+                addToCalendar = false
             }
+        }
+        .task {
+            await refreshCalendarAuthorizationState()
         }
         .task(id: pricingPreviewTaskID) {
             refreshPricingPreview()
@@ -395,6 +506,48 @@ struct SessionFormView: View {
         }
 
         return pricingPreview.amount.formattedCurrency(code: pricingPreview.currencyCode)
+    }
+
+    private var calendarSyncToggleBinding: Binding<Bool> {
+        Binding(
+            get: { addToCalendar },
+            set: { isEnabled in
+                addToCalendar = isEnabled
+                guard isEnabled else { return }
+
+                Task { @MainActor in
+                    let hasAccess = await ensureCalendarWriteAccess()
+                    if hasAccess == false, calendarAuthorizationState.isDisabled {
+                        addToCalendar = false
+                    } else if hasAccess {
+                        await presentInitialCalendarSuggestionIfNeeded()
+                    }
+                }
+            }
+        )
+    }
+
+    private var calendarAccessMessage: String? {
+        switch calendarAuthorizationState {
+        case .denied, .restricted:
+            return "Ars Medica Digitalis necesita permiso de Calendario para sincronizar sesiones. Podés habilitarlo desde Configuración > Privacidad y Seguridad > Calendarios."
+        case .notDetermined:
+            if addToCalendar {
+                return "Al guardar la sesión te vamos a pedir permiso para crear y actualizar eventos en tu calendario."
+            }
+            return nil
+        case .writeOnly, .fullAccess:
+            return nil
+        }
+    }
+
+    private var suggestedCalendarName: String {
+        let professionalName = patient.professional?.fullName.trimmed ?? ""
+        if professionalName.isEmpty == false {
+            return "Consultorio – \(professionalName)"
+        }
+
+        return "Consultorio – Ars Medica"
     }
 
     private var sessionDateBinding: Binding<Date> {
@@ -473,7 +626,52 @@ struct SessionFormView: View {
         return "Primero creá un honorario en Perfil > Honorarios para poder cobrar esta sesión."
     }
 
+    /// Regla UX: solo habilitar generación cuando hay notas clínicas.
+    private var canGenerateClinicalSummary: Bool {
+        viewModel.notes.trimmed.isEmpty == false && isGeneratingSummary == false
+    }
+
+    private var summaryGenerationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { summaryGenerationErrorMessage != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    summaryGenerationErrorMessage = nil
+                }
+            }
+        )
+    }
+
     // MARK: - Acciones
+
+    @MainActor
+    private func generateClinicalSummary() {
+        let notes = viewModel.notes
+        let plan = viewModel.treatmentPlan
+
+        isGeneratingSummary = true
+        summaryGenerationErrorMessage = nil
+
+        Task {
+            do {
+                // La inferencia corre localmente sobre Foundation Models.
+                let generatedSummary = try await summaryGenerator.generateSummary(
+                    clinicalNotes: notes,
+                    treatmentPlan: plan
+                )
+
+                await MainActor.run {
+                    viewModel.sessionSummary = generatedSummary
+                    isGeneratingSummary = false
+                }
+            } catch {
+                await MainActor.run {
+                    summaryGenerationErrorMessage = error.localizedDescription
+                    isGeneratingSummary = false
+                }
+            }
+        }
+    }
 
     @MainActor
     private func save() {
@@ -489,26 +687,41 @@ struct SessionFormView: View {
 
     @MainActor
     private func saveIgnoringConflicts() {
-        do {
-            if requiresCompletionFlow {
-                let snapshot = viewModel.buildFormSnapshot()
-                pendingCompletionFlow = PendingSessionCompletion(
+        if requiresCompletionFlow {
+            let snapshot = viewModel.buildFormSnapshot()
+            pendingCompletionFlow = PendingSessionCompletion(
+                patient: patient,
+                existingSessionID: session?.id,
+                completionDraft: viewModel.completionDraft(
+                    for: snapshot,
                     patient: patient,
-                    existingSessionID: session?.id,
-                    completionDraft: viewModel.completionDraft(
-                        for: snapshot,
-                        patient: patient,
-                        in: modelContext,
-                        existingSessionID: session?.id
-                    ),
-                    formSnapshot: snapshot
-                )
-            } else {
-                _ = try persistSession(using: viewModel.buildFormSnapshot())
-                dismiss()
+                    in: modelContext,
+                    existingSessionID: session?.id
+                ),
+                formSnapshot: snapshot
+            )
+            return
+        }
+
+        guard isPersistingSession == false else {
+            return
+        }
+
+        isPersistingSession = true
+        let snapshot = viewModel.buildFormSnapshot()
+
+        Task { @MainActor in
+            defer {
+                isPersistingSession = false
             }
-        } catch {
-            persistenceErrorMessage = error.localizedDescription
+
+            do {
+                let persistedSession = try persistSession(using: snapshot)
+                await synchronizeSessionCalendar(for: persistedSession)
+                dismiss()
+            } catch {
+                persistenceErrorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -597,7 +810,8 @@ struct SessionFormView: View {
     private func persistPendingCompletion(
         _ flow: PendingSessionCompletion,
         paymentIntent: PaymentIntent
-    ) throws {
+    ) async throws {
+        let persistedSession: Session
         if let existingSessionID = flow.existingSessionID {
             let descriptor = FetchDescriptor<Session>(
                 predicate: #Predicate<Session> { existing in
@@ -612,21 +826,135 @@ struct SessionFormView: View {
                 )
             }
 
-            _ = try viewModel.updateAndCompleteSession(
+            persistedSession = try viewModel.updateAndCompleteSession(
                 existingSession,
                 from: flow.formSnapshot,
                 in: modelContext,
                 paymentIntent: paymentIntent
             )
+        } else {
+            persistedSession = try viewModel.createAndCompleteSession(
+                from: flow.formSnapshot,
+                for: flow.patient,
+                in: modelContext,
+                paymentIntent: paymentIntent
+            )
+        }
+
+        await synchronizeSessionCalendar(for: persistedSession)
+    }
+
+    @MainActor
+    private func refreshCalendarAuthorizationState() async {
+        calendarAuthorizationState = await calendarIntegrationService.authorizationStatus()
+    }
+
+    @MainActor
+    private func presentInitialCalendarSuggestionIfNeeded() async {
+        guard didResolveInitialCalendarSuggestion == false else {
             return
         }
 
-        _ = try viewModel.createAndCompleteSession(
-            from: flow.formSnapshot,
-            for: flow.patient,
-            in: modelContext,
-            paymentIntent: paymentIntent
-        )
+        let preferredCalendarIdentifier = await calendarIntegrationService.preferredCalendarIdentifier()
+        if let preferredCalendarIdentifier, preferredCalendarIdentifier.isEmpty == false {
+            didResolveInitialCalendarSuggestion = true
+            return
+        }
+
+        showingInitialCalendarSuggestion = true
+    }
+
+    @MainActor
+    private func createSuggestedCalendarIfNeeded() async {
+        guard isCreatingSuggestedCalendar == false else {
+            return
+        }
+
+        isCreatingSuggestedCalendar = true
+        defer {
+            isCreatingSuggestedCalendar = false
+        }
+
+        do {
+            _ = try await calendarIntegrationService.createSuggestedCalendar(named: suggestedCalendarName)
+            didResolveInitialCalendarSuggestion = true
+        } catch {
+            persistenceErrorMessage = "No se pudo crear el calendario sugerido. Podés seguir usando el calendario por defecto."
+        }
+    }
+
+    @MainActor
+    private func ensureCalendarWriteAccess() async -> Bool {
+        let currentStatus = await calendarIntegrationService.authorizationStatus()
+        calendarAuthorizationState = currentStatus
+
+        switch currentStatus {
+        case .fullAccess, .writeOnly:
+            return true
+        case .denied, .restricted:
+            return false
+        case .notDetermined:
+            let requestedStatus = await calendarIntegrationService.requestAccess()
+            calendarAuthorizationState = requestedStatus
+            if requestedStatus == .notDetermined {
+                let refreshedStatus = await calendarIntegrationService.authorizationStatus()
+                calendarAuthorizationState = refreshedStatus
+                return refreshedStatus.canWriteEvents
+            }
+
+            return requestedStatus.canWriteEvents
+        }
+    }
+
+    /// Mantiene en un único lugar la sincronización create/update/delete.
+    /// Si falla, la sesión queda guardada igual y la app no bloquea al usuario.
+    @MainActor
+    private func synchronizeSessionCalendar(for session: Session) async {
+        if addToCalendar == false {
+            guard let existingIdentifier = session.calendarEventIdentifier,
+                  existingIdentifier.isEmpty == false else {
+                return
+            }
+
+            guard await ensureCalendarWriteAccess() else {
+                return
+            }
+
+            do {
+                try await calendarIntegrationService.deleteEvent(identifier: existingIdentifier)
+                session.calendarEventIdentifier = nil
+                session.updatedAt = Date()
+                try modelContext.save()
+            } catch {
+                print("CalendarIntegrationService delete failed: \(error.localizedDescription)")
+            }
+            return
+        }
+
+        guard await ensureCalendarWriteAccess() else {
+            if calendarAuthorizationState.isDisabled {
+                addToCalendar = false
+            }
+            return
+        }
+
+        do {
+            let eventIdentifier: String
+            if let existingIdentifier = session.calendarEventIdentifier,
+               existingIdentifier.isEmpty == false {
+                eventIdentifier = try await calendarIntegrationService.updateEvent(for: session)
+            } else {
+                eventIdentifier = try await calendarIntegrationService.createEvent(for: session)
+            }
+
+            if session.calendarEventIdentifier != eventIdentifier {
+                session.calendarEventIdentifier = eventIdentifier
+                session.updatedAt = Date()
+                try modelContext.save()
+            }
+        } catch {
+            print("CalendarIntegrationService sync failed: \(error.localizedDescription)")
+        }
     }
 
 }

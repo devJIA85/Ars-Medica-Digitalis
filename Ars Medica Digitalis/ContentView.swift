@@ -37,6 +37,7 @@ struct ContentView: View {
     @State private var isRunningPatientRecordRepair: Bool = false
     @State private var didResolveSessionRepairForCurrentLaunch: Bool = false
     @State private var didResolvePatientRecordRepairForCurrentLaunch: Bool = false
+    @State private var deepLinkedSessionContext: DeepLinkedSessionContext?
     @State private var biometricCapability = BiometricCapability(
         kind: .none,
         isAvailable: false,
@@ -48,6 +49,14 @@ struct ContentView: View {
     private enum LaunchPhase {
         case splash
         case ready
+    }
+
+    private struct DeepLinkedSessionContext: Identifiable {
+        let session: Session
+        let patient: Patient
+        let professional: Professional
+
+        var id: UUID { session.id }
     }
 
     var body: some View {
@@ -76,6 +85,9 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(newPhase)
+        }
+        .onOpenURL { url in
+            handleIncomingDeepLink(url)
         }
     }
 
@@ -157,6 +169,15 @@ struct ContentView: View {
                 PatientFormView(professional: professional)
             }
         }
+        .sheet(item: $deepLinkedSessionContext) { context in
+            NavigationStack {
+                SessionDetailView(
+                    session: context.session,
+                    patient: context.patient,
+                    professional: context.professional
+                )
+            }
+        }
         .task {
             // Poblar catálogo CIE-11 offline en background (solo primer launch)
             let service = ICD11SeedService(modelContainer: modelContext.container)
@@ -188,6 +209,34 @@ struct ContentView: View {
         if shouldRequireLock && scenePhase == .active {
             await unlockWithBiometrics()
         }
+    }
+
+    @MainActor
+    private func handleIncomingDeepLink(_ url: URL) {
+        guard let sessionID = SessionDeepLink.sessionID(from: url) else {
+            return
+        }
+
+        guard let professional = professionals.first else {
+            return
+        }
+
+        let descriptor = FetchDescriptor<Session>(
+            predicate: #Predicate<Session> { session in
+                session.id == sessionID
+            }
+        )
+
+        guard let resolvedSession = try? modelContext.fetch(descriptor).first,
+              let patient = resolvedSession.patient else {
+            return
+        }
+
+        deepLinkedSessionContext = DeepLinkedSessionContext(
+            session: resolvedSession,
+            patient: patient,
+            professional: professional
+        )
     }
 
     @MainActor
@@ -308,7 +357,7 @@ struct ContentView: View {
         }
 
         do {
-            let result = try SessionPhantomRepairService().repairIfNeeded(in: modelContext)
+            let result = try await SessionPhantomRepairService().repairIfNeeded(in: modelContext)
             print("SessionPhantomRepairService removed=\(result.removedCount) skipped=\(result.skippedCount)")
             didRunSessionPhantomRepair = true
         } catch {

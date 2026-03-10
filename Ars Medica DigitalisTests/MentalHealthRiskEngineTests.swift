@@ -88,4 +88,54 @@ struct MentalHealthRiskEngineTests {
         #expect(MentalHealthRiskEngine.priorityLevel(for: 80) == .critical)
         #expect(MentalHealthRiskEngine.priorityLevel(for: 100) == .critical)
     }
+
+    @Test("MentalHealthRiskEngine aplica modificador clínico para severidades BDI-II")
+    func computeRiskAppliesBDIClinicalModifier() {
+        let baseSnapshot = PatientClinicalSnapshot(
+            patientID: UUID(),
+            lastSessionDate: nil,
+            nextSessionDate: Date().addingTimeInterval(60 * 60 * 24 * 3),
+            sessionCount: 8,
+            completedSessions: 7,
+            cancelledSessions: 1,
+            adherence: 0.875,
+            daysSinceLastSession: 3,
+            diagnosisSummary: "Ansiedad",
+            hasDebt: false
+        )
+        let severeSnapshot = PatientClinicalSnapshot(
+            patientID: baseSnapshot.patientID,
+            lastSessionDate: baseSnapshot.lastSessionDate,
+            nextSessionDate: baseSnapshot.nextSessionDate,
+            sessionCount: baseSnapshot.sessionCount,
+            completedSessions: baseSnapshot.completedSessions,
+            cancelledSessions: baseSnapshot.cancelledSessions,
+            adherence: baseSnapshot.adherence,
+            daysSinceLastSession: baseSnapshot.daysSinceLastSession,
+            diagnosisSummary: baseSnapshot.diagnosisSummary,
+            hasDebt: baseSnapshot.hasDebt,
+            bdiSeverity: "severeDepression"
+        )
+        let extremeSnapshot = PatientClinicalSnapshot(
+            patientID: baseSnapshot.patientID,
+            lastSessionDate: baseSnapshot.lastSessionDate,
+            nextSessionDate: baseSnapshot.nextSessionDate,
+            sessionCount: baseSnapshot.sessionCount,
+            completedSessions: baseSnapshot.completedSessions,
+            cancelledSessions: baseSnapshot.cancelledSessions,
+            adherence: baseSnapshot.adherence,
+            daysSinceLastSession: baseSnapshot.daysSinceLastSession,
+            diagnosisSummary: baseSnapshot.diagnosisSummary,
+            hasDebt: baseSnapshot.hasDebt,
+            bdiSeverity: "extremeDepression"
+        )
+
+        let baseScore = engine.computeRisk(snapshot: baseSnapshot).totalScore
+        let severeScore = engine.computeRisk(snapshot: severeSnapshot).totalScore
+        let extremeScore = engine.computeRisk(snapshot: extremeSnapshot).totalScore
+
+        #expect(baseScore == 10)
+        #expect(severeScore == baseScore + 15)
+        #expect(extremeScore == baseScore + 25)
+    }
 }

@@ -14,6 +14,7 @@ struct Ars_Medica_DigitalisApp: App {
     private enum LaunchArgument {
         static let onboardingUITest = "UITEST_ONBOARDING"
         static let profileDashboardUITest = "UITEST_PROFILE_DASHBOARD"
+        static let scalesUITest = "UITEST_SCALES"
     }
 
     /// Preferencia de apariencia local (por dispositivo, no se sincroniza vía CloudKit).
@@ -47,7 +48,8 @@ struct Ars_Medica_DigitalisApp: App {
         let launchArguments = ProcessInfo.processInfo.arguments
         let isOnboardingUITest = launchArguments.contains(LaunchArgument.onboardingUITest)
         let isProfileDashboardUITest = launchArguments.contains(LaunchArgument.profileDashboardUITest)
-        let isUITestLaunch = isOnboardingUITest || isProfileDashboardUITest
+        let isScalesUITest = launchArguments.contains(LaunchArgument.scalesUITest)
+        let isUITestLaunch = isOnboardingUITest || isProfileDashboardUITest || isScalesUITest
 
         if isUITestLaunch {
             UserDefaults.standard.set(false, forKey: "security.biometricEnabled")
@@ -76,6 +78,10 @@ struct Ars_Medica_DigitalisApp: App {
 
             if isProfileDashboardUITest {
                 seedProfileDashboardUITestDataIfNeeded(in: container.mainContext)
+            }
+
+            if isScalesUITest {
+                seedScalesUITestDataIfNeeded(in: container.mainContext)
             }
 
             return container
@@ -109,9 +115,44 @@ struct Ars_Medica_DigitalisApp: App {
     }
 
     private static func seedProfileDashboardUITestDataIfNeeded(in context: ModelContext) {
-        let descriptor = FetchDescriptor<Professional>()
-        if let existing = try? context.fetch(descriptor), existing.isEmpty == false {
+        _ = seedUITestPatientIfNeeded(in: context)
+    }
+
+    private static func seedScalesUITestDataIfNeeded(in context: ModelContext) {
+        let patient = seedUITestPatientIfNeeded(in: context)
+
+        let descriptor = FetchDescriptor<PatientScaleResult>()
+        if let existing = try? context.fetch(descriptor),
+           existing.contains(where: { $0.patientID == patient.id && $0.scaleID == "BDI-II" }) {
             return
+        }
+
+        let result = PatientScaleResult(
+            patientID: patient.id,
+            scaleID: "BDI-II",
+            date: Date().addingTimeInterval(-3_600),
+            totalScore: 32,
+            severity: "severe",
+            answers: []
+        )
+        context.insert(result)
+
+        do {
+            try context.save()
+        } catch {
+            assertionFailure("No se pudo seedear resultado de escala UI test: \(error.localizedDescription)")
+        }
+    }
+
+    @discardableResult
+    private static func seedUITestPatientIfNeeded(in context: ModelContext) -> Patient {
+        let descriptor = FetchDescriptor<Professional>()
+        if let existing = try? context.fetch(descriptor), let professional = existing.first {
+            let patientDescriptor = FetchDescriptor<Patient>()
+            if let patients = try? context.fetch(patientDescriptor),
+               let existingPatient = patients.first(where: { $0.professional?.id == professional.id }) {
+                return existingPatient
+            }
         }
 
         let professional = Professional(
@@ -142,5 +183,7 @@ struct Ars_Medica_DigitalisApp: App {
         } catch {
             assertionFailure("No se pudieron seedear datos UI test: \(error.localizedDescription)")
         }
+
+        return patient
     }
 }

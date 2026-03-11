@@ -13,6 +13,8 @@ struct ClinicalStatusBadge: View {
 
     let status: ClinicalStatusMapping
 
+    private var isRisk: Bool { status == .riesgo }
+
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: symbolName)
@@ -23,6 +25,11 @@ struct ClinicalStatusBadge: View {
                 .font(.caption2.weight(.medium))
         }
         .foregroundStyle(status.tint)
+        .phaseAnimator([false, true]) { content, pulse in
+            content.opacity(isRisk && pulse ? 0.7 : 1.0)
+        } animation: { _ in
+            isRisk ? .easeInOut(duration: 1.5) : .default
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Estado clínico: \(status.label)")
     }

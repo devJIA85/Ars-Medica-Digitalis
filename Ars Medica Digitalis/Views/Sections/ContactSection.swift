@@ -3,6 +3,7 @@
 //  Ars Medica Digitalis
 //
 //  Informacion de contacto extensible del profesional.
+//  El título de sección se renderiza externamente en ProfileView (small-caps "CONTACTO").
 //
 
 import SwiftUI
@@ -12,22 +13,24 @@ struct ContactSection: View {
     @Binding var email: String
 
     var body: some View {
-        SettingsSectionCard(
-            title: "Contacto",
-            systemImage: "envelope.badge",
-            subtitle: "Preparado para sumar telefono y sitio web en futuras iteraciones."
-        ) {
-            SettingsRow(systemImage: "envelope.fill", title: "Email") {
+        CardContainer(style: .flat, usesGlassEffect: false) {
+            HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+                Image(systemName: "envelope.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+                    .accessibilityHidden(true)
+
                 TextField("Email", text: $email)
+                    .textFieldStyle(.plain)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .font(.body)
-                    .multilineTextAlignment(.trailing)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 240, alignment: .trailing)
+                    .foregroundStyle(.primary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 10)
         }
     }
 }

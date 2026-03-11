@@ -25,12 +25,30 @@ struct ScaleResultView: View {
 
     @State private var didSaveResult: Bool = false
     @State private var saveErrorMessage: String? = nil
+    @State private var showResult: Bool = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: AppSpacing.sectionGap) {
                 if let result = viewModel.computedResult {
                     resultCard(result: result)
+                        .keyframeAnimator(
+                            initialValue: ResultAnimationValues(),
+                            trigger: showResult
+                        ) { content, value in
+                            content
+                                .scaleEffect(value.scale)
+                                .opacity(value.opacity)
+                        } keyframes: { _ in
+                            KeyframeTrack(\.scale) {
+                                SpringKeyframe(1.06, duration: 0.25, spring: .bouncy)
+                                SpringKeyframe(1.0, duration: 0.3, spring: .smooth)
+                            }
+                            KeyframeTrack(\.opacity) {
+                                LinearKeyframe(1.0, duration: 0.2)
+                            }
+                        }
+                        .onAppear { showResult = true }
                     saveButton
                 } else {
                     ContentUnavailableView(
@@ -131,4 +149,9 @@ struct ScaleResultView: View {
     private func severityColor(for result: ScaleComputedResult) -> Color {
         Color.clinicalRingColor(named: result.color, severity: result.severity)
     }
+}
+
+private struct ResultAnimationValues {
+    var scale: CGFloat = 0.92
+    var opacity: Double = 0
 }

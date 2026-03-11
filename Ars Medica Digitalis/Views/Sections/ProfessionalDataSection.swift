@@ -3,9 +3,11 @@
 //  Ars Medica Digitalis
 //
 //  Datos editables de identidad profesional.
+//  El título de sección se renderiza externamente en ProfileView (small-caps "DATOS PROFESIONALES").
 //
 
 import SwiftUI
+import UIKit
 
 struct ProfessionalDataSection: View {
 
@@ -14,38 +16,59 @@ struct ProfessionalDataSection: View {
     @Binding var licenseNumber: String
 
     var body: some View {
-        SettingsSectionCard(
-            title: "Datos profesionales",
-            systemImage: "person.text.rectangle",
-            subtitle: "Informacion visible y administrativa del profesional."
-        ) {
-            SettingsRow(systemImage: "person.fill", title: "Nombre completo") {
-                inlineField("Nombre completo", text: $fullName)
-                    .textContentType(.name)
-                    .textInputAutocapitalization(.words)
-            }
+        CardContainer(style: .flat, usesGlassEffect: false) {
+            VStack(spacing: 0) {
+                labeledFieldRow(
+                    icon: "person.fill",
+                    title: "Nombre completo",
+                    text: $fullName,
+                    capitalization: .words,
+                    contentType: .name
+                )
 
-            Divider()
+                Divider()
 
-            SettingsRow(systemImage: "stethoscope", title: "Titulo profesional") {
-                inlineField("Titulo profesional", text: $professionalTitle)
-                    .textInputAutocapitalization(.words)
-            }
+                labeledFieldRow(
+                    icon: "stethoscope",
+                    title: "Título profesional",
+                    text: $professionalTitle,
+                    capitalization: .words
+                )
 
-            Divider()
+                Divider()
 
-            SettingsRow(systemImage: "number", title: "Matricula") {
-                inlineField("Numero de matricula", text: $licenseNumber)
-                    .textInputAutocapitalization(.characters)
+                labeledFieldRow(
+                    icon: "number",
+                    title: "Matrícula",
+                    text: $licenseNumber,
+                    capitalization: .characters
+                )
             }
         }
     }
 
-    private func inlineField(_ title: String, text: Binding<String>) -> some View {
-        TextField(title, text: text)
-            .font(.body)
-            .multilineTextAlignment(.trailing)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: 220, alignment: .trailing)
+    private func labeledFieldRow(
+        icon: String,
+        title: String,
+        text: Binding<String>,
+        capitalization: TextInputAutocapitalization = .sentences,
+        contentType: UITextContentType? = nil
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
+            Image(systemName: icon)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+
+            TextField(title, text: text)
+                .textFieldStyle(.plain)
+                .textInputAutocapitalization(capitalization)
+                .textContentType(contentType)
+                .foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
     }
 }
+

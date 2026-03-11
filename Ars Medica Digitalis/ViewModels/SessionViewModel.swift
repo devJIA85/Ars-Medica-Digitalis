@@ -593,11 +593,12 @@ final class SessionViewModel {
     func deleteSession(
         _ session: Session,
         in context: ModelContext,
-        calendarService: CalendarIntegrationService = CalendarIntegrationService()
+        calendarService: CalendarIntegrationService? = nil
     ) async throws {
+        let service = calendarService ?? CalendarIntegrationService()
         if session.calendarEventIdentifier?.isEmpty == false {
             do {
-                try await calendarService.deleteEvent(for: session)
+                try await service.deleteEvent(for: session)
             } catch {
                 // Si el evento ya no existe en EventKit, no bloqueamos el borrado clínico.
                 print("SessionViewModel calendar cleanup failed: \(error.localizedDescription)")

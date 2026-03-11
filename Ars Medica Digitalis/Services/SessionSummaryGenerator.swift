@@ -33,6 +33,8 @@ struct SessionSummaryGenerator: Sendable {
                         return "Apple Intelligence está desactivado en el dispositivo."
                     case .modelNotReady:
                         return "El modelo local aún no está listo. Intentá nuevamente en unos minutos."
+                    @unknown default:
+                        return "El modelo no está disponible por una razón desconocida."
                     }
                 }
             case .emptyModelResponse:

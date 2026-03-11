@@ -3,6 +3,8 @@
 //  Ars Medica Digitalis
 //
 //  Dashboard de perfil profesional con arquitectura de secciones reutilizables.
+//  Rediseñado con lenguaje Liquid Glass: 5 módulos semánticos, cabeceras externas
+//  en small-caps y animación de entrada en cascada.
 //
 
 import SwiftUI
@@ -20,6 +22,9 @@ struct ProfileView: View {
     @State private var showingHonorarios: Bool = false
     @State private var saveErrorMessage: String?
 
+    // Controla la animación de entrada en cascada de los 5 módulos
+    @State private var appeared: Bool = false
+
     private enum ScrollTarget: Hashable {
         case professionalData
     }
@@ -30,24 +35,32 @@ struct ProfileView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: AppSpacing.sectionGap) {
+
+                    // MARK: — Módulo 1: Identidad
                     ProfileHeaderSection(
                         fullName: viewModel.fullName,
                         professionalTitle: viewModel.specialty,
-                        initials: professionalInitials,
+                        licenseNumber: viewModel.licenseNumber,
                         onEdit: {
                             withAnimation(.easeOut(duration: 0.3)) {
                                 proxy.scrollTo(ScrollTarget.professionalData, anchor: .top)
                             }
                         }
                     )
+                    .moduleEntrance(appeared: appeared, delay: 0.00)
+
+                    // MARK: — Módulo 2: Actividad
+                    sectionHeader("Actividad")
+                        .moduleEntrance(appeared: appeared, delay: 0.05)
 
                     StatisticsSection(
                         professional: professional,
                         onShowFinances: { showingFinanceDashboard = true },
                         onShowFees: { showingHonorarios = true }
                     )
+                    .moduleEntrance(appeared: appeared, delay: 0.10)
 
-                    // MARK: - Ajustes
+                    // MARK: — Ajustes
                     NavigationLink {
                         ProfileSettingsView(professional: professional)
                     } label: {
@@ -67,9 +80,13 @@ struct ProfileView: View {
                                 settingsChevron
                             }
                         }
-                        .glassCardEntrance()
                     }
                     .buttonStyle(.plain)
+                    .moduleEntrance(appeared: appeared, delay: 0.15)
+
+                    // MARK: — Módulo 3: Preferencias
+                    sectionHeader("Preferencias")
+                        .moduleEntrance(appeared: appeared, delay: 0.18)
 
                     FinanceSection(
                         defaultPatientCurrencyCode: $viewModel.defaultPatientCurrencyCode,
@@ -77,6 +94,11 @@ struct ProfileView: View {
                         sessionTypes: activeSessionTypes,
                         onManageFees: { showingHonorarios = true }
                     )
+                    .moduleEntrance(appeared: appeared, delay: 0.20)
+
+                    // MARK: — Módulo 4: Datos profesionales
+                    sectionHeader("Datos profesionales")
+                        .moduleEntrance(appeared: appeared, delay: 0.28)
 
                     ProfessionalDataSection(
                         fullName: $viewModel.fullName,
@@ -84,8 +106,14 @@ struct ProfileView: View {
                         licenseNumber: $viewModel.licenseNumber
                     )
                     .id(ScrollTarget.professionalData)
+                    .moduleEntrance(appeared: appeared, delay: 0.30)
+
+                    // MARK: — Módulo 5: Contacto
+                    sectionHeader("Contacto")
+                        .moduleEntrance(appeared: appeared, delay: 0.38)
 
                     ContactSection(email: $viewModel.email)
+                        .moduleEntrance(appeared: appeared, delay: 0.40)
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.lg)
@@ -93,6 +121,10 @@ struct ProfileView: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
+            // Dispara la animación de entrada en cascada al aparecer la vista
+            .onAppear {
+                appeared = true
+            }
         }
         .themedBackground()
         .navigationTitle("Perfil")
@@ -121,6 +153,18 @@ struct ProfileView: View {
         } message: {
             Text(saveErrorMessage ?? "Intenta nuevamente.")
         }
+    }
+
+    // MARK: - Helpers
+
+    /// Cabecera de sección en small-caps: texto en mayúsculas, Footnote Semibold, Secondary.
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, AppSpacing.sm)
     }
 
     @MainActor
@@ -162,19 +206,6 @@ struct ProfileView: View {
         )
     }
 
-    private var professionalInitials: String? {
-        let name = viewModel.fullName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard name.isEmpty == false else { return nil }
-
-        let parts = name.split(separator: " ")
-        if parts.count >= 2,
-           let first = parts.first?.prefix(1),
-           let last = parts.last?.prefix(1) {
-            return "\(first)\(last)".uppercased()
-        }
-
-        return String(name.prefix(1)).uppercased()
-    }
     private var settingsChevron: some View {
         Image(systemName: "chevron.right")
             .font(.footnote.weight(.semibold))
@@ -182,6 +213,24 @@ struct ProfileView: View {
             .accessibilityHidden(true)
     }
 }
+
+// MARK: - Animación de entrada en cascada
+
+private extension View {
+    /// Aplica opacidad + offset Y con spring animado. delay en segundos.
+    /// Usado para la entrada en cascada de los módulos de ProfileView.
+    func moduleEntrance(appeared: Bool, delay: Double) -> some View {
+        self
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 20)
+            .animation(
+                .spring(duration: 0.35, bounce: 0.2).delay(delay),
+                value: appeared
+            )
+    }
+}
+
+// MARK: - Preview
 
 #Preview {
     let container = try! ModelContainer(

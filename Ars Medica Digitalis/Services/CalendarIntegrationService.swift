@@ -9,7 +9,7 @@
 import EventKit
 import Foundation
 
-enum CalendarAuthorizationState: Sendable, Equatable {
+nonisolated enum CalendarAuthorizationState: Sendable, Equatable {
     case notDetermined
     case denied
     case restricted

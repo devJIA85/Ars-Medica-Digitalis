@@ -82,8 +82,6 @@ struct ClinicalPriorityRadar: View {
     @State private var localSelection: ClinicalPriorityBucket? = nil
     @State private var animatedFractions = AnimatedFractions.zero
     @State private var hasAppeared = false
-    @State private var shouldPulseCritical = false
-    @State private var lastPulseToken = ""
 
     init(
         model: ClinicalPriorityRadarModel,
@@ -130,7 +128,6 @@ struct ClinicalPriorityRadar: View {
         .onAppear {
             localSelection = selectedBucket
             animateFractions(to: model)
-            triggerCriticalPulseIfNeeded(using: model)
             hasAppeared = true
         }
         .onChange(of: selectedBucket) { _, newValue in
@@ -138,7 +135,6 @@ struct ClinicalPriorityRadar: View {
         }
         .onChange(of: model) { _, newValue in
             animateFractions(to: newValue)
-            triggerCriticalPulseIfNeeded(using: newValue)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: size)
     }
@@ -164,6 +160,12 @@ struct ClinicalPriorityRadar: View {
             )
             .foregroundStyle(color(for: segment.bucket))
             .opacity(opacity(for: segment.bucket))
+            .phaseAnimator([false, true]) { content, pulse in
+                content.opacity(segment.bucket == .critical && model.criticalCount > 0 && pulse ? 0.65 : 1.0)
+            } animation: { _ in
+                segment.bucket == .critical && model.criticalCount > 0
+                    ? .easeInOut(duration: 1.2) : .default
+            }
         }
     }
 
@@ -205,6 +207,7 @@ struct ClinicalPriorityRadar: View {
             Text("\(model.totalCount)")
                 .font(.title2.weight(.bold))
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .foregroundStyle(.primary)
@@ -293,8 +296,7 @@ struct ClinicalPriorityRadar: View {
                 1
             }
         }() : 0
-        let pulseBoost = bucket == .critical && shouldPulseCritical ? size.pulseBoost : 0
-        return base + selectionBoost + pulseBoost
+        return base + selectionBoost
     }
 
     private func color(for bucket: ClinicalPriorityBucket) -> Color {
@@ -329,26 +331,6 @@ struct ClinicalPriorityRadar: View {
             }
         } else {
             animatedFractions = target
-        }
-    }
-
-    private func triggerCriticalPulseIfNeeded(using model: ClinicalPriorityRadarModel) {
-        guard model.criticalCount > 0 else {
-            shouldPulseCritical = false
-            lastPulseToken = ""
-            return
-        }
-
-        let token = "\(model.totalCount)-\(model.criticalCount)-\(model.attentionCount)-\(model.stableCount)"
-        guard token != lastPulseToken else { return }
-        lastPulseToken = token
-
-        Task { @MainActor in
-            withAnimation(.easeInOut(duration: 0.18).delay(0.14).repeatCount(1, autoreverses: true)) {
-                shouldPulseCritical = true
-            }
-            try? await Task.sleep(nanoseconds: 480_000_000)
-            shouldPulseCritical = false
         }
     }
 

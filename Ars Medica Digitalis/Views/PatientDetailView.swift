@@ -28,7 +28,12 @@ struct PatientDetailView: View {
     @State private var didAppearDiagnoses: Bool = false
     @State private var didAppearSessions: Bool = false
 
+    // FAB — acciones rápidas con Liquid Glass morph
+    @State private var showingAddDiagnosisFromFAB: Bool = false
+    @State private var showingMedicalHistoryFromFAB: Bool = false
+
     var body: some View {
+        ZStack(alignment: .bottomTrailing) {
         ScrollView {
             VStack(spacing: AppSpacing.sectionGap) {
 
@@ -106,16 +111,30 @@ struct PatientDetailView: View {
             }
             .padding(.horizontal, AppSpacing.lg)
             .padding(.vertical, 18)
-            .safeAreaPadding(.bottom, AppSpacing.lg)
             .backgroundExtensionEffect()
         }
         .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
+        // Reserva espacio para que el FAB no tape el último elemento
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 80)
+        }
         .onAppear {
             guard !didAppearDiagnoses else { return }
             didAppearDiagnoses = true
             didAppearSessions = true
         }
+
+        // FAB flotante — esquina inferior trailing con Liquid Glass morph
+        ClinicalFABView(
+            onNuevaSession: { showingNewSession = true },
+            onAgregarDiagnostico: { showingAddDiagnosisFromFAB = true },
+            onHistoriaClinica: { showingMedicalHistoryFromFAB = true }
+        )
+        .padding(.trailing, AppSpacing.lg)
+        .padding(.bottom, AppSpacing.sm)
+
+        } // ZStack
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -145,6 +164,19 @@ struct PatientDetailView: View {
                 }
                 .buttonStyle(.glass)
                 .accessibilityLabel("Editar paciente")
+            }
+        }
+        // FAB — navegación a Historia Clínica (push dentro del NavigationStack padre)
+        .navigationDestination(isPresented: $showingMedicalHistoryFromFAB) {
+            PatientMedicalHistoryView(patient: patient, professional: professional)
+        }
+        // FAB — agregar diagnóstico CIE-11 directamente desde la acción rápida
+        .sheet(isPresented: $showingAddDiagnosisFromFAB) {
+            NavigationStack {
+                ICD11SearchView(
+                    alreadySelected: activeDiagnosesAsDTO,
+                    onSelect: { result in addActiveDiagnosis(result) }
+                )
             }
         }
         .sheet(isPresented: $showingEdit) {

@@ -140,7 +140,7 @@ struct ContentView: View {
                         professional: professional,
                         namespace: patientTransition,
                         onAddPatient: { showingNewPatient = true },
-                        enablesSearch: false
+                        enablesSearch: true
                     )
                 }
             }
@@ -150,21 +150,9 @@ struct ContentView: View {
                     CalendarView(professional: professional)
                 }
             }
-
-            Tab(role: .search) {
-                NavigationStack {
-                    PatientListView(
-                        professional: professional,
-                        namespace: patientTransition,
-                        onAddPatient: { showingNewPatient = true },
-                        enablesSearch: true
-                    )
-                }
-            }
         }
         .symbolRenderingMode(.hierarchical)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewSearchActivation(.searchTabSelection)
         .sheet(isPresented: $showingNewPatient) {
             NavigationStack {
                 PatientFormView(professional: professional)

@@ -13,6 +13,8 @@ struct MMSEScoreView: View {
     let sectionScores: [String: Int]
     let interpretation: MMSEScoringRange?
 
+    @State private var showResult: Bool = false
+
     private var interpretationColor: Color {
         Color.clinicalRingColor(
             named: interpretation?.color ?? "",
@@ -27,6 +29,23 @@ struct MMSEScoreView: View {
                 .foregroundStyle(.primary)
 
             resultCard
+                .keyframeAnimator(
+                    initialValue: MMSEAnimationValues(),
+                    trigger: showResult
+                ) { content, value in
+                    content
+                        .scaleEffect(value.scale)
+                        .opacity(value.opacity)
+                } keyframes: { _ in
+                    KeyframeTrack(\.scale) {
+                        SpringKeyframe(1.06, duration: 0.25, spring: .bouncy)
+                        SpringKeyframe(1.0, duration: 0.3, spring: .smooth)
+                    }
+                    KeyframeTrack(\.opacity) {
+                        LinearKeyframe(1.0, duration: 0.2)
+                    }
+                }
+                .onAppear { showResult = true }
 
             sectionScoresCard
 
@@ -134,4 +153,9 @@ struct MMSEScoreView: View {
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
         )
     }
+}
+
+private struct MMSEAnimationValues {
+    var scale: CGFloat = 0.92
+    var opacity: Double = 0
 }

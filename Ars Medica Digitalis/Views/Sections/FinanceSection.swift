@@ -3,6 +3,7 @@
 //  Ars Medica Digitalis
 //
 //  Configuracion financiera reutilizable para defaults administrativos.
+//  El título de sección se renderiza externamente en ProfileView (small-caps "PREFERENCIAS").
 //
 
 import SwiftUI
@@ -16,46 +17,44 @@ struct FinanceSection: View {
     let onManageFees: () -> Void
 
     var body: some View {
-        SettingsSectionCard(
-            title: "Configuracion financiera",
-            systemImage: "wallet.pass",
-            subtitle: "Preferencias que se aplican al crear pacientes y nuevas sesiones."
-        ) {
-            SettingsRow(
-                systemImage: "dollarsign.circle",
-                title: "Moneda base",
-                subtitle: "Se asigna a pacientes nuevos"
-            ) {
-                currencyMenu
-            }
-
-            Divider()
-
-            SettingsRow(
-                systemImage: "creditcard.and.123",
-                title: "Honorario sugerido",
-                subtitle: "Tipo facturable preferido para sesiones nuevas"
-            ) {
-                sessionTypeMenu
-            }
-
-            Divider()
-
-            Button(action: onManageFees) {
+        CardContainer(style: .flat) {
+            VStack(spacing: 0) {
                 SettingsRow(
-                    systemImage: "slider.horizontal.3",
-                    title: "Gestionar honorarios",
-                    subtitle: sessionTypes.isEmpty
-                    ? "Crea tu primer honorario para habilitar sugerencias"
-                    : "\(sessionTypes.count) tipos activos disponibles"
+                    systemImage: "dollarsign.circle",
+                    title: "Moneda base",
+                    subtitle: "Se asigna a pacientes nuevos"
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
+                    currencyMenu
                 }
+
+                Divider()
+
+                SettingsRow(
+                    systemImage: "creditcard.and.123",
+                    title: "Honorario sugerido",
+                    subtitle: "Tipo facturable preferido para sesiones nuevas"
+                ) {
+                    sessionTypeMenu
+                }
+
+                Divider()
+
+                Button(action: onManageFees) {
+                    SettingsRow(
+                        systemImage: "slider.horizontal.3",
+                        title: "Gestionar honorarios",
+                        subtitle: sessionTypes.isEmpty
+                        ? "Crea tu primer honorario para habilitar sugerencias"
+                        : "\(sessionTypes.count) tipos activos disponibles"
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -97,7 +96,7 @@ struct FinanceSection: View {
     private var selectedCurrencyLabel: String {
         defaultPatientCurrencyCode.isEmpty
         ? "Sin configurar"
-        : CurrencyCatalog.label(for: defaultPatientCurrencyCode)
+        : defaultPatientCurrencyCode
     }
 
     private var selectedSessionTypeLabel: String {
@@ -117,9 +116,10 @@ private struct SettingsMenuLabel: View {
     var body: some View {
         HStack(spacing: AppSpacing.xs) {
             Text(title)
-                .font(.body)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .truncationMode(.tail)
 
             Image(systemName: "chevron.up.chevron.down")
                 .font(.caption.weight(.semibold))
@@ -127,7 +127,7 @@ private struct SettingsMenuLabel: View {
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, AppSpacing.sm)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .background(.thinMaterial, in: Capsule())
     }
 }

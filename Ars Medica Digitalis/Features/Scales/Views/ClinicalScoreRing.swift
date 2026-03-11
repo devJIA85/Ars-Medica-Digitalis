@@ -59,6 +59,7 @@ struct ClinicalScoreRing: View {
                 Text("\(score)")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
                     .foregroundStyle(.primary)
 
                 Text("/ \(maxScore)")

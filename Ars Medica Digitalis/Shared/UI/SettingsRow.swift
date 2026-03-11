@@ -53,8 +53,9 @@ struct SettingsRow<Accessory: View>: View {
             } else {
                 HStack(alignment: .center, spacing: AppSpacing.md) {
                     rowLabel
-                    Spacer(minLength: AppSpacing.md)
+                    Spacer(minLength: AppSpacing.sm)
                     accessory
+                        .layoutPriority(1)
                 }
             }
         }
@@ -78,7 +79,6 @@ struct SettingsRow<Accessory: View>: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

@@ -24,6 +24,7 @@ struct ClinicalMetricTile: View {
                 .font(.title2)
                 .fontWeight(.semibold)
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(.primary)

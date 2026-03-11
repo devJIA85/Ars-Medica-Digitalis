@@ -62,6 +62,7 @@ struct InsightMetricCard: View {
             Text(metric.value)
                 .font(.system(size: isCompact ? 28 : 34, weight: .bold, design: .rounded))
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .foregroundStyle(.primary)

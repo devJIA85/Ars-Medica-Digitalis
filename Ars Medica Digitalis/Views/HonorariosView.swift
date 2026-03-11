@@ -550,7 +550,8 @@ private struct HonorariosSessionTypeCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .symbolRenderingMode(.multicolor)
+                    .symbolEffect(.wiggle, options: .nonRepeating)
 
                 Text(L10n.tr("honorarios.suggest_update"))
                     .font(.subheadline.weight(.semibold))

@@ -120,7 +120,7 @@ struct ICD11SearchView: View {
 
             if isAlreadySelected {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.tint)
+                    .symbolRenderingMode(.multicolor)
             }
         }
         .contentShape(Rectangle())

@@ -183,7 +183,7 @@ private struct MedicationSelectableRow: View {
 
             if isSelected {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.tint)
+                    .symbolRenderingMode(.multicolor)
             }
 
             Button {

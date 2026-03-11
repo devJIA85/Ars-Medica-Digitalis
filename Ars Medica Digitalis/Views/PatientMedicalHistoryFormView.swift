@@ -1003,6 +1003,8 @@ private struct VoiceFieldButton: View {
             Image(systemName: isActive ? "mic.fill" : "mic")
                 .font(.body.weight(.semibold))
                 .foregroundStyle(isActive ? .white : .secondary)
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.pulse, options: .repeating, isActive: isActive)
                 .frame(width: 34, height: 34)
                 .background(
                     isActive ? Color.accentColor : Color.primary.opacity(0.08),

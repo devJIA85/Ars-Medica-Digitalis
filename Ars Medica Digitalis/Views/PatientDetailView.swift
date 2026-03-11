@@ -754,6 +754,7 @@ private struct SessionsSection: View {
     @State private var sessionViewModel = SessionViewModel()
     @State private var pendingCompletion: PendingPatientSessionCompletion?
     @State private var completionErrorMessage: String?
+    @State private var addSessionBounce: Int = 0
 
     private static let visibleLimit = 3
 
@@ -777,12 +778,14 @@ private struct SessionsSection: View {
                     Spacer(minLength: 0)
 
                     Button {
+                        addSessionBounce += 1
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         onCreateSession()
                     } label: {
                         Image(systemName: "plus")
                             .font(.body.weight(.semibold))
                             .frame(width: 28, height: 28)
+                            .symbolEffect(.bounce, value: addSessionBounce)
                     }
                     .buttonStyle(.glass)
                     .frame(minWidth: 44, minHeight: 44)
@@ -796,11 +799,13 @@ private struct SessionsSection: View {
                             .foregroundStyle(.secondary)
 
                         Button {
+                            addSessionBounce += 1
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             onCreateSession()
                         } label: {
                             Label("Crear primera sesión", systemImage: "plus.circle")
                                 .font(.subheadline.weight(.medium))
+                                .symbolEffect(.bounce, value: addSessionBounce)
                         }
                     }
                 } else {

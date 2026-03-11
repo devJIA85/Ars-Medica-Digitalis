@@ -122,6 +122,8 @@ struct ScalesListView: View {
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "waveform.path.ecg")
+                                .symbolRenderingMode(.hierarchical)
+                                .symbolColorRenderingMode(.gradient)
                                 .foregroundStyle(Color.accentColor)
                         }
 
@@ -161,11 +163,13 @@ struct ScalesListView: View {
             ) {
                 HStack(alignment: .center, spacing: AppSpacing.md) {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.blue.opacity(0.14))
+                        .fill(Color.accentColor.opacity(0.14))
                         .frame(width: 40, height: 40)
                         .overlay {
                             Image(systemName: "brain.head.profile")
-                                .foregroundStyle(Color.blue)
+                                .symbolRenderingMode(.hierarchical)
+                                .symbolColorRenderingMode(.gradient)
+                                .foregroundStyle(Color.accentColor)
                         }
 
                     VStack(alignment: .leading, spacing: 2) {

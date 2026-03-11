@@ -185,6 +185,8 @@ struct PatientDebtSettlementView: View {
                 Image(systemName: viewModel.selectedOption == option ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(viewModel.selectedOption == option ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
                     .font(.title3)
+                    .symbolRenderingMode(viewModel.selectedOption == option ? .multicolor : .monochrome)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .contentShape(Rectangle())
         }

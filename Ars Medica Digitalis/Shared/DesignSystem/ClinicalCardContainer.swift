@@ -68,6 +68,7 @@ struct ClinicalCardContainer<Content: View>: View {
             if onHeaderTap != nil {
                 Image(systemName: isCollapsed ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
                     .foregroundStyle(.secondary)
+                    .contentTransition(.symbolEffect(.replace))
             }
         }
         .contentShape(Rectangle())

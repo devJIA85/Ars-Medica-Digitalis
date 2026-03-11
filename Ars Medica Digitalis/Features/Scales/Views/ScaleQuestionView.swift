@@ -138,6 +138,8 @@ struct ScaleQuestionView: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(isSelected ? .blue : .secondary)
+                    .symbolRenderingMode(isSelected ? .multicolor : .monochrome)
+                    .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
 
                 Text(option.text)

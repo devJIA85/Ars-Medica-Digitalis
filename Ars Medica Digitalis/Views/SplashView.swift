@@ -24,6 +24,8 @@ struct SplashView: View {
             VStack(spacing: 16) {
                 Image(systemName: "cross.case.fill")
                     .font(.system(size: 58, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .symbolColorRenderingMode(.gradient)
                     .foregroundStyle(.white)
                     .scaleEffect(pulse ? 1.06 : 0.94)
 

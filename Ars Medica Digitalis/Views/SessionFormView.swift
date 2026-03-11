@@ -183,6 +183,8 @@ struct SessionFormView: View {
                         Label("Falta configuración financiera", systemImage: "exclamationmark.triangle.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.orange)
+                            .symbolRenderingMode(.multicolor)
+                            .symbolEffect(.wiggle, options: .nonRepeating)
 
                         Text(configurationIssue.message(resolvedCurrencyCode: pricingPreview.currencyCode))
                             .font(.footnote)

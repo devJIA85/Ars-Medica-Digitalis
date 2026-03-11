@@ -244,6 +244,8 @@ struct PaymentFlowView: View {
             Label("Falta configuración financiera", systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.orange)
+                .symbolRenderingMode(.multicolor)
+                .symbolEffect(.wiggle, options: .nonRepeating)
 
             Text(message)
                 .font(.footnote)
@@ -275,6 +277,8 @@ struct PaymentFlowView: View {
                 Image(systemName: selectedOption == option ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(selectedOption == option ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
                     .font(.title3)
+                    .symbolRenderingMode(selectedOption == option ? .multicolor : .monochrome)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .contentShape(Rectangle())
         }

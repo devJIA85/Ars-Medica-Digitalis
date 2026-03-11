@@ -112,6 +112,8 @@ struct OnboardingView: View {
                         .overlay {
                             Image(systemName: "stethoscope")
                                 .font(.system(size: layout.heroSymbolSize, weight: .semibold))
+                                .symbolRenderingMode(.hierarchical)
+                                .symbolColorRenderingMode(.gradient)
                                 .foregroundStyle(.tint)
                         }
                         .overlay {
@@ -291,6 +293,7 @@ struct OnboardingView: View {
             HStack(spacing: AppSpacing.sm) {
                 Image(systemName: "sparkles")
                     .font(.body.weight(.semibold))
+                    .symbolRenderingMode(.multicolor)
 
                 Text("Crear Perfil")
                     .font(.body.weight(.semibold))

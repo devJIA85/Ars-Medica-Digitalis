@@ -111,10 +111,12 @@ struct MMSEIntroView: View {
             ZStack {
                 Image(systemName: "brain.head.profile")
                     .font(.title2)
-                    .foregroundStyle(.blue)
+                    .symbolRenderingMode(.hierarchical)
+                    .symbolColorRenderingMode(.gradient)
+                    .foregroundStyle(.tint)
                     .frame(width: 48, height: 48)
             }
-            .glassEffect(.regular.tint(.blue.opacity(0.18)).interactive(), in: .circle)
+            .glassEffect(.regular.tint(Color.accentColor.opacity(0.18)).interactive(), in: .circle)
             .accessibilityHidden(true)
 
             Text(test.name)

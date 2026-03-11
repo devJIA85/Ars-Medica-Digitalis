@@ -261,6 +261,7 @@ struct ClinicalInsightsCard: View {
             Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
+                .contentTransition(.symbolEffect(.replace))
                 .frame(width: 28, height: 28)
         }
         .buttonStyle(.glass)

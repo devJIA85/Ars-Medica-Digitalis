@@ -162,6 +162,7 @@ struct ContentView: View {
                 }
             }
         }
+        .symbolRenderingMode(.hierarchical)
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewSearchActivation(.searchTabSelection)
         .sheet(isPresented: $showingNewPatient) {

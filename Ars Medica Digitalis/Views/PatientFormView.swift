@@ -14,6 +14,8 @@ struct PatientFormView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let professional: Professional
 
@@ -23,6 +25,7 @@ struct PatientFormView: View {
     // @State preserva el VM entre re-renders del padre (sheets, etc.)
     // @Bindable no lo hacía → se recreaba vacío y se perdían datos.
     @State private var viewModel: PatientViewModel
+    @State private var flowState = PatientCreationState()
 
     private var isEditing: Bool { patient != nil }
 
@@ -47,153 +50,34 @@ struct PatientFormView: View {
     }
 
     var body: some View {
-        Form {
-            // MARK: - Foto y Datos Personales
-            Section("Foto y Datos Personales") {
-                ProfilePhotoPickerView(
-                    photoData: $viewModel.photoData,
-                    genderHint: viewModel.gender.isEmpty
-                        ? viewModel.biologicalSex
-                        : viewModel.gender,
-                    onResize: { viewModel.resizePhoto($0) }
-                )
-
-                TextField("Nombre", text: $viewModel.firstName)
-                    .textContentType(.givenName)
-
-                TextField("Apellido", text: $viewModel.lastName)
-                    .textContentType(.familyName)
-
-                DatePicker(
-                    "Fecha de Nacimiento",
-                    selection: $viewModel.dateOfBirth,
-                    in: ...Date.now,
-                    displayedComponents: .date
-                )
-
-                Picker("Género", selection: $viewModel.gender) {
-                    ForEach(PatientViewModel.genderOptions, id: \.0) { value, label in
-                        Text(label).tag(value)
-                    }
-                }
-
-                Picker("Estado Civil", selection: $viewModel.maritalStatus) {
-                    ForEach(PatientViewModel.maritalStatusOptions, id: \.0) { value, label in
-                        Text(label).tag(value)
-                    }
-                }
-
-                NavigationLink {
-                    CountryPickerView(
-                        selection: $viewModel.nationality,
-                        frequentCodes: frequentCountryCodes
-                    )
-                    .navigationTitle("Nacionalidad")
-                } label: {
-                    LabeledContent("Nacionalidad") {
-                        Text(CountryCatalog.displayName(for: viewModel.nationality))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                NavigationLink {
-                    CountryPickerView(
-                        selection: $viewModel.residenceCountry,
-                        frequentCodes: frequentCountryCodes
-                    )
-                    .navigationTitle("País de Residencia")
-                } label: {
-                    LabeledContent("País de Residencia") {
-                        Text(CountryCatalog.displayName(for: viewModel.residenceCountry))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                TextField("Ocupación", text: $viewModel.occupation)
-
-                Picker("Nivel Académico", selection: $viewModel.educationLevel) {
-                    ForEach(PatientViewModel.educationLevelOptions, id: \.0) { value, label in
-                        Text(label).tag(value)
-                    }
-                }
-
-                Picker("Estado Clínico", selection: $viewModel.clinicalStatus) {
-                    ForEach(PatientViewModel.clinicalStatusOptions, id: \.0) { value, label in
-                        Text(label).tag(value)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            // MARK: - Identificación y Cobertura
-            Section("Identificación y Cobertura") {
-                TextField("Documento de Identidad", text: $viewModel.nationalId)
-                    .textContentType(.none)
-                    .keyboardType(.numberPad)
-
-                TextField("Obra Social", text: $viewModel.healthInsurance)
-
-                TextField("Nº de Afiliado", text: $viewModel.insuranceMemberNumber)
-                    .keyboardType(.numberPad)
-
-                TextField("Plan", text: $viewModel.insurancePlan)
-            }
-
-            // MARK: - Finanzas
-            Section {
-                Picker("Moneda predeterminada", selection: $viewModel.currencyCode) {
-                    Text("Sin configurar").tag("")
-                    ForEach(PatientViewModel.supportedCurrencies) { currency in
-                        Text(currency.displayLabel).tag(currency.code)
-                    }
-                }
-            } header: {
-                Text("Finanzas")
-            } footer: {
-                Text("Se usa para resolver la moneda de la sesion al momento del cobro.")
-            }
-
-            // MARK: - Contacto
-            Section("Contacto") {
-                TextField("Email", text: $viewModel.email)
-                    .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-
-                TextField("Teléfono", text: $viewModel.phoneNumber)
-                    .textContentType(.telephoneNumber)
-                    .keyboardType(.phonePad)
-
-                TextField("Dirección", text: $viewModel.address)
-                    .textContentType(.fullStreetAddress)
-
-                // Contacto de emergencia
-                TextField("Emergencia: Nombre", text: $viewModel.emergencyContactName)
-
-                TextField("Emergencia: Teléfono", text: $viewModel.emergencyContactPhone)
-                    .keyboardType(.phonePad)
-
-                Picker("Emergencia: Vínculo", selection: $viewModel.emergencyContactRelation) {
-                    ForEach(PatientViewModel.emergencyRelationOptions, id: \.0) { value, label in
-                        Text(label).tag(value)
-                    }
-                }
-            }
-        }
+        PatientCreationFlowView(
+            viewModel: viewModel,
+            flowState: flowState,
+            frequentCountryCodes: frequentCountryCodes,
+            isEditing: isEditing,
+            onCancel: { dismiss() },
+            onSave: save
+        )
         .navigationTitle(isEditing ? "Editar Paciente" : "Nuevo Paciente")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancelar") { dismiss() }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button(isEditing ? "Guardar" : "Crear") {
-                    save()
-                }
-                .disabled(!viewModel.canSave)
-            }
+        .onAppear {
+            flowState.adaptPresentationModeIfNeeded(
+                verticalSizeClass: verticalSizeClass,
+                dynamicTypeSize: dynamicTypeSize
+            )
         }
-        // Carga de datos ahora ocurre en init → @State preserva el VM.
+        .onChange(of: verticalSizeClass) {
+            flowState.adaptPresentationModeIfNeeded(
+                verticalSizeClass: verticalSizeClass,
+                dynamicTypeSize: dynamicTypeSize
+            )
+        }
+        .onChange(of: dynamicTypeSize) {
+            flowState.adaptPresentationModeIfNeeded(
+                verticalSizeClass: verticalSizeClass,
+                dynamicTypeSize: dynamicTypeSize
+            )
+        }
     }
 
     // MARK: - Acciones

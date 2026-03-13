@@ -12,7 +12,6 @@ struct MMSEIntroView: View {
     let test: MMSETest
     let patientID: UUID
     let patientName: String
-    let onSessionSaved: () -> Void
 
     @Query private var savedResults: [PatientScaleResult]
 
@@ -24,13 +23,11 @@ struct MMSEIntroView: View {
     init(
         test: MMSETest,
         patientID: UUID,
-        patientName: String,
-        onSessionSaved: @escaping () -> Void = {}
+        patientName: String
     ) {
         self.test = test
         self.patientID = patientID
         self.patientName = patientName
-        self.onSessionSaved = onSessionSaved
 
         let patientIdentifier = patientID
         let scaleIdentifier = test.id
@@ -258,8 +255,7 @@ struct MMSEIntroView: View {
         switch route {
         case .assessment:
             MMSEAssessmentView(
-                patientID: patientID,
-                onResultSaved: onSessionSaved
+                patientID: patientID
             )
         case .savedResult(let resultID):
             if let result = snapshots.first(where: { $0.id == resultID }) {

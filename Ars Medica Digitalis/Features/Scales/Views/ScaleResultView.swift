@@ -11,17 +11,9 @@ import SwiftData
 struct ScaleResultView: View {
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scaleFlowCoordinator) private var coordinator
 
     let viewModel: ScaleSessionViewModel
-    let onSessionSaved: () -> Void
-
-    init(
-        viewModel: ScaleSessionViewModel,
-        onSessionSaved: @escaping () -> Void = {}
-    ) {
-        self.viewModel = viewModel
-        self.onSessionSaved = onSessionSaved
-    }
 
     @State private var didSaveResult: Bool = false
     @State private var saveErrorMessage: String? = nil
@@ -140,7 +132,9 @@ struct ScaleResultView: View {
         do {
             _ = try viewModel.saveResult(in: modelContext)
             didSaveResult = true
-            onSessionSaved()
+            // El coordinador señala a ScalesListView que cierre el fullScreenCover.
+            // Reemplaza el chain de callbacks onSessionSaved a través de 4 niveles.
+            coordinator?.complete()
         } catch {
             saveErrorMessage = error.localizedDescription
         }

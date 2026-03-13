@@ -9,19 +9,12 @@ import SwiftUI
 
 struct ScaleQuestionView: View {
 
-    @Environment(\.dismiss) private var dismiss
-
     @State private var viewModel: ScaleSessionViewModel
     @State private var showingResult: Bool = false
     @State private var errorMessage: String? = nil
-    let onSessionSaved: () -> Void
 
-    init(
-        viewModel: ScaleSessionViewModel,
-        onSessionSaved: @escaping () -> Void = {}
-    ) {
+    init(viewModel: ScaleSessionViewModel) {
         _viewModel = State(initialValue: viewModel)
-        self.onSessionSaved = onSessionSaved
     }
 
     var body: some View {
@@ -52,15 +45,7 @@ struct ScaleQuestionView: View {
         .navigationTitle(viewModel.scale.id)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showingResult) {
-            ScaleResultView(
-                viewModel: viewModel,
-                onSessionSaved: {
-                    dismiss()
-                    DispatchQueue.main.async {
-                        onSessionSaved()
-                    }
-                }
-            )
+            ScaleResultView(viewModel: viewModel)
         }
         .alert(
             "No se puede finalizar",

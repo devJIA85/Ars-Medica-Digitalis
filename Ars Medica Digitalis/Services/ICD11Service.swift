@@ -107,7 +107,7 @@ actor ICD11Service {
                       (200...299).contains(retryHTTP.statusCode) else {
                     throw ICD11Error.authenticationFailed
                 }
-                let results = try parseSearchResults(from: retryData)
+                let results = try await parseSearchResults(from: retryData)
                 searchCache[cacheKey] = results
                 saveSearchCache(results, for: cacheKey)
                 return results
@@ -117,7 +117,7 @@ actor ICD11Service {
                 throw ICD11Error.httpError(statusCode: httpResponse.statusCode)
             }
 
-            let results = try parseSearchResults(from: data)
+            let results = try await parseSearchResults(from: data)
             searchCache[cacheKey] = results
             saveSearchCache(results, for: cacheKey)
             return results
@@ -273,7 +273,10 @@ actor ICD11Service {
     /// Parsea el JSON de búsqueda extrayendo destinationEntities.
     /// Usa parseo manual porque la API devuelve campos opcionales
     /// inconsistentes — un campo inválido no debe romper todo el resultado.
-    private func parseSearchResults(from data: Data) throws -> [ICD11SearchResult] {
+    /// @concurrent: parseo CPU-bound puro, no accede estado del actor.
+    /// Corre en el thread pool cooperativo liberando el actor durante el parseo.
+    @concurrent
+    private func parseSearchResults(from data: Data) async throws -> [ICD11SearchResult] {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let entities = root["destinationEntities"] as? [[String: Any]] else {
             throw ICD11Error.parsingFailed

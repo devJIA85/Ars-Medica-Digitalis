@@ -10,8 +10,6 @@ import SwiftData
 
 struct ScalesListView: View {
 
-    @Environment(\.dismiss) private var dismiss
-
     let patientID: UUID
     let patientName: String
 
@@ -22,6 +20,7 @@ struct ScalesListView: View {
     @State private var loadErrorMessage: String? = nil
     @State private var isLoading: Bool = false
     @State private var selectedScaleFlow: SelectedScaleFlow? = nil
+    @State private var flowCoordinator = ScaleFlowCoordinator()
 
     init(patientID: UUID, patientName: String) {
         self.patientID = patientID
@@ -72,8 +71,12 @@ struct ScalesListView: View {
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Escalas")
         .navigationBarTitleDisplayMode(.large)
-        .fullScreenCover(item: $selectedScaleFlow, onDismiss: resetSelectedScaleFlow) { flow in
+        .fullScreenCover(item: $selectedScaleFlow, onDismiss: { flowCoordinator.reset() }) { flow in
             fullScreenDestination(for: flow)
+                .environment(\.scaleFlowCoordinator, flowCoordinator)
+        }
+        .onChange(of: flowCoordinator.isDone) { _, isDone in
+            if isDone { selectedScaleFlow = nil }
         }
         .task {
             await loadScales()
@@ -256,10 +259,6 @@ struct ScalesListView: View {
             .map(SavedScaleResultSnapshot.init)
     }
 
-    private func resetSelectedScaleFlow() {
-        selectedScaleFlow = nil
-    }
-
     /// Router central para cada flujo de evaluación mostrado como full-screen.
     /// Se separa por tipo para mantener navegación consistente sin acoplar modelos distintos.
     @ViewBuilder
@@ -271,13 +270,7 @@ struct ScalesListView: View {
                     scale: scale,
                     patientID: patientID,
                     patientName: patientName,
-                    savedResults: savedResults,
-                    onSessionSaved: {
-                        selectedScaleFlow = nil
-                        DispatchQueue.main.async {
-                            dismiss()
-                        }
-                    }
+                    savedResults: savedResults
                 )
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {

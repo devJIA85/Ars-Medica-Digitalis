@@ -11,7 +11,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Patient {
+final class Patient: SoftDeletable {
 
     var id: UUID = UUID()
 
@@ -170,7 +170,7 @@ final class Patient {
     // MARK: - Computed properties (no se persisten)
 
     var fullName: String { "\(firstName) \(lastName)" }
-    var isActive: Bool { deletedAt == nil }
+    // isActive viene de SoftDeletable (deletedAt == nil)
 
     /// Resume si el paciente mantiene deuda en sesiones ya completadas.
     /// Se limita a sesiones cerradas para no marcar como deuda un turno futuro

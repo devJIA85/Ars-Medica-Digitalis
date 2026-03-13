@@ -38,6 +38,10 @@ struct DashboardView: View {
                 )
             } else {
                 ScrollView {
+                    // Un único GlassEffectContainer agrupa todos los CardContainer hijos,
+                    // permitiendo al sistema compartir un solo pase de backdrop sampling
+                    // en lugar de calcular N backdrops individuales para cada card.
+                    GlassEffectContainer {
                     LazyVStack(spacing: 16) {
 
                         // MARK: - KPI Cards
@@ -108,6 +112,7 @@ struct DashboardView: View {
                         }
                     }
                     .padding()
+                    } // GlassEffectContainer
                     .backgroundExtensionEffect()
                 }
             }

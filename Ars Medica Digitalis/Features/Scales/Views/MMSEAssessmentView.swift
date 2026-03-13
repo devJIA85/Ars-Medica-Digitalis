@@ -11,11 +11,11 @@ import SwiftData
 struct MMSEAssessmentView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scaleFlowCoordinator) private var coordinator
 
     private let loader: MMSELoader
     private let patientID: UUID?
     private let showsCloseButton: Bool
-    private let onResultSaved: () -> Void
 
     @State private var store: MMSEStore? = nil
     @State private var isLoading: Bool = true
@@ -27,13 +27,11 @@ struct MMSEAssessmentView: View {
     init(
         loader: MMSELoader = MMSELoader(),
         patientID: UUID? = nil,
-        showsCloseButton: Bool = false,
-        onResultSaved: @escaping () -> Void = {}
+        showsCloseButton: Bool = false
     ) {
         self.loader = loader
         self.patientID = patientID
         self.showsCloseButton = showsCloseButton
-        self.onResultSaved = onResultSaved
     }
 
     var body: some View {
@@ -317,9 +315,10 @@ struct MMSEAssessmentView: View {
             let saved = try ScaleResultPersistenceService.save(result, in: modelContext)
             savedResultID = saved.id
 
-            // Tras guardar se vuelve al resumen intermedio para mostrar historial actualizado.
-            dismiss()
-            onResultSaved()
+            // El coordinador señala a ScalesListView que cierre el fullScreenCover.
+            // Reemplaza dismiss() + onResultSaved() eliminando el bug donde
+            // MMSEIntroView no propagaba la señal de vuelta al ListView.
+            coordinator?.complete()
         } catch {
             saveErrorMessage = error.localizedDescription
         }

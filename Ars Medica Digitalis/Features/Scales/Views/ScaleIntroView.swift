@@ -9,13 +9,10 @@ import SwiftUI
 
 struct ScaleIntroView: View {
 
-    @Environment(\.dismiss) private var dismiss
-
     let scale: ClinicalScale
     let patientID: UUID
     let patientName: String
     let savedResults: [SavedScaleResultSnapshot]
-    let onSessionSaved: () -> Void
 
     @State private var route: ScaleIntroRoute? = nil
     @State private var showFullHistory: Bool = false
@@ -26,14 +23,12 @@ struct ScaleIntroView: View {
         scale: ClinicalScale,
         patientID: UUID,
         patientName: String,
-        savedResults: [SavedScaleResultSnapshot] = [],
-        onSessionSaved: @escaping () -> Void = {}
+        savedResults: [SavedScaleResultSnapshot] = []
     ) {
         self.scale = scale
         self.patientID = patientID
         self.patientName = patientName
         self.savedResults = savedResults
-        self.onSessionSaved = onSessionSaved
     }
 
     var body: some View {
@@ -299,13 +294,7 @@ struct ScaleIntroView: View {
                 viewModel: ScaleSessionViewModel(
                     scale: scale,
                     patientID: patientID
-                ),
-                onSessionSaved: {
-                    dismiss()
-                    DispatchQueue.main.async {
-                        onSessionSaved()
-                    }
-                }
+                )
             )
 
         case .savedResult(let resultID):

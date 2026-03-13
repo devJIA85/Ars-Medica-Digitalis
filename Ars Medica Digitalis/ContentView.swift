@@ -264,10 +264,15 @@ struct ContentView: View {
         guard shouldRequireLock else { return }
 
         switch phase {
-        case .background, .inactive:
+        case .background:
             isAppUnlocked = false
         case .active:
+            guard isAppUnlocked == false, isAuthenticating == false else {
+                return
+            }
             Task { await unlockWithBiometrics() }
+        case .inactive:
+            break
         @unknown default:
             break
         }

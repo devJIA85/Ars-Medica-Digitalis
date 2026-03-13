@@ -21,6 +21,10 @@
 	<string>Ars Medica Digitalis necesita acceso al calendario para crear turnos clínicos desde la app.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Ars Medica Digitalis utiliza Face ID para proteger el acceso a información clínica sensible.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

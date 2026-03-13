@@ -15,12 +15,17 @@ struct PatientCreationFlowView: View {
     let frequentCountryCodes: [String]
     let isEditing: Bool
     let onCancel: () -> Void
+    let onImportContact: () -> Void
     let onSave: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
-                PatientCreationHeader(viewModel: viewModel)
+                PatientCreationHeader(
+                    viewModel: viewModel,
+                    isEditing: isEditing,
+                    onImportFromContacts: onImportContact
+                )
 
                 if flowState.isStepModeEnabled {
                     PatientStepProgressView(flowState: flowState)

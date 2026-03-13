@@ -37,7 +37,7 @@ struct PatientPersonalSection: View {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 DatePicker(
                     "Fecha de nacimiento",
-                    selection: $viewModel.dateOfBirth,
+                    selection: dateOfBirthBinding,
                     in: ...Date.now,
                     displayedComponents: .date
                 )
@@ -153,6 +153,16 @@ struct PatientPersonalSection: View {
             0
         )
         return years == 1 ? "1 año" : "\(years) años"
+    }
+
+    private var dateOfBirthBinding: Binding<Date> {
+        Binding(
+            get: { viewModel.dateOfBirth },
+            set: { newValue in
+                viewModel.dateOfBirth = newValue
+                viewModel.markDateOfBirthAsEdited()
+            }
+        )
     }
 }
 

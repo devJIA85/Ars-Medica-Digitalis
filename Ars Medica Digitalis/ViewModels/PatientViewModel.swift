@@ -19,6 +19,7 @@ final class PatientViewModel {
     var firstName: String = ""
     var lastName: String = ""
     var dateOfBirth: Date = Date()
+    var hasManuallyEditedDateOfBirth: Bool = false
     var biologicalSex: String = ""
     var nationalId: String = ""
 
@@ -167,6 +168,7 @@ final class PatientViewModel {
     /// Carga datos de un Patient existente para edición
     func load(from patient: Patient) {
         PatientFormData(patient: patient).apply(to: self)
+        hasManuallyEditedDateOfBirth = true
     }
 
     /// Si el profesional tiene una moneda base, la sembramos al crear
@@ -178,6 +180,10 @@ final class PatientViewModel {
         }
 
         currencyCode = professional.defaultPatientCurrencyCode
+    }
+
+    func markDateOfBirthAsEdited() {
+        hasManuallyEditedDateOfBirth = true
     }
 
     // MARK: - Creación

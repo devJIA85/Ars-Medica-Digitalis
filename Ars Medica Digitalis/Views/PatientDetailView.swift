@@ -1210,7 +1210,10 @@ private struct CollapsibleContextSection: View {
                 DataRowView(icon: "envelope", title: "Email", value: patient.email)
             }
             if !patient.phoneNumber.isEmpty {
-                DataRowView(icon: "phone", title: "Teléfono", value: patient.phoneNumber)
+                PhoneContactRowView(
+                    phoneNumber: patient.phoneNumber,
+                    isoCountryCode: patient.residenceCountry.isEmpty ? nil : patient.residenceCountry
+                )
             }
             if !patient.address.isEmpty {
                 DataRowView(icon: "house", title: "Dirección", value: patient.address)
@@ -1312,6 +1315,72 @@ private struct PersistedDisclosureGroup<Label: View, Content: View>: View {
             content
         } label: {
             label
+        }
+    }
+}
+
+// MARK: - Phone Contact Row
+
+/// Fila de contacto telefónico con acciones rápidas de llamada y WhatsApp.
+/// El ícono de WhatsApp sólo aparece si la app está instalada y el número es válido.
+private struct PhoneContactRowView: View {
+
+    let phoneNumber: String
+    /// Código ISO 3166-1 alpha-2 del paciente (ej. "ES", "AR").
+    /// Se usa para inferir el indicativo cuando el número se guardó en formato local.
+    var isoCountryCode: String? = nil
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "phone")
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .font(.body)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Teléfono")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text(phoneNumber)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+            }
+
+            Spacer(minLength: 0)
+
+            // Llamada
+            if let callURL = PhoneContact.callURL(for: phoneNumber) {
+                Button {
+                    UIApplication.shared.open(callURL)
+                } label: {
+                    Image(systemName: "phone.fill")
+                        .font(.callout)
+                        .foregroundStyle(.tint)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Llamar al paciente")
+                .accessibilityHint("Abre la app de Teléfono para llamar a \(phoneNumber)")
+            }
+
+            // WhatsApp — solo si está instalado y el número normaliza correctamente
+            if PhoneContact.isWhatsAppAvailable,
+               let normalized = PhoneContact.normalizedForWhatsApp(phoneNumber, isoCountryCode: isoCountryCode),
+               let waURL = PhoneContact.whatsAppURL(normalizedPhone: normalized) {
+                Button {
+                    UIApplication.shared.open(waURL)
+                } label: {
+                    Image(systemName: "message.fill")
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Abrir chat de WhatsApp con el paciente")
+                .accessibilityHint("Abre WhatsApp en la conversación con \(phoneNumber)")
+            }
         }
     }
 }

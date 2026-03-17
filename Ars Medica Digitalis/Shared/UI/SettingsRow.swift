@@ -94,7 +94,7 @@ struct SettingsRow<Accessory: View>: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(.white.opacity(0.18))
+                    .strokeBorder(.primary.opacity(0.10))
             }
     }
 }

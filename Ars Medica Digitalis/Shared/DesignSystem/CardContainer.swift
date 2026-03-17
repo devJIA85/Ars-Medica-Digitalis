@@ -7,6 +7,10 @@
 //  en todas las vistas y eliminar la inconsistencia entre PatientListView y
 //  PatientDetailView que usaban dos implementaciones distintas.
 //
+//  Fix: cuando usesGlassEffect = true, el background material lo provee
+//  .glassEffect() directamente. Aplicar ambos creaba un artefacto visual
+//  de doble capa bajo fondos dinámicos en iOS 26.
+//
 
 import SwiftUI
 
@@ -51,12 +55,16 @@ struct CardContainer<Content: View>: View {
     var body: some View {
         Group {
             if usesGlassEffect {
+                // glassEffect gestiona el material visualmente —
+                // no se aplica background adicional para evitar doble capa.
                 GlassEffectContainer {
-                    cardContent
+                    rawCardContent
                 }
                 .glassEffect(style == .elevated ? .regular : .clear, in: shape)
             } else {
-                cardContent
+                // Sin glassEffect, el material se aplica explícitamente.
+                rawCardContent
+                    .background(cardFillStyle, in: shape)
             }
         }
         .clipShape(shape)
@@ -67,7 +75,8 @@ struct CardContainer<Content: View>: View {
         )
     }
 
-    private var cardContent: some View {
+    /// Contenido sin background propio; el contexto padre decide el tratamiento.
+    private var rawCardContent: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             if let title {
                 Label {
@@ -85,10 +94,6 @@ struct CardContainer<Content: View>: View {
         }
         .padding(AppSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            cardFillStyle,
-            in: shape
-        )
     }
 }
 

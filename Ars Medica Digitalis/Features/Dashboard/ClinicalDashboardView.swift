@@ -15,15 +15,16 @@ struct ClinicalDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Patient.lastName) private var allPatients: [Patient]
     @State private var filter: ClinicalDashboardFilter = .all
+    @State private var viewModel = ClinicalDashboardViewModel()
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.lg) {
                 ClinicalInsightsCard(
-                    criticalPatients: dashboardState.criticalPatients,
-                    riskPatients: dashboardState.riskPatients,
-                    averageAdherence: dashboardState.averageAdherence,
-                    patientsWithoutSession30Days: dashboardState.patientsWithoutSession30Days
+                    criticalPatients: viewModel.state.criticalPatients,
+                    riskPatients: viewModel.state.riskPatients,
+                    averageAdherence: viewModel.state.averageAdherence,
+                    patientsWithoutSession30Days: viewModel.state.patientsWithoutSession30Days
                 )
 
                 ClinicalDashboardPatientSections(sections: filteredSections)
@@ -36,6 +37,9 @@ struct ClinicalDashboardView: View {
         .navigationBarTitleDisplayMode(.inline)
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
+        .task(id: refreshToken) {
+            viewModel.reload(patients: patients, context: modelContext)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -61,11 +65,11 @@ struct ClinicalDashboardView: View {
     private var filteredSections: [ClinicalDashboardSection] {
         switch filter {
         case .all:
-            dashboardState.sections
+            viewModel.state.sections
         case .highRisk:
-            dashboardState.sections.filter { $0.kind != .stable }
+            viewModel.state.sections.filter { $0.kind != .stable }
         case .stable:
-            dashboardState.sections.filter { $0.kind == .stable }
+            viewModel.state.sections.filter { $0.kind == .stable }
         }
     }
 
@@ -76,60 +80,13 @@ struct ClinicalDashboardView: View {
         }
     }
 
-    private var dashboardState: ClinicalDashboardState {
-        buildState(from: patients)
-    }
-
-    private func buildState(from patients: [Patient]) -> ClinicalDashboardState {
-        let snapshotCache = ClinicalSnapshotBuilder.buildSnapshots(patients: patients, context: modelContext)
-        let insightEngine = PatientInsightEngine()
-
-        let rows = patients.compactMap { patient -> ClinicalDashboardPatientRowModel? in
-            guard let snapshot = snapshotCache[patient.id] else {
-                return nil
-            }
-
-            let insight = insightEngine.buildInsight(snapshot: snapshot)
-            return ClinicalDashboardPatientRowModel(
-                patient: patient,
-                snapshot: snapshot,
-                insight: insight
-            )
-        }
-
-        let groupedRows = Dictionary(grouping: rows, by: \.sectionKind)
-        let sections = ClinicalDashboardSection.Kind.displayOrder.compactMap { kind -> ClinicalDashboardSection? in
-            guard let sectionRows = groupedRows[kind], sectionRows.isEmpty == false else {
-                return nil
-            }
-
-            return ClinicalDashboardSection(
-                kind: kind,
-                rows: sectionRows.sorted { lhs, rhs in
-                    if lhs.riskScore == rhs.riskScore {
-                        return lhs.fullName.localizedCaseInsensitiveCompare(rhs.fullName) == .orderedAscending
-                    }
-
-                    return lhs.riskScore > rhs.riskScore
-                }
-            )
-        }
-
-        let totalAdherence = rows.reduce(0) { $0 + $1.adherence }
-        let averageAdherence = rows.isEmpty ? 0 : totalAdherence / Double(rows.count)
-        let riskPatients = rows.filter { $0.sectionKind != .stable }.count
-        let criticalPatients = rows.filter { $0.sectionKind == .critical }.count
-        let patientsWithoutSession30Days = rows.filter { row in
-            (row.daysSinceLastSession ?? 0) >= 30
-        }.count
-
-        return ClinicalDashboardState(
-            criticalPatients: criticalPatients,
-            riskPatients: riskPatients,
-            averageAdherence: averageAdherence,
-            patientsWithoutSession30Days: patientsWithoutSession30Days,
-            sections: sections
-        )
+    /// Token estable para `.task(id:)`: se invalida solo cuando cambian
+    /// pacientes o sus fechas de actualización, evitando recálculos innecesarios.
+    private var refreshToken: String {
+        patients
+            .map { "\($0.id.uuidString)\($0.updatedAt.timeIntervalSince1970)" }
+            .sorted()
+            .joined()
     }
 }
 
@@ -147,30 +104,15 @@ private enum ClinicalDashboardFilter: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .all:
-            "All"
+            "Todos"
         case .highRisk:
-            "High Risk"
+            "Alto riesgo"
         case .stable:
-            "Stable"
+            "Estable"
         }
     }
 }
 
-private struct ClinicalDashboardState {
-    let criticalPatients: Int
-    let riskPatients: Int
-    let averageAdherence: Double
-    let patientsWithoutSession30Days: Int
-    let sections: [ClinicalDashboardSection]
-
-    static let empty = ClinicalDashboardState(
-        criticalPatients: 0,
-        riskPatients: 0,
-        averageAdherence: 0,
-        patientsWithoutSession30Days: 0,
-        sections: []
-    )
-}
 
 private struct ClinicalDashboardPatientSections: View {
 
@@ -272,7 +214,7 @@ private struct ClinicalDashboardPatientRow: View {
     }
 }
 
-private struct ClinicalDashboardPatientRowModel: Identifiable {
+struct ClinicalDashboardPatientRowModel: Identifiable {
     let id: UUID
     let patientID: UUID
     let photoData: Data?
@@ -367,7 +309,7 @@ private struct ClinicalDashboardPatientRowModel: Identifiable {
     }
 }
 
-private struct ClinicalDashboardSection: Identifiable {
+struct ClinicalDashboardSection: Identifiable {
 
     enum Kind: String, CaseIterable, Identifiable {
         case critical
@@ -381,11 +323,11 @@ private struct ClinicalDashboardSection: Identifiable {
         var title: String {
             switch self {
             case .critical:
-                "Critical"
+                "Crítico"
             case .highRisk:
-                "High Risk"
+                "Alto riesgo"
             case .stable:
-                "Stable"
+                "Estable"
             }
         }
     }

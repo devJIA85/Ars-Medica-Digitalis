@@ -17,6 +17,8 @@ struct ProfileView: View {
 
     let professional: Professional
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var viewModel = ProfessionalViewModel()
     @State private var showingFinanceDashboard: Bool = false
     @State private var showingHonorarios: Bool = false
@@ -119,6 +121,7 @@ struct ProfileView: View {
                 .padding(.top, AppSpacing.lg)
                 .padding(.bottom, AppSpacing.xl)
             }
+            .scrollContentBackground(.hidden)
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
             // Dispara la animación de entrada en cascada al aparecer la vista
@@ -216,17 +219,31 @@ struct ProfileView: View {
 
 // MARK: - Animación de entrada en cascada
 
-private extension View {
-    /// Aplica opacidad + offset Y con spring animado. delay en segundos.
-    /// Usado para la entrada en cascada de los módulos de ProfileView.
-    func moduleEntrance(appeared: Bool, delay: Double) -> some View {
-        self
+/// ViewModifier que aplica opacidad + offset Y con spring animado,
+/// respetando la preferencia de accesibilidad "Reducir movimiento".
+private struct ModuleEntranceModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let appeared: Bool
+    let delay: Double
+
+    func body(content: Content) -> some View {
+        content
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 20)
+            .offset(y: (appeared || reduceMotion) ? 0 : 20)
             .animation(
-                .spring(duration: 0.35, bounce: 0.2).delay(delay),
+                reduceMotion
+                    ? .easeIn(duration: 0.15)
+                    : .spring(duration: 0.35, bounce: 0.2).delay(delay),
                 value: appeared
             )
+    }
+}
+
+private extension View {
+    /// Aplica opacidad + offset Y con spring animado. delay en segundos.
+    /// Respeta la preferencia del sistema "Reducir movimiento".
+    func moduleEntrance(appeared: Bool, delay: Double) -> some View {
+        modifier(ModuleEntranceModifier(appeared: appeared, delay: delay))
     }
 }
 

@@ -9,35 +9,52 @@ import SwiftUI
 
 /// Renderiza un fondo suave estilo Apple Health que ocupa toda la pantalla.
 /// Se coloca como capa inferior en un ZStack y adapta sus tonos al color base recibido.
+/// Usa proporciones relativas (GeometryReader) para escalar correctamente
+/// en distintos tamaños de pantalla (iPhone SE → iPad).
 struct AppBackgroundView: View {
 
     let baseColor: Color
 
     var body: some View {
-        ZStack {
-            // Gradiente base sutil: fondo del sistema hacia el color de tema.
-            LinearGradient(
-                colors: [
-                    Color(uiColor: .systemBackground),
-                    baseColor.opacity(0.10),
-                    baseColor.opacity(0.06)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        GeometryReader { geo in
+            ZStack {
+                // Gradiente base sutil: fondo del sistema hacia el color de tema.
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemBackground),
+                        baseColor.opacity(0.10),
+                        baseColor.opacity(0.06)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
 
-            // Manchas difusas para profundidad visual.
-            Circle()
-                .fill(baseColor.opacity(0.14))
-                .frame(width: 280, height: 280)
-                .blur(radius: 28)
-                .offset(x: -120, y: -250)
+                // Mancha difusa superior-izquierda
+                Circle()
+                    .fill(baseColor.opacity(0.14))
+                    .frame(
+                        width: geo.size.width * 0.70,
+                        height: geo.size.width * 0.70
+                    )
+                    .blur(radius: 28)
+                    .offset(
+                        x: -geo.size.width * 0.30,
+                        y: -geo.size.height * 0.30
+                    )
 
-            Circle()
-                .fill(baseColor.opacity(0.10))
-                .frame(width: 320, height: 320)
-                .blur(radius: 36)
-                .offset(x: 180, y: 220)
+                // Mancha difusa inferior-derecha
+                Circle()
+                    .fill(baseColor.opacity(0.10))
+                    .frame(
+                        width: geo.size.width * 0.80,
+                        height: geo.size.width * 0.80
+                    )
+                    .blur(radius: 36)
+                    .offset(
+                        x: geo.size.width * 0.45,
+                        y: geo.size.height * 0.28
+                    )
+            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)

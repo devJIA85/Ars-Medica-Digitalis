@@ -42,7 +42,7 @@ struct DashboardView: View {
                     // permitiendo al sistema compartir un solo pase de backdrop sampling
                     // en lugar de calcular N backdrops individuales para cada card.
                     GlassEffectContainer {
-                    LazyVStack(spacing: 16) {
+                    LazyVStack(spacing: AppSpacing.md) {
 
                         // MARK: - KPI Cards
                         kpiSection
@@ -185,7 +185,7 @@ struct DashboardView: View {
     // MARK: - Género (Donut)
 
     private var genderChart: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.sm) {
             Chart(viewModel.genderDistribution) { segment in
                 SectorMark(
                     angle: .value("Cantidad", segment.count),
@@ -248,7 +248,7 @@ struct DashboardView: View {
     // MARK: - Sesiones en el Tiempo (Línea con series por status)
 
     private var sessionsTimeChart: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.sm) {
             // Picker de período temporal
             Picker("Período", selection: $viewModel.sessionTimePeriod) {
                 ForEach(TimePeriod.allCases, id: \.self) { period in
@@ -287,7 +287,7 @@ struct DashboardView: View {
     // MARK: - Modalidad (Donut)
 
     private var modalityChart: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.sm) {
             Chart(viewModel.sessionsByModality) { segment in
                 SectorMark(
                     angle: .value("Cantidad", segment.count),
@@ -306,7 +306,7 @@ struct DashboardView: View {
     // MARK: - Status (Donut)
 
     private var statusChart: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.sm) {
             Chart(viewModel.sessionsByStatus) { segment in
                 SectorMark(
                     angle: .value("Cantidad", segment.count),
@@ -399,7 +399,7 @@ struct DashboardView: View {
     // MARK: - Actividad de Pacientes (barras + línea)
 
     private var patientActivityChart: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppSpacing.sm) {
             Picker("Período", selection: $viewModel.patientActivityPeriod) {
                 ForEach(PatientActivityPeriod.allCases, id: \.self) { period in
                     Text(patientActivityPickerLabel(period)).tag(period)
@@ -469,7 +469,7 @@ struct DashboardView: View {
             }
             .frame(height: 220)
 
-            HStack(spacing: 16) {
+            HStack(spacing: AppSpacing.md) {
                 chartMiniLegendItem("Activos", color: .blue)
                 chartMiniLegendItem("Altas", color: .green)
                 chartMiniLegendItem("Bajas", color: .red)
@@ -550,7 +550,7 @@ struct DashboardView: View {
     /// Leyenda horizontal para donut charts
     private func chartLegend(_ segments: [ChartSegment]) -> some View {
         // Wrap horizontal para que se ajuste si hay muchos items
-        HStack(spacing: 16) {
+        HStack(spacing: AppSpacing.md) {
             ForEach(segments) { segment in
                 HStack(spacing: 4) {
                     Circle()
@@ -583,7 +583,7 @@ private struct HealthMetricRow: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppSpacing.sm) {
             ZStack {
                 Circle()
                     .fill(color.opacity(0.12))
@@ -605,7 +605,7 @@ private struct HealthMetricRow: View {
                 .minimumScaleFactor(0.8)
                 .lineLimit(1)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, AppSpacing.sm)
     }
 }
 

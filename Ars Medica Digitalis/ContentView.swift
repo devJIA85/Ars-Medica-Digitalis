@@ -31,20 +31,12 @@ struct ContentView: View {
     @State private var didRunLaunchFlow = false
     @State private var launchPhase: LaunchPhase = .splash
     @State private var isAppUnlocked: Bool = true
-    @State private var isAuthenticating: Bool = false
-    @State private var lockErrorMessage: String? = nil
+    @State private var biometricLock = BiometricLockCoordinator()
     @State private var isRunningSessionRepair: Bool = false
     @State private var isRunningPatientRecordRepair: Bool = false
     @State private var didResolveSessionRepairForCurrentLaunch: Bool = false
     @State private var didResolvePatientRecordRepairForCurrentLaunch: Bool = false
     @State private var deepLinkedSessionContext: DeepLinkedSessionContext?
-    @State private var biometricCapability = BiometricCapability(
-        kind: .none,
-        isAvailable: false,
-        unavailableReason: nil
-    )
-
-    private let biometricAuthService = BiometricAuthService()
 
     private enum LaunchPhase {
         case splash
@@ -100,9 +92,9 @@ struct ContentView: View {
                 ProgressView()
             } else if shouldRequireLock && !isAppUnlocked {
                 AppLockView(
-                    capability: biometricCapability,
-                    isAuthenticating: isAuthenticating,
-                    errorMessage: lockErrorMessage,
+                    capability: biometricLock.capability,
+                    isAuthenticating: biometricLock.isAuthenticating,
+                    errorMessage: biometricLock.errorMessage,
                     onUnlockBiometric: {
                         Task { await unlockWithBiometrics() }
                     },
@@ -148,6 +140,18 @@ struct ContentView: View {
             Tab("Calendario", systemImage: "calendar") {
                 NavigationStack {
                     CalendarView(professional: professional)
+                }
+            }
+
+            Tab("Clínico", systemImage: "chart.bar.xaxis.ascending") {
+                NavigationStack {
+                    ClinicalDashboardView(professional: professional)
+                }
+            }
+
+            Tab("Perfil", systemImage: "person.crop.circle") {
+                NavigationStack {
+                    ProfileView(professional: professional)
                 }
             }
         }
@@ -230,21 +234,21 @@ struct ContentView: View {
 
     @MainActor
     private func handleProtectionContextChange() {
-        biometricCapability = biometricAuthService.capability()
+        biometricLock.refreshCapability()
 
         if shouldRequireLock {
             isAppUnlocked = false
         } else {
             isAppUnlocked = true
-            lockErrorMessage = nil
+            biometricLock.clearError()
         }
     }
 
     @MainActor
     private func handleBiometricToggleChange(isEnabled: Bool) {
         if isEnabled {
-            biometricCapability = biometricAuthService.capability()
-            guard biometricCapability.isAvailable else {
+            biometricLock.refreshCapability()
+            guard biometricLock.capability.isAvailable else {
                 biometricLockEnabled = false
                 return
             }
@@ -255,7 +259,7 @@ struct ContentView: View {
             }
         } else {
             isAppUnlocked = true
-            lockErrorMessage = nil
+            biometricLock.clearError()
         }
     }
 
@@ -267,7 +271,7 @@ struct ContentView: View {
         case .background:
             isAppUnlocked = false
         case .active:
-            guard isAppUnlocked == false, isAuthenticating == false else {
+            guard isAppUnlocked == false, biometricLock.isAuthenticating == false else {
                 return
             }
             Task { await unlockWithBiometrics() }
@@ -280,49 +284,23 @@ struct ContentView: View {
 
     @MainActor
     private func unlockWithBiometrics() async {
-        await performAuthentication {
-            await biometricAuthService.authenticateBiometrically(
-                reason: "Desbloqueá Ars Medica Digitalis para acceder a historias clínicas."
-            )
+        guard shouldRequireLock else {
+            isAppUnlocked = true
+            return
+        }
+        if await biometricLock.authenticateBiometrically() {
+            isAppUnlocked = true
         }
     }
 
     @MainActor
     private func unlockWithDeviceOwnerAuthentication() async {
-        await performAuthentication {
-            await biometricAuthService.authenticateWithDeviceOwner(
-                reason: "Validá tu identidad para acceder a Ars Medica Digitalis."
-            )
-        }
-    }
-
-    @MainActor
-    private func performAuthentication(
-        _ method: () async -> BiometricAuthOutcome
-    ) async {
         guard shouldRequireLock else {
             isAppUnlocked = true
             return
         }
-        guard !isAuthenticating else { return }
-
-        isAuthenticating = true
-        lockErrorMessage = nil
-        biometricCapability = biometricAuthService.capability()
-
-        let result = await method()
-
-        isAuthenticating = false
-
-        switch result {
-        case .success:
+        if await biometricLock.authenticateWithPasscode() {
             isAppUnlocked = true
-            lockErrorMessage = nil
-        case .cancelled:
-            isAppUnlocked = false
-        case .failed(let message):
-            isAppUnlocked = false
-            lockErrorMessage = message
         }
     }
 

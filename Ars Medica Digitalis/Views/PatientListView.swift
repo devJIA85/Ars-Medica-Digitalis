@@ -54,7 +54,7 @@ struct PatientListView: View {
                     Button {
                         onAddPatient()
                     } label: {
-                        Text("+ Nuevo")
+                        Label("Nuevo", systemImage: "plus")
                     }
                     .buttonStyle(.glass)
                     .accessibilityLabel("Agregar nuevo paciente")

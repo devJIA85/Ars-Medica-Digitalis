@@ -4,6 +4,11 @@
 //
 //  Paleta de colores de acento seleccionable por el profesional.
 //
+//  Nota: AppThemeColor y SessionTypeColorToken comparten los mismos
+//  8 tokens de color (blue, teal, green, orange, red, pink, purple, indigo).
+//  AppThemeColor agrega softFill/softStroke para uso en contextos de theming,
+//  mientras que SessionTypeColorToken los usa para badges de tipos de sesión.
+//
 
 import SwiftUI
 
@@ -34,16 +39,26 @@ enum AppThemeColor: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    /// Nombre visible en la interfaz de seleccion de tema.
+    /// Relleno suave (14% opacidad) para fondos de badge o contenedor.
+    var softFill: Color {
+        color.opacity(0.14)
+    }
+
+    /// Borde suave (20% opacidad) para stroke de badge o contenedor.
+    var softStroke: Color {
+        color.opacity(0.20)
+    }
+
+    /// Nombre visible en la interfaz de selección de tema.
     var displayName: String {
         switch self {
         case .blue:   "Azul"
         case .green:  "Verde"
-        case .purple: "Purpura"
+        case .purple: "Púrpura"
         case .orange: "Naranja"
         case .red:    "Rojo"
         case .teal:   "Verde azulado"
-        case .indigo: "Indigo"
+        case .indigo: "Índigo"
         case .pink:   "Rosa"
         }
     }

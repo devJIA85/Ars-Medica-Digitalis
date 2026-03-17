@@ -21,7 +21,7 @@ struct SquircleIconView: View {
             .frame(width: 40, height: 40)
             .background(
                 color.opacity(0.15),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous)
             )
     }
 }

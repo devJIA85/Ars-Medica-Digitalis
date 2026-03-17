@@ -13,6 +13,7 @@ import SwiftData
 struct PatientDetailView: View {
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let patient: Patient
     let professional: Professional
@@ -35,6 +36,7 @@ struct PatientDetailView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
         ScrollView {
+            GlassEffectContainer {
             VStack(spacing: AppSpacing.sectionGap) {
 
                 // 1. Compact header — avatar + name + clinical status
@@ -53,8 +55,11 @@ struct PatientDetailView: View {
                     onMarkAsPrimary: markDiagnosisAsPrimary
                 )
                 .opacity(didAppearDiagnoses ? 1 : 0)
-                .scaleEffect(didAppearDiagnoses ? 1 : 0.97)
-                .animation(.smooth(duration: 0.4), value: didAppearDiagnoses)
+                .scaleEffect((didAppearDiagnoses || reduceMotion) ? 1 : 0.97)
+                .animation(
+                    reduceMotion ? .easeIn(duration: 0.15) : .smooth(duration: 0.4),
+                    value: didAppearDiagnoses
+                )
 
                 // 3. Clinical activity timeline — recent events summary
                 ClinicalActivityTimeline(patient: patient)
@@ -87,14 +92,23 @@ struct PatientDetailView: View {
                     )
                 }
 
+                // Historial financiero: visible cuando hay sesiones facturables,
+                // independientemente de si hay deuda pendiente o no.
+                if !FinancialLedgerBuilder.availableCurrencies(for: patient).isEmpty {
+                    PatientFinancialHistoryCard(patient: patient)
+                }
+
                 // 5. Sessions — timeline
                 SessionsSection(
                     patient: patient,
                     onCreateSession: { showingNewSession = true }
                 )
                 .opacity(didAppearSessions ? 1 : 0)
-                .offset(y: didAppearSessions ? 0 : 16)
-                .animation(.smooth(duration: 0.4).delay(0.08), value: didAppearSessions)
+                .offset(y: (didAppearSessions || reduceMotion) ? 0 : 16)
+                .animation(
+                    reduceMotion ? .easeIn(duration: 0.15) : .smooth(duration: 0.4).delay(0.08),
+                    value: didAppearSessions
+                )
 
                 // 6. Patient info — collapsible, reduced dividers
                 CollapsibleContextSection(
@@ -111,6 +125,7 @@ struct PatientDetailView: View {
             }
             .padding(.horizontal, AppSpacing.lg)
             .padding(.vertical, 18)
+            } // GlassEffectContainer
             .backgroundExtensionEffect()
         }
         .scrollContentBackground(.hidden)

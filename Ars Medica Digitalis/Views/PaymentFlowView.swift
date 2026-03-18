@@ -122,7 +122,7 @@ struct PaymentFlowView: View {
                     .disabled(canConfirm == false || isConfirming)
                 }
             }
-            .alert("No se pudo completar la sesión", isPresented: errorBinding) {
+            .alert("No se pudo completar la sesión", isPresented: $errorMessage.isPresent) {
                 Button("Aceptar", role: .cancel) {
                     errorMessage = nil
                 }
@@ -175,17 +175,6 @@ struct PaymentFlowView: View {
         case .partial:
             return partialAmount > 0 && partialAmount < draft.amountDue
         }
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
     }
 
     @MainActor

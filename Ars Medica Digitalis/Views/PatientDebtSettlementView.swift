@@ -115,7 +115,7 @@ struct PatientDebtSettlementView: View {
         .task {
             refresh()
         }
-        .alert(L10n.tr("patient.debt.settlement.error.title"), isPresented: errorBinding) {
+        .alert(L10n.tr("patient.debt.settlement.error.title"), isPresented: $errorMessage.isPresent) {
             Button(L10n.tr("common.accept"), role: .cancel) {
                 errorMessage = nil
             }
@@ -130,17 +130,6 @@ struct PatientDebtSettlementView: View {
         }
 
         return viewModel.totalDebt.formattedCurrency(code: viewModel.selectedCurrency)
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
     }
 
     /// La vista solo dispara acciones del ViewModel.

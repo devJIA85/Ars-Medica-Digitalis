@@ -223,10 +223,7 @@ struct PatientDetailView: View {
         }
         .alert(
             "No se pudo exportar el PDF",
-            isPresented: Binding(
-                get: { exportErrorMessage != nil },
-                set: { if !$0 { exportErrorMessage = nil } }
-            )
+            isPresented: $exportErrorMessage.isPresent
         ) {
             Button("Aceptar", role: .cancel) {
                 exportErrorMessage = nil
@@ -240,8 +237,7 @@ struct PatientDetailView: View {
             titleVisibility: .visible
         ) {
             Button("Dar de Baja", role: .destructive) {
-                patient.deletedAt = Date()
-                patient.updatedAt = Date()
+                patient.softDelete()
             }
         } message: {
             Text("El paciente desaparecerá de la lista principal. Su historia clínica se conservará íntegra.")
@@ -891,7 +887,7 @@ private struct SessionsSection: View {
                 try sessionViewModel.completeSession(item.session, in: modelContext, paymentIntent: paymentIntent)
             }
         }
-        .alert("No se pudo completar la sesión", isPresented: completionErrorBinding) {
+        .alert("No se pudo completar la sesión", isPresented: $completionErrorMessage.isPresent) {
             Button("Aceptar", role: .cancel) {
                 completionErrorMessage = nil
             }
@@ -946,17 +942,8 @@ private struct SessionsSection: View {
         )
     }
 
-    private var completionErrorBinding: Binding<Bool> {
-        Binding(
-            get: { completionErrorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    completionErrorMessage = nil
-                }
-            }
-        )
-    }
 }
+
 
 // MARK: - Historial completo de sesiones
 

@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftData
+import UIKit
 
 enum PaymentState: String, Sendable {
     case unpaid
@@ -28,6 +29,10 @@ final class Session {
     /// Se guarda aparte para preservar formato (negrita, listas, encabezados).
     @Attribute(.externalStorage)
     var notesRichTextData: Data = Data()
+    /// Persistencia RTF estable: formato ISO-estándar.
+    /// Primario para lectura; notesRichTextData se mantiene como fallback legado.
+    @Attribute(.externalStorage)
+    var notesRTFData: Data? = nil
     var chiefComplaint: String = ""          // Motivo de consulta
     var treatmentPlan: String = ""
     /// Resumen clínico breve (editable) generado por Apple Intelligence.
@@ -35,6 +40,9 @@ final class Session {
     /// Persistencia rica (iOS 26): plan terapéutico con formato.
     @Attribute(.externalStorage)
     var treatmentPlanRichTextData: Data = Data()
+    /// Persistencia RTF estable (V2): plan terapéutico.
+    @Attribute(.externalStorage)
+    var treatmentPlanRTFData: Data? = nil
     var status: String = SessionStatusMapping.completada.rawValue      // "programada" | "completada" | "cancelada"
     /// Identificador del evento en el calendario del sistema (EventKit).
     /// Permite actualizar/eliminar la misma cita sin duplicar eventos.
@@ -80,31 +88,33 @@ final class Session {
 
     /// API rica para la UI de edición.
     /// Conserva `notes` como fallback plano para compatibilidad y exportación.
+    /// Estrategia triple fallback: RTF (V2 estable) → JSON (V1 legado) → texto plano.
     var notesRichText: AttributedString {
         get {
-            Self.decodeRichText(
-                from: notesRichTextData,
-                fallbackPlainText: notes
-            )
+            if let data = notesRTFData, !data.isEmpty,
+               let decoded = Self.decodeRTF(from: data) { return decoded }
+            return Self.decodeRichText(from: notesRichTextData, fallbackPlainText: notes)
         }
         set {
             notes = String(newValue.characters)
-            notesRichTextData = Self.encodeRichText(newValue)
+            notesRTFData = Self.encodeRTF(newValue)
+            notesRichTextData = Self.encodeRichText(newValue)  // mantiene legado para rollback
         }
     }
 
     /// API rica para el plan terapéutico.
     /// Mantiene `treatmentPlan` como lectura plana en vistas que aún no renderizan atributos.
+    /// Estrategia triple fallback: RTF (V2 estable) → JSON (V1 legado) → texto plano.
     var treatmentPlanRichText: AttributedString {
         get {
-            Self.decodeRichText(
-                from: treatmentPlanRichTextData,
-                fallbackPlainText: treatmentPlan
-            )
+            if let data = treatmentPlanRTFData, !data.isEmpty,
+               let decoded = Self.decodeRTF(from: data) { return decoded }
+            return Self.decodeRichText(from: treatmentPlanRichTextData, fallbackPlainText: treatmentPlan)
         }
         set {
             treatmentPlan = String(newValue.characters)
-            treatmentPlanRichTextData = Self.encodeRichText(newValue)
+            treatmentPlanRTFData = Self.encodeRTF(newValue)
+            treatmentPlanRichTextData = Self.encodeRichText(newValue)  // mantiene legado para rollback
         }
     }
 
@@ -146,39 +156,28 @@ final class Session {
     }
 
     /// Precio efectivo de la sesión.
-    /// Si está completada usa snapshot histórico; si no, resuelve dinámicamente.
-    /// En sesiones de cortesía siempre vale cero para evitar ingresos/deuda artificial.
+    ///
+    /// Para sesiones completadas lee `finalPriceSnapshot` directamente, sin
+    /// instanciar ningún servicio — es el path caliente en todas las listas.
+    /// Solo cuando el snapshot no existe (sesión abierta, o completada antes
+    /// de que se implementara el congelamiento) crea SessionPricingService
+    /// con el contexto disponible para resolver el precio dinámico.
     @MainActor
     var effectivePrice: Decimal {
-        if isCourtesy {
-            return 0
-        }
-
-        let service = SessionPricingService(modelContext: modelContext)
-        if isCompleted {
-            // Mientras la sesión completada aún no congeló snapshots, por ejemplo
-            // durante la validación previa al guardado, seguimos resolviendo en vivo
-            // para no degradar a cero una sesión que sí tiene honorario válido.
-            return finalPriceSnapshot ?? service.resolveDynamicPrice(for: self)
-        }
-
-        return service.resolveDynamicPrice(for: self)
+        if isCourtesy { return 0 }
+        if isCompleted, let snapshot = finalPriceSnapshot { return snapshot }
+        return SessionPricingService(modelContext: modelContext).resolveDynamicPrice(for: self)
     }
 
     /// Moneda efectiva de la sesión.
-    /// Las sesiones completadas leen el snapshot para congelar la historia;
-    /// las no completadas siguen la moneda vigente del paciente por fecha.
+    ///
+    /// Idéntica estrategia que `effectivePrice`: snapshot primero, servicio
+    /// solo como fallback. Elimina la instanciación en sesiones ya cerradas.
     @MainActor
     var effectiveCurrency: String {
+        if isCompleted, let snapshot = finalCurrencySnapshot, !snapshot.isEmpty { return snapshot }
         guard let patient else { return "" }
-        let service = SessionPricingService(modelContext: modelContext)
-        if isCompleted {
-            // Mismo criterio que el precio: una completada temporal sin snapshot
-            // todavía debe poder validarse y mostrarse con su moneda dinámica.
-            return finalCurrencySnapshot ?? service.resolveCurrency(for: patient, at: scheduledAt)
-        }
-
-        return service.resolveCurrency(for: patient, at: scheduledAt)
+        return SessionPricingService(modelContext: modelContext).resolveCurrency(for: patient, at: scheduledAt)
     }
 
     /// Suma de pagos efectivamente registrados sobre la sesión.
@@ -250,7 +249,9 @@ final class Session {
         finalPriceSnapshot: Decimal? = nil,
         finalCurrencySnapshot: String? = nil,
         isCourtesy: Bool = false,
-        payments: [Payment]? = []
+        payments: [Payment]? = [],
+        notesRTFData: Data? = nil,
+        treatmentPlanRTFData: Data? = nil
     ) {
         self.id = id
         self.sessionDate = sessionDate
@@ -279,20 +280,49 @@ final class Session {
         self.finalCurrencySnapshot = finalCurrencySnapshot
         self.isCourtesy = isCourtesy
         self.payments = payments
+        self.notesRTFData = notesRTFData
+        self.treatmentPlanRTFData = treatmentPlanRTFData
     }
+
+    private static let encoder = JSONEncoder()
+    private static let decoder = JSONDecoder()
 
     /// Encapsula la estrategia Codable -> Data para no repetirla fuera del modelo.
     private static func encodeRichText(_ text: AttributedString) -> Data {
-        (try? JSONEncoder().encode(text)) ?? Data()
+        (try? encoder.encode(text)) ?? Data()
     }
 
     /// Decodifica rich text y cae a plano cuando se abre una sesión legada.
     private static func decodeRichText(from data: Data, fallbackPlainText: String) -> AttributedString {
         guard data.isEmpty == false,
-              let decoded = try? JSONDecoder().decode(AttributedString.self, from: data) else {
+              let decoded = try? decoder.decode(AttributedString.self, from: data) else {
             return AttributedString(fallbackPlainText)
         }
 
         return decoded
+    }
+
+    // MARK: - RTF helpers (V2)
+
+    /// Serializa un AttributedString a RTF usando NSAttributedString.
+    /// Retorna nil si la conversión falla (e.g., string vacío sin atributos).
+    static func encodeRTF(_ text: AttributedString) -> Data? {
+        let nsString = NSAttributedString(text)
+        guard nsString.length > 0 else { return nil }
+        return try? nsString.data(
+            from: NSRange(location: 0, length: nsString.length),
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
+        )
+    }
+
+    /// Deserializa RTF a AttributedString con scope UIKit.
+    /// Retorna nil si los datos son inválidos o no corresponden a RTF.
+    static func decodeRTF(from data: Data) -> AttributedString? {
+        guard let nsString = try? NSAttributedString(
+            data: data,
+            options: [.documentType: NSAttributedString.DocumentType.rtf],
+            documentAttributes: nil
+        ) else { return nil }
+        return try? AttributedString(nsString, including: \.uiKit)
     }
 }

@@ -55,7 +55,7 @@ struct OnboardingView: View {
             .background { onboardingBackground }
             .toolbar(.hidden, for: .navigationBar)
         }
-        .alert("No se pudo crear el perfil", isPresented: saveErrorBinding) {
+        .alert("No se pudo crear el perfil", isPresented: $saveErrorMessage.isPresent) {
             Button("Aceptar", role: .cancel) {
                 saveErrorMessage = nil
             }
@@ -316,17 +316,6 @@ struct OnboardingView: View {
     private func canCreateProfile(for viewModel: ProfessionalViewModel) -> Bool {
         viewModel.canSave
         && viewModel.defaultPatientCurrencyCode.trimmed.isEmpty == false
-    }
-
-    private var saveErrorBinding: Binding<Bool> {
-        Binding(
-            get: { saveErrorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    saveErrorMessage = nil
-                }
-            }
-        )
     }
 
     // MARK: - Acciones

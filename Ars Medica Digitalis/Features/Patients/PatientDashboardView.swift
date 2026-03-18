@@ -332,58 +332,36 @@ struct PatientDashboardView: View {
     let state: PatientDashboardState
     let namespace: Namespace.ID
     let onDelete: (Patient) -> Void
-    @State private var selectedPriorityBucket: ClinicalPriorityBucket? = nil
-    @State private var insightsCollapsed = true
-    @State private var insightsHeaderHeight: CGFloat = 0
-    private let minCollapseDistance: CGFloat = 72
-    private let collapseDistanceRatio: CGFloat = 0.45
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: AppSpacing.xl) {
+            LazyVStack(alignment: .leading, spacing: AppSpacing.sm) {
                 if state.hasPatients {
-                    ClinicalInsightsCard(
-                        summary: state.summary,
-                        isCollapsed: insightsCollapsed,
-                        selectedRadarBucket: selectedPriorityBucket,
-                        onSelectRadarBucket: { bucket in
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                                selectedPriorityBucket = bucket
-                            }
-                        },
-                        onToggleCollapse: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                insightsCollapsed.toggle()
-                            }
+                    ForEach(state.alphabeticalRows) { row in
+                        NavigationLink {
+                            PatientDetailView(patient: row.patient, professional: professional)
+                                .navigationTransition(.zoom(sourceID: row.id, in: namespace))
+                        } label: {
+                            PatientCard(model: row)
+                                .equatable()
                         }
-                    )
-                    .background {
-                        GeometryReader { geometry in
-                            Color.clear
-                                .preference(
-                                    key: InsightsHeaderMinYPreferenceKey.self,
-                                    value: geometry.frame(in: .named("patientDashboardScroll")).minY
-                                )
-                                .preference(
-                                    key: InsightsHeaderHeightPreferenceKey.self,
-                                    value: geometry.size.height
-                                )
-                        }
-                    }
-
-                    ForEach(filteredSections) { section in
-                        PatientRiskSection(
-                            section: section,
-                            professional: professional,
-                            namespace: namespace,
-                            onDelete: onDelete,
-                            activePriorityFilterTitle: activePriorityFilterTitle,
-                            onClearPriorityFilter: selectedPriorityBucket == nil ? nil : {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                                    selectedPriorityBucket = nil
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("patient.card.\(row.fullName)")
+                        .matchedTransitionSource(id: row.id, in: namespace)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if row.isActive {
+                                Button(L10n.tr("Baja"), role: .destructive) {
+                                    onDelete(row.patient)
                                 }
                             }
-                        )
+                        }
+                        .contextMenu {
+                            if row.isActive {
+                                Button(L10n.tr("Baja"), role: .destructive) {
+                                    onDelete(row.patient)
+                                }
+                            }
+                        }
                     }
                 } else {
                     ContentUnavailableView(
@@ -403,48 +381,6 @@ struct PatientDashboardView: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollEdgeEffectStyle(.soft, for: .all)
-        .coordinateSpace(name: "patientDashboardScroll")
-        .onPreferenceChange(InsightsHeaderHeightPreferenceKey.self) { height in
-            guard height > 0 else { return }
-            insightsHeaderHeight = height
-        }
-        .onPreferenceChange(InsightsHeaderMinYPreferenceKey.self) { minY in
-            guard insightsHeaderHeight > 0 else { return }
-            guard insightsCollapsed == false else { return }
-            let collapseDistance = max(minCollapseDistance, insightsHeaderHeight * collapseDistanceRatio)
-            let collapseThreshold = -collapseDistance
-
-            guard minY <= collapseThreshold else { return }
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                insightsCollapsed = true
-            }
-        }
-        .onAppear {
-            insightsCollapsed = true
-        }
-        .onChange(of: state.hasPatients) { _, hasPatients in
-            if hasPatients == false {
-                selectedPriorityBucket = nil
-            }
-        }
-        .onChange(of: state.summary.totalPatients) { _, _ in
-            insightsCollapsed = true
-        }
-        .onChange(of: state.summary.radarModel) { _, newValue in
-            guard let selectedPriorityBucket else { return }
-            guard newValue.count(for: selectedPriorityBucket) == 0 else { return }
-            self.selectedPriorityBucket = nil
-        }
-    }
-
-    private var filteredSections: [PatientDashboardSection] {
-        guard let selectedPriorityBucket else { return state.sections }
-        return state.sections.filter { $0.kind == selectedPriorityBucket.sectionKind }
-    }
-
-    private var activePriorityFilterTitle: String? {
-        guard let selectedPriorityBucket else { return nil }
-        return selectedPriorityBucket.localizedTitle
     }
 }
 
@@ -482,6 +418,13 @@ struct PatientDashboardState: Equatable {
         summary.totalPatients > 0
     }
 
+    /// All patient rows sorted alphabetically by last name for the Pacientes tab.
+    var alphabeticalRows: [PatientDashboardRowModel] {
+        sections
+            .flatMap(\.rows)
+            .sorted { $0.lastName.localizedCaseInsensitiveCompare($1.lastName) == .orderedAscending }
+    }
+
     static let empty = PatientDashboardState(
         summary: ClinicalInsightsSummary(
             totalPatients: 0,
@@ -498,45 +441,7 @@ struct PatientDashboardState: Equatable {
     )
 }
 
-private extension ClinicalPriorityBucket {
-    var sectionKind: PatientDashboardSection.Kind {
-        switch self {
-        case .critical:
-            .critical
-        case .attention:
-            .needsAttention
-        case .stable:
-            .stable
-        }
-    }
 
-    var localizedTitle: String {
-        switch self {
-        case .critical:
-            L10n.tr("patient.dashboard.radar.bucket.critical")
-        case .attention:
-            L10n.tr("patient.dashboard.radar.bucket.attention")
-        case .stable:
-            L10n.tr("patient.dashboard.radar.bucket.stable")
-        }
-    }
-}
-
-private struct InsightsHeaderMinYPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct InsightsHeaderHeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
 
 struct PatientDashboardSection: Identifiable, Equatable {
 

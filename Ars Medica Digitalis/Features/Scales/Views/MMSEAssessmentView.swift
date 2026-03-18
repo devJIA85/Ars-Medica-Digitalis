@@ -122,12 +122,7 @@ struct MMSEAssessmentView: View {
         .scrollIndicators(.hidden)
         .alert(
             "No se pudo guardar el resultado",
-            isPresented: Binding(
-                get: { saveErrorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false { saveErrorMessage = nil }
-                }
-            )
+            isPresented: $saveErrorMessage.isPresent
         ) {
             Button("Aceptar", role: .cancel) {
                 saveErrorMessage = nil

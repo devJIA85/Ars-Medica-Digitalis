@@ -21,9 +21,14 @@ final class ClinicalDashboardViewModel {
     // MARK: - Carga
 
     /// Recalcula el estado del dashboard a partir de los pacientes y el contexto.
-    /// Llamar desde `.task(id: refreshToken)` en la vista para que solo se ejecute
-    /// cuando realmente cambien los datos.
-    func reload(patients: [Patient], context: ModelContext) {
+    /// Es `async` para no bloquear el MainActor durante la construcción de snapshots
+    /// con listas grandes. `.task(id:)` en la vista la cancela si cambian los datos
+    /// antes de que termine, evitando actualizaciones sobre estado obsoleto.
+    func reload(patients: [Patient], context: ModelContext) async {
+        // Cede el hilo al render loop antes de hacer trabajo pesado,
+        // de modo que la UI muestre el skeleton/spinner antes del cálculo.
+        await Task.yield()
+        guard !Task.isCancelled else { return }
         state = buildState(from: patients, context: context)
     }
 

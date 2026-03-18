@@ -7,8 +7,8 @@
 //  es un documento médico-legal que CloudKit debe conservar sin excepciones.
 //
 //  Aplicar este protocolo al declarar un modelo garantiza que el compilador
-//  exija la propiedad deletedAt y expone softDelete() como API uniforme,
-//  evitando que futuros cambios usen context.delete() por error.
+//  exija las propiedades de auditoría y expone softDelete()/restore() como
+//  API uniforme, evitando que futuros cambios usen context.delete() por error.
 //
 
 import Foundation
@@ -17,6 +17,9 @@ import Foundation
 protocol SoftDeletable: AnyObject {
     /// Fecha de baja lógica. nil = registro activo, non-nil = inactivo.
     var deletedAt: Date? { get set }
+    /// Timestamp de última modificación — requerido para que softDelete/restore
+    /// lo actualicen siempre de forma consistente.
+    var updatedAt: Date { get set }
 }
 
 extension SoftDeletable {
@@ -25,9 +28,18 @@ extension SoftDeletable {
     var isActive: Bool { deletedAt == nil }
 
     /// Marca la entidad como inactiva registrando la fecha de baja.
-    /// Usar siempre este método en lugar de asignar deletedAt directamente
-    /// para que el intent quede claro en los diffs del historial.
+    /// Actualiza updatedAt para que el token de refresco del dashboard
+    /// detecte el cambio en el mismo ciclo de render.
     func softDelete() {
-        deletedAt = Date()
+        let now = Date()
+        deletedAt = now
+        updatedAt = now
+    }
+
+    /// Restaura una entidad dada de baja limpiando deletedAt.
+    /// Actualiza updatedAt para propagar el cambio al token de refresco.
+    func restore() {
+        deletedAt = nil
+        updatedAt = Date()
     }
 }

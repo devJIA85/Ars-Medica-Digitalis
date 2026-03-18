@@ -125,7 +125,7 @@ struct FinanceDashboardView: View {
         .onChange(of: viewModel.selectedMonth) { _, _ in
             refreshDashboard()
         }
-        .alert(L10n.tr("finance.dashboard.load_error.title"), isPresented: errorBinding) {
+        .alert(L10n.tr("finance.dashboard.load_error.title"), isPresented: $errorMessage.isPresent) {
             Button(L10n.tr("common.accept"), role: .cancel) {
                 errorMessage = nil
             }
@@ -259,16 +259,6 @@ struct FinanceDashboardView: View {
         }
     }
 
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
-    }
 }
 
 private struct FinanceMetricCard: View {

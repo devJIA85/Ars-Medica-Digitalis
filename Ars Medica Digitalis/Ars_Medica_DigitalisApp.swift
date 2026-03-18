@@ -25,25 +25,7 @@ struct Ars_Medica_DigitalisApp: App {
     @AppStorage("appearance.themeColor") private var themeColorRaw: String = AppThemeColor.blue.rawValue
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Professional.self,
-            PricingAdjustmentPolicy.self,
-            Patient.self,
-            Session.self,
-            SessionCatalogType.self,
-            SessionTypePriceVersion.self,
-            PatientCurrencyVersion.self,
-            PatientSessionDefaultPrice.self,
-            Payment.self,
-            Diagnosis.self,
-            Attachment.self,
-            PriorTreatment.self,
-            Hospitalization.self,
-            AnthropometricRecord.self,
-            ICD11Entry.self,
-            Medication.self,
-            PatientScaleResult.self,
-        ])
+        let schema = Schema(AppSchemaV1.models)
 
         let launchArguments = ProcessInfo.processInfo.arguments
         let isOnboardingUITest = launchArguments.contains(LaunchArgument.onboardingUITest)
@@ -74,7 +56,10 @@ struct Ars_Medica_DigitalisApp: App {
         }
 
         do {
-            let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let container = try ModelContainer(
+                for: schema,
+                configurations: [modelConfiguration]
+            )
 
             if isProfileDashboardUITest {
                 seedProfileDashboardUITestDataIfNeeded(in: container.mainContext)

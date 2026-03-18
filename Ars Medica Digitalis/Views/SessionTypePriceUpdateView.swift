@@ -94,7 +94,7 @@ struct SessionTypePriceUpdateView: View {
                 }
             }
         }
-        .alert(L10n.tr("honorarios.update_error.title"), isPresented: errorBinding) {
+        .alert(L10n.tr("honorarios.update_error.title"), isPresented: $errorMessage.isPresent) {
             Button(L10n.tr("common.accept"), role: .cancel) {
                 errorMessage = nil
             }
@@ -117,14 +117,5 @@ struct SessionTypePriceUpdateView: View {
         }
     }
 
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
-    }
 }
+

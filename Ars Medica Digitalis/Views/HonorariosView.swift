@@ -146,7 +146,7 @@ struct HonorariosView: View {
             prepareViewModelIfNeeded()
             await refreshHonorarios()
         }
-        .alert(L10n.tr("honorarios.load_error.title"), isPresented: errorBinding) {
+        .alert(L10n.tr("honorarios.load_error.title"), isPresented: $errorMessage.isPresent) {
             Button(L10n.tr("common.accept"), role: .cancel) {
                 errorMessage = nil
             }
@@ -293,17 +293,6 @@ struct HonorariosView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
     }
 
     /// La vista escribe directo sobre el Professional vivo y persiste enseguida

@@ -165,9 +165,48 @@ final class PatientViewModel {
 
     // MARK: - Carga desde modelo
 
-    /// Carga datos de un Patient existente para edición
+    /// Carga datos de un Patient existente para edición.
     func load(from patient: Patient) {
-        PatientFormData(patient: patient).apply(to: self)
+        firstName                  = patient.firstName
+        lastName                   = patient.lastName
+        dateOfBirth                = patient.dateOfBirth
+        biologicalSex              = patient.biologicalSex
+        nationalId                 = patient.nationalId
+        gender                     = patient.gender
+        nationality                = patient.nationality
+        residenceCountry           = patient.residenceCountry
+        occupation                 = patient.occupation
+        educationLevel             = patient.educationLevel
+        maritalStatus              = patient.maritalStatus
+        email                      = patient.email
+        phoneNumber                = patient.phoneNumber
+        address                    = patient.address
+        emergencyContactName       = patient.emergencyContactName
+        emergencyContactPhone      = patient.emergencyContactPhone
+        emergencyContactRelation   = patient.emergencyContactRelation
+        healthInsurance            = patient.healthInsurance
+        insuranceMemberNumber      = patient.insuranceMemberNumber
+        insurancePlan              = patient.insurancePlan
+        currencyCode               = patient.currencyCode
+        photoData                  = patient.photoData
+        clinicalStatus             = patient.clinicalStatus
+        medicalRecordNumber        = patient.medicalRecordNumber
+        currentMedication          = patient.currentMedication
+        weightKg                   = patient.weightKg
+        heightCm                   = patient.heightCm
+        waistCm                    = patient.waistCm
+        smokingStatus              = patient.smokingStatus
+        alcoholUse                 = patient.alcoholUse
+        drugUse                    = patient.drugUse
+        routineCheckups            = patient.routineCheckups
+        familyHistoryHTA           = patient.familyHistoryHTA
+        familyHistoryACV           = patient.familyHistoryACV
+        familyHistoryCancer        = patient.familyHistoryCancer
+        familyHistoryDiabetes      = patient.familyHistoryDiabetes
+        familyHistoryHeartDisease  = patient.familyHistoryHeartDisease
+        familyHistoryMentalHealth  = patient.familyHistoryMentalHealth
+        familyHistoryOther         = patient.familyHistoryOther
+        genogramData               = patient.genogramData
         hasManuallyEditedDateOfBirth = true
     }
 
@@ -188,17 +227,15 @@ final class PatientViewModel {
 
     // MARK: - Creación
 
-    /// Crea un nuevo Patient vinculado al Professional activo
+    /// Crea un nuevo Patient vinculado al Professional activo.
     @discardableResult
     func createPatient(for professional: Professional, in context: ModelContext) -> Patient {
         applyCreationDefaults(from: professional)
-        let data = PatientFormData(viewModel: self)
-        let recordNumberService = PatientMedicalRecordNumberService()
-
-        // Autogenerar número de historia clínica si está vacío o viene con espacios.
-        let recordNumber = recordNumberService.resolvedRecordNumber(from: data.medicalRecordNumber)
-
-        let patient = data.makePatient(recordNumber: recordNumber, professional: professional)
+        let recordNumber = PatientMedicalRecordNumberService()
+            .resolvedRecordNumber(from: medicalRecordNumber)
+        let patient = Patient()
+        applyFields(to: patient, includeRecordNumber: true, recordNumber: recordNumber)
+        patient.professional = professional
         context.insert(patient)
         syncCurrencyVersionIfNeeded(for: patient, in: context)
         return patient
@@ -206,9 +243,9 @@ final class PatientViewModel {
 
     // MARK: - Actualización
 
-    /// Actualiza un Patient existente con los valores del formulario
+    /// Actualiza un Patient existente con los valores del formulario.
     func update(_ patient: Patient, in context: ModelContext? = nil) {
-        PatientFormData(viewModel: self).apply(to: patient)
+        applyFields(to: patient)
         patient.medicalRecordNumber = PatientMedicalRecordNumberService()
             .resolvedRecordNumber(from: patient.medicalRecordNumber)
         if let context {
@@ -217,289 +254,54 @@ final class PatientViewModel {
         patient.updatedAt = Date()
     }
 
-    // MARK: - Form Mapping
+    // MARK: - Mapeo ViewModel → Patient
 
-    /// Snapshot intermedio para evitar mapeos manuales repetidos
-    /// entre ViewModel y modelo Patient.
-    private struct PatientFormData {
-        // Datos básicos
-        let firstName: String
-        let lastName: String
-        let dateOfBirth: Date
-        let biologicalSex: String
-        let nationalId: String
-
-        // Datos expandidos
-        let gender: String
-        let nationality: String
-        let residenceCountry: String
-        let occupation: String
-        let educationLevel: String
-        let maritalStatus: String
-
-        // Contacto
-        let email: String
-        let phoneNumber: String
-        let address: String
-
-        // Emergencia
-        let emergencyContactName: String
-        let emergencyContactPhone: String
-        let emergencyContactRelation: String
-
-        // Cobertura
-        let healthInsurance: String
-        let insuranceMemberNumber: String
-        let insurancePlan: String
-
-        // Finanzas
-        let currencyCode: String
-
-        // Clínica
-        let photoData: Data?
-        let clinicalStatus: String
-        let medicalRecordNumber: String
-        let currentMedication: String
-
-        // Antropometría
-        let weightKg: Double
-        let heightCm: Double
-        let waistCm: Double
-
-        // Hábitos
-        let smokingStatus: Bool
-        let alcoholUse: Bool
-        let drugUse: Bool
-        let routineCheckups: Bool
-
-        // Familiares
-        let familyHistoryHTA: Bool
-        let familyHistoryACV: Bool
-        let familyHistoryCancer: Bool
-        let familyHistoryDiabetes: Bool
-        let familyHistoryHeartDisease: Bool
-        let familyHistoryMentalHealth: Bool
-        let familyHistoryOther: String
-
-        // Genograma
-        let genogramData: Data?
-
-        init(viewModel: PatientViewModel) {
-            firstName = viewModel.firstName.trimmed
-            lastName = viewModel.lastName.trimmed
-            dateOfBirth = viewModel.dateOfBirth
-            biologicalSex = viewModel.biologicalSex
-            nationalId = viewModel.nationalId.trimmed
-
-            gender = viewModel.gender
-            nationality = viewModel.nationality.trimmed
-            residenceCountry = viewModel.residenceCountry.trimmed
-            occupation = viewModel.occupation.trimmed
-            educationLevel = viewModel.educationLevel
-            maritalStatus = viewModel.maritalStatus
-
-            email = viewModel.email.trimmed
-            phoneNumber = viewModel.phoneNumber.trimmed
-            address = viewModel.address.trimmed
-
-            emergencyContactName = viewModel.emergencyContactName.trimmed
-            emergencyContactPhone = viewModel.emergencyContactPhone.trimmed
-            emergencyContactRelation = viewModel.emergencyContactRelation
-
-            healthInsurance = viewModel.healthInsurance.trimmed
-            insuranceMemberNumber = viewModel.insuranceMemberNumber.trimmed
-            insurancePlan = viewModel.insurancePlan.trimmed
-            currencyCode = viewModel.currencyCode
-
-            photoData = viewModel.photoData
-            clinicalStatus = viewModel.clinicalStatus
-            medicalRecordNumber = viewModel.medicalRecordNumber
-            currentMedication = viewModel.currentMedication.trimmed
-
-            weightKg = viewModel.weightKg
-            heightCm = viewModel.heightCm
-            waistCm = viewModel.waistCm
-
-            smokingStatus = viewModel.smokingStatus
-            alcoholUse = viewModel.alcoholUse
-            drugUse = viewModel.drugUse
-            routineCheckups = viewModel.routineCheckups
-
-            familyHistoryHTA = viewModel.familyHistoryHTA
-            familyHistoryACV = viewModel.familyHistoryACV
-            familyHistoryCancer = viewModel.familyHistoryCancer
-            familyHistoryDiabetes = viewModel.familyHistoryDiabetes
-            familyHistoryHeartDisease = viewModel.familyHistoryHeartDisease
-            familyHistoryMentalHealth = viewModel.familyHistoryMentalHealth
-            familyHistoryOther = viewModel.familyHistoryOther.trimmed
-
-            genogramData = viewModel.genogramData
-        }
-
-        init(patient: Patient) {
-            firstName = patient.firstName
-            lastName = patient.lastName
-            dateOfBirth = patient.dateOfBirth
-            biologicalSex = patient.biologicalSex
-            nationalId = patient.nationalId
-
-            gender = patient.gender
-            nationality = patient.nationality
-            residenceCountry = patient.residenceCountry
-            occupation = patient.occupation
-            educationLevel = patient.educationLevel
-            maritalStatus = patient.maritalStatus
-
-            email = patient.email
-            phoneNumber = patient.phoneNumber
-            address = patient.address
-
-            emergencyContactName = patient.emergencyContactName
-            emergencyContactPhone = patient.emergencyContactPhone
-            emergencyContactRelation = patient.emergencyContactRelation
-
-            healthInsurance = patient.healthInsurance
-            insuranceMemberNumber = patient.insuranceMemberNumber
-            insurancePlan = patient.insurancePlan
-            currencyCode = patient.currencyCode
-
-            photoData = patient.photoData
-            clinicalStatus = patient.clinicalStatus
-            medicalRecordNumber = patient.medicalRecordNumber
-            currentMedication = patient.currentMedication
-
-            weightKg = patient.weightKg
-            heightCm = patient.heightCm
-            waistCm = patient.waistCm
-
-            smokingStatus = patient.smokingStatus
-            alcoholUse = patient.alcoholUse
-            drugUse = patient.drugUse
-            routineCheckups = patient.routineCheckups
-
-            familyHistoryHTA = patient.familyHistoryHTA
-            familyHistoryACV = patient.familyHistoryACV
-            familyHistoryCancer = patient.familyHistoryCancer
-            familyHistoryDiabetes = patient.familyHistoryDiabetes
-            familyHistoryHeartDisease = patient.familyHistoryHeartDisease
-            familyHistoryMentalHealth = patient.familyHistoryMentalHealth
-            familyHistoryOther = patient.familyHistoryOther
-
-            genogramData = patient.genogramData
-        }
-
-        func apply(to viewModel: PatientViewModel) {
-            viewModel.firstName = firstName
-            viewModel.lastName = lastName
-            viewModel.dateOfBirth = dateOfBirth
-            viewModel.biologicalSex = biologicalSex
-            viewModel.nationalId = nationalId
-
-            viewModel.gender = gender
-            viewModel.nationality = nationality
-            viewModel.residenceCountry = residenceCountry
-            viewModel.occupation = occupation
-            viewModel.educationLevel = educationLevel
-            viewModel.maritalStatus = maritalStatus
-
-            viewModel.email = email
-            viewModel.phoneNumber = phoneNumber
-            viewModel.address = address
-
-            viewModel.emergencyContactName = emergencyContactName
-            viewModel.emergencyContactPhone = emergencyContactPhone
-            viewModel.emergencyContactRelation = emergencyContactRelation
-
-            viewModel.healthInsurance = healthInsurance
-            viewModel.insuranceMemberNumber = insuranceMemberNumber
-            viewModel.insurancePlan = insurancePlan
-            viewModel.currencyCode = currencyCode
-
-            viewModel.photoData = photoData
-            viewModel.clinicalStatus = clinicalStatus
-            viewModel.medicalRecordNumber = medicalRecordNumber
-            viewModel.currentMedication = currentMedication
-
-            viewModel.weightKg = weightKg
-            viewModel.heightCm = heightCm
-            viewModel.waistCm = waistCm
-
-            viewModel.smokingStatus = smokingStatus
-            viewModel.alcoholUse = alcoholUse
-            viewModel.drugUse = drugUse
-            viewModel.routineCheckups = routineCheckups
-
-            viewModel.familyHistoryHTA = familyHistoryHTA
-            viewModel.familyHistoryACV = familyHistoryACV
-            viewModel.familyHistoryCancer = familyHistoryCancer
-            viewModel.familyHistoryDiabetes = familyHistoryDiabetes
-            viewModel.familyHistoryHeartDisease = familyHistoryHeartDisease
-            viewModel.familyHistoryMentalHealth = familyHistoryMentalHealth
-            viewModel.familyHistoryOther = familyHistoryOther
-
-            viewModel.genogramData = genogramData
-        }
-
-        func apply(to patient: Patient, includeMedicalRecordNumber: Bool = false) {
-            patient.firstName = firstName
-            patient.lastName = lastName
-            patient.dateOfBirth = dateOfBirth
-            patient.biologicalSex = biologicalSex
-            patient.nationalId = nationalId
-
-            patient.gender = gender
-            patient.nationality = nationality
-            patient.residenceCountry = residenceCountry
-            patient.occupation = occupation
-            patient.educationLevel = educationLevel
-            patient.maritalStatus = maritalStatus
-
-            patient.email = email
-            patient.phoneNumber = phoneNumber
-            patient.address = address
-
-            patient.emergencyContactName = emergencyContactName
-            patient.emergencyContactPhone = emergencyContactPhone
-            patient.emergencyContactRelation = emergencyContactRelation
-
-            patient.healthInsurance = healthInsurance
-            patient.insuranceMemberNumber = insuranceMemberNumber
-            patient.insurancePlan = insurancePlan
-            patient.currencyCode = currencyCode
-
-            patient.photoData = photoData
-            patient.clinicalStatus = clinicalStatus
-            if includeMedicalRecordNumber {
-                patient.medicalRecordNumber = medicalRecordNumber
-            }
-            patient.currentMedication = currentMedication
-
-            patient.weightKg = weightKg
-            patient.heightCm = heightCm
-            patient.waistCm = waistCm
-
-            patient.smokingStatus = smokingStatus
-            patient.alcoholUse = alcoholUse
-            patient.drugUse = drugUse
-            patient.routineCheckups = routineCheckups
-
-            patient.familyHistoryHTA = familyHistoryHTA
-            patient.familyHistoryACV = familyHistoryACV
-            patient.familyHistoryCancer = familyHistoryCancer
-            patient.familyHistoryDiabetes = familyHistoryDiabetes
-            patient.familyHistoryHeartDisease = familyHistoryHeartDisease
-            patient.familyHistoryMentalHealth = familyHistoryMentalHealth
-            patient.familyHistoryOther = familyHistoryOther
-
-            patient.genogramData = genogramData
-        }
-
-        func makePatient(recordNumber: String, professional: Professional) -> Patient {
-            let patient = Patient()
-            apply(to: patient, includeMedicalRecordNumber: true)
-            patient.medicalRecordNumber = recordNumber
-            patient.professional = professional
-            return patient
+    private func applyFields(
+        to patient: Patient,
+        includeRecordNumber: Bool = false,
+        recordNumber: String = ""
+    ) {
+        patient.firstName                 = firstName.trimmed
+        patient.lastName                  = lastName.trimmed
+        patient.dateOfBirth               = dateOfBirth
+        patient.biologicalSex             = biologicalSex
+        patient.nationalId                = nationalId.trimmed
+        patient.gender                    = gender
+        patient.nationality               = nationality.trimmed
+        patient.residenceCountry          = residenceCountry.trimmed
+        patient.occupation                = occupation.trimmed
+        patient.educationLevel            = educationLevel
+        patient.maritalStatus             = maritalStatus
+        patient.email                     = email.trimmed
+        patient.phoneNumber               = phoneNumber.trimmed
+        patient.address                   = address.trimmed
+        patient.emergencyContactName      = emergencyContactName.trimmed
+        patient.emergencyContactPhone     = emergencyContactPhone.trimmed
+        patient.emergencyContactRelation  = emergencyContactRelation
+        patient.healthInsurance           = healthInsurance.trimmed
+        patient.insuranceMemberNumber     = insuranceMemberNumber.trimmed
+        patient.insurancePlan             = insurancePlan.trimmed
+        patient.currencyCode              = currencyCode
+        patient.photoData                 = photoData
+        patient.clinicalStatus            = clinicalStatus
+        patient.currentMedication         = currentMedication.trimmed
+        patient.weightKg                  = weightKg
+        patient.heightCm                  = heightCm
+        patient.waistCm                   = waistCm
+        patient.smokingStatus             = smokingStatus
+        patient.alcoholUse                = alcoholUse
+        patient.drugUse                   = drugUse
+        patient.routineCheckups           = routineCheckups
+        patient.familyHistoryHTA          = familyHistoryHTA
+        patient.familyHistoryACV          = familyHistoryACV
+        patient.familyHistoryCancer       = familyHistoryCancer
+        patient.familyHistoryDiabetes     = familyHistoryDiabetes
+        patient.familyHistoryHeartDisease = familyHistoryHeartDisease
+        patient.familyHistoryMentalHealth = familyHistoryMentalHealth
+        patient.familyHistoryOther        = familyHistoryOther.trimmed
+        patient.genogramData              = genogramData
+        if includeRecordNumber {
+            patient.medicalRecordNumber   = recordNumber
         }
     }
 
@@ -508,14 +310,12 @@ final class PatientViewModel {
     /// Baja lógica: marca deletedAt con la fecha actual (HU-03).
     /// La historia clínica permanece íntegra en CloudKit.
     func softDelete(_ patient: Patient) {
-        patient.deletedAt = Date()
-        patient.updatedAt = Date()
+        patient.softDelete()
     }
 
     /// Restaurar un paciente dado de baja
     func restore(_ patient: Patient) {
-        patient.deletedAt = nil
-        patient.updatedAt = Date()
+        patient.restore()
     }
 
     /// Mantiene el scalar de compatibilidad y el historial temporal alineados.

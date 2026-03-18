@@ -149,7 +149,7 @@ struct ProfileView: View {
         .sheet(isPresented: $showingHonorarios) {
             HonorariosView(professional: professional)
         }
-        .alert("No se pudo guardar el perfil", isPresented: saveErrorBinding) {
+        .alert("No se pudo guardar el perfil", isPresented: $saveErrorMessage.isPresent) {
             Button("Aceptar", role: .cancel) {
                 saveErrorMessage = nil
             }
@@ -196,17 +196,6 @@ struct ProfileView: View {
 
                 return lhs.sortOrder < rhs.sortOrder
             }
-    }
-
-    private var saveErrorBinding: Binding<Bool> {
-        Binding(
-            get: { saveErrorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    saveErrorMessage = nil
-                }
-            }
-        )
     }
 
     private var settingsChevron: some View {

@@ -49,12 +49,7 @@ struct ScaleQuestionView: View {
         }
         .alert(
             "No se puede finalizar",
-            isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false { errorMessage = nil }
-                }
-            )
+            isPresented: $errorMessage.isPresent
         ) {
             Button("Aceptar", role: .cancel) {
                 errorMessage = nil

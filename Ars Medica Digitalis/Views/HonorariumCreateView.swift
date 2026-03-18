@@ -80,7 +80,7 @@ struct HonorariumCreateView: View {
                 }
             }
         }
-        .alert("No se pudo crear el honorario", isPresented: errorBinding) {
+        .alert("No se pudo crear el honorario", isPresented: $errorMessage.isPresent) {
             Button("Aceptar", role: .cancel) {
                 errorMessage = nil
             }
@@ -103,17 +103,6 @@ struct HonorariumCreateView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
     }
 
     private var previewPrice: String {

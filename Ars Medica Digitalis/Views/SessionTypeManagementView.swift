@@ -123,7 +123,7 @@ struct SessionTypeManagementView: View {
         } message: {
             Text("El tipo dejará de aparecer en sesiones nuevas, pero el historial se conserva.")
         }
-        .alert("No se pudo guardar", isPresented: errorBinding) {
+        .alert("No se pudo guardar", isPresented: $errorMessage.isPresent) {
             Button("Aceptar", role: .cancel) {
                 errorMessage = nil
             }
@@ -152,17 +152,6 @@ struct SessionTypeManagementView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    private var errorBinding: Binding<Bool> {
-        Binding(
-            get: { errorMessage != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    errorMessage = nil
-                }
-            }
-        )
     }
 
     private var previewPriceText: String {

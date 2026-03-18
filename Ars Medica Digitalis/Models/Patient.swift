@@ -173,32 +173,33 @@ final class Patient: SoftDeletable {
     // isActive viene de SoftDeletable (deletedAt == nil)
 
     /// Resume si el paciente mantiene deuda en sesiones ya completadas.
-    /// Se limita a sesiones cerradas para no marcar como deuda un turno futuro
-    /// todavía no cobrado y reutiliza Session.debt para no duplicar reglas.
-    @MainActor
     var hasOutstandingDebt: Bool {
         debtByCurrency.isEmpty == false
     }
 
-    /// Agrupa la deuda pendiente del paciente por moneda efectiva.
-    /// Esto evita mezclar importes de monedas distintas y permite reutilizar
-    /// la misma lectura tanto en Perfil como en el flujo de cancelación.
-    @MainActor
+    /// Agrupa la deuda pendiente del paciente por moneda efectiva, usando
+    /// exclusivamente los snapshots congelados al completar cada sesión.
+    ///
+    /// El cálculo es puramente in-memory sobre la relación `sessions` ya
+    /// cargada: no dispara FetchDescriptors adicionales dentro del modelo,
+    /// eliminando el patrón N+1 cuando se llama sobre listas de pacientes.
+    /// Solo se consideran sesiones con `finalPriceSnapshot != nil` — si ese
+    /// valor está ausente la sesión no cerró correctamente y no genera deuda.
     var debtByCurrency: [PatientDebtCurrencySummary] {
-        let groupedDebt = completedSessionsForDebt.reduce(into: [String: (debt: Decimal, sessionCount: Int)]()) { partialResult, session in
-            guard session.sessionStatusValue == .completada else { return }
+        let groupedDebt = (sessions ?? [])
+            .filter { $0.sessionStatusValue == .completada }
+            .reduce(into: [String: (debt: Decimal, sessionCount: Int)]()) { result, session in
+                guard let price = session.finalPriceSnapshot,
+                      let currency = session.finalCurrencySnapshot,
+                      !currency.isEmpty else { return }
 
-            let debt = session.debt
-            let currencyCode = session.finalCurrencySnapshot ?? session.effectiveCurrency
-            guard debt > 0, currencyCode.isEmpty == false else { return }
+                let paid = session.totalPaid
+                let remaining = price - paid
+                guard remaining > 0 else { return }
 
-            let currentDebt = partialResult[currencyCode]?.debt ?? 0
-            let currentCount = partialResult[currencyCode]?.sessionCount ?? 0
-            partialResult[currencyCode] = (
-                debt: currentDebt + debt,
-                sessionCount: currentCount + 1
-            )
-        }
+                let current = result[currency] ?? (0, 0)
+                result[currency] = (current.debt + remaining, current.sessionCount + 1)
+            }
 
         return groupedDebt.map { currencyCode, value in
             PatientDebtCurrencySummary(
@@ -208,37 +209,8 @@ final class Patient: SoftDeletable {
             )
         }
         .sorted { lhs, rhs in
-            if lhs.debt == rhs.debt {
-                return lhs.currencyCode < rhs.currencyCode
-            }
-            return lhs.debt > rhs.debt
+            lhs.debt != rhs.debt ? lhs.debt > rhs.debt : lhs.currencyCode < rhs.currencyCode
         }
-    }
-
-    /// Relee las sesiones completadas desde SwiftData cuando hay contexto activo.
-    /// Esto evita usar relaciones stale después de registrar pagos desde sheets,
-    /// donde el paciente ya está cargado pero sus arrays relacionados no siempre
-    /// se refrescan automáticamente al cerrar la modal.
-    @MainActor
-    private var completedSessionsForDebt: [Session] {
-        guard let context = modelContext else {
-            return sessions ?? []
-        }
-
-        let patientID = id
-        let completedStatus = SessionStatusMapping.completada.rawValue
-        let descriptor = FetchDescriptor<Session>(
-            predicate: #Predicate<Session> { session in
-                session.patient?.id == patientID
-                && (session.completedAt != nil || session.status == completedStatus)
-            }
-        )
-
-        guard let fetchedSessions = try? context.fetch(descriptor) else {
-            return sessions ?? []
-        }
-
-        return fetchedSessions
     }
 
     /// Edad calculada desde la fecha de nacimiento

@@ -38,7 +38,7 @@ struct ClinicalDashboardView: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .task(id: refreshToken) {
-            viewModel.reload(patients: patients, context: modelContext)
+            await viewModel.reload(patients: patients, context: modelContext)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

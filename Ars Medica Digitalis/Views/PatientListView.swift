@@ -161,20 +161,20 @@ private struct PatientFilteredList: View {
     private var refreshToken: String {
         let patientCount = patients.count
         let patientUpdate = patients.map(\.updatedAt.timeIntervalSince1970).max() ?? 0
-        let sessionCount = patients.reduce(0) { $0 + ( $1.sessions?.count ?? 0 ) }
+        let sessionCount = patients.reduce(0) { $0 + $1.sessions.count }
         let sessionUpdate = patients
             .flatMap { $0.sessions ?? [] }
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
         let paymentCount = patients
             .flatMap { $0.sessions ?? [] }
-            .reduce(0) { $0 + ( $1.payments?.count ?? 0 ) }
+            .reduce(0) { $0 + $1.payments.count }
         let paymentUpdate = patients
             .flatMap { $0.sessions ?? [] }
             .flatMap { $0.payments ?? [] }
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
-        let diagnosisCount = patients.reduce(0) { $0 + ($1.activeDiagnoses?.count ?? 0) }
+        let diagnosisCount = patients.reduce(0) { $0 + $1.activeDiagnoses.count }
         let diagnosisUpdate = patients
             .flatMap { $0.activeDiagnoses ?? [] }
             .map(\.diagnosedAt.timeIntervalSince1970)
@@ -228,4 +228,3 @@ private struct PatientFilteredList: View {
     return PreviewWrapper(professional: professional)
         .modelContainer(container)
 }
-

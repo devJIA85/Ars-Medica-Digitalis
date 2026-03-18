@@ -16,6 +16,44 @@
 import Foundation
 import SwiftData
 
+// MARK: - DiagnosisType
+
+/// Clasificación clínica de un diagnóstico CIE-11.
+///
+/// Los rawValues son los strings canónicos almacenados en SwiftData,
+/// iguales a los valores históricos — ningún registro existente requiere migración.
+///
+/// El enum es `CaseIterable` para construir pickers sin hardcodear arrays;
+/// `Codable` para ser serializable; `Sendable` para uso seguro en actores.
+enum DiagnosisType: String, Codable, CaseIterable, Sendable {
+    /// Diagnóstico de mayor peso clínico para esta sesión o paciente.
+    case principal
+    /// Diagnóstico acompañante, comórbido o de menor jerarquía.
+    case secundario
+    /// Diagnóstico provisional pendiente de confirmación diferencial.
+    case diferencial
+
+    /// Etiqueta localizada para mostrar en UI e informes.
+    var label: String {
+        switch self {
+        case .principal:   "Principal"
+        case .secundario:  "Secundario"
+        case .diferencial: "Diferencial"
+        }
+    }
+
+    /// Verdadero solo para `.principal` — evita comparaciones de strings dispersas.
+    var isPrimary: Bool { self == .principal }
+
+    /// Decodifica un string almacenado, con fallback seguro a `.principal`.
+    /// Protege contra valores legados o corruptos sin crash en runtime.
+    static func from(_ rawValue: String) -> DiagnosisType {
+        DiagnosisType(rawValue: rawValue.lowercased()) ?? .principal
+    }
+}
+
+// MARK: - Diagnosis
+
 @Model
 final class Diagnosis {
 
@@ -29,9 +67,14 @@ final class Diagnosis {
     var icdTitleEs: String = ""         // Título en español si disponible
     var icdURI: String = ""             // URI canónico del WHO
     var icdVersion: String = "2024-01"  // Release del CIE-11 usado al diagnosticar
+    /// Capítulo CIE-11 al que pertenece el código (ej: "06" = Trastornos mentales).
+    /// Capturado del resultado de búsqueda para navegación y agrupación futura.
+    var icdChapter: String = ""
 
-    // Contexto clínico
-    var diagnosisType: String = "principal"  // "principal" | "secundario" | "diferencial"
+    // Contexto clínico.
+    // diagnosisType se persiste como String (rawValue) para compatibilidad SwiftData/CloudKit.
+    // Usar `diagnosisTypeValue` en toda la lógica de dominio para acceso tipado.
+    var diagnosisType: String = DiagnosisType.principal.rawValue
     var severity: String = ""
     var clinicalNotes: String = ""      // ⚠️ CRÍTICO — contenido clínico
 
@@ -45,6 +88,18 @@ final class Diagnosis {
     var session: Session? = nil
     var patient: Patient? = nil
 
+    // MARK: - Typed accessor
+
+    /// API tipada sobre el campo persistido `diagnosisType`.
+    ///
+    /// Mismo patrón que `Session.sessionTypeValue` / `sessionStatusValue`:
+    /// la persistencia usa String (backward compat con CloudKit),
+    /// la lógica de dominio usa el enum para type safety total.
+    var diagnosisTypeValue: DiagnosisType {
+        get { DiagnosisType.from(diagnosisType) }
+        set { diagnosisType = newValue.rawValue }
+    }
+
     init(
         id: UUID = UUID(),
         icdCode: String = "",
@@ -52,7 +107,8 @@ final class Diagnosis {
         icdTitleEs: String = "",
         icdURI: String = "",
         icdVersion: String = "2024-01",
-        diagnosisType: String = "principal",
+        icdChapter: String = "",
+        diagnosisType: DiagnosisType = .principal,
         severity: String = "",
         clinicalNotes: String = "",
         diagnosedAt: Date = Date(),
@@ -66,7 +122,8 @@ final class Diagnosis {
         self.icdTitleEs = icdTitleEs
         self.icdURI = icdURI
         self.icdVersion = icdVersion
-        self.diagnosisType = diagnosisType
+        self.icdChapter = icdChapter
+        self.diagnosisType = diagnosisType.rawValue
         self.severity = severity
         self.clinicalNotes = clinicalNotes
         self.diagnosedAt = diagnosedAt
@@ -96,8 +153,13 @@ extension Diagnosis {
     }
 
     /// Factory desde un resultado CIE-11 para persistir snapshot clínico.
+    ///
+    /// Captura todos los campos disponibles del DTO para máxima preservación histórica.
+    /// El tipo de diagnóstico debe asignarse por el contexto de llamada
+    /// (`.principal` si es el primero, `.secundario` en adelante).
     convenience init(
         from result: ICD11SearchResult,
+        diagnosisType: DiagnosisType = .principal,
         session: Session? = nil,
         patient: Patient? = nil
     ) {
@@ -107,6 +169,8 @@ extension Diagnosis {
             icdTitleEs: result.title,
             icdURI: result.id,
             icdVersion: "2024-01",
+            icdChapter: result.chapter ?? "",
+            diagnosisType: diagnosisType,
             session: session,
             patient: patient
         )

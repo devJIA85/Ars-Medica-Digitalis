@@ -84,12 +84,12 @@ struct Ars_Medica_DigitalisTests {
             icdCode: "QE84",
             icdTitle: "Unused title",
             icdTitleEs: "Reacción aguda al estrés",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
         let secondary = Diagnosis(
             icdCode: "6D10.Z",
             icdTitleEs: "Ansiedad no especificada",
-            diagnosisType: "secundario"
+            diagnosisType: .secundario
         )
         let patient = Patient(firstName: "Ana", lastName: "García")
         patient.activeDiagnoses = [secondary, principal]
@@ -104,12 +104,12 @@ struct Ars_Medica_DigitalisTests {
         let first = Diagnosis(
             icdCode: "6B40",
             icdTitleEs: "Trastorno de estrés postraumático",
-            diagnosisType: "secundario"
+            diagnosisType: .secundario
         )
         let second = Diagnosis(
             icdCode: "6E40.4",
             icdTitleEs: "Respuesta fisiológica relacionada con el estrés",
-            diagnosisType: "secundario"
+            diagnosisType: .secundario
         )
 
         let summary = PatientRowDiagnosisSummaryBuilder.summary(from: [first, second])
@@ -122,17 +122,17 @@ struct Ars_Medica_DigitalisTests {
         let principal = Diagnosis(
             icdCode: "QE84",
             icdTitleEs: "Reacción aguda al estrés",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
         let secondary = Diagnosis(
             icdCode: "6D10.Z",
             icdTitleEs: "Ansiedad no especificada",
-            diagnosisType: "secundario"
+            diagnosisType: .secundario
         )
         let differential = Diagnosis(
             icdCode: "6B40",
             icdTitleEs: "Trastorno de estrés postraumático",
-            diagnosisType: "diferencial"
+            diagnosisType: .diferencial
         )
 
         let summary = PatientRowDiagnosisSummaryBuilder.summary(
@@ -147,7 +147,7 @@ struct Ars_Medica_DigitalisTests {
         let principal = Diagnosis(
             icdCode: "6B40",
             icdTitleEs: "Estrés, no clasificado en otra parte",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
 
         let summary = PatientRowDiagnosisSummaryBuilder.summary(from: [principal])
@@ -160,7 +160,7 @@ struct Ars_Medica_DigitalisTests {
         let principal = Diagnosis(
             icdCode: "6E40.4",
             icdTitleEs: "Respuesta fisiológica relacionada con el estrés que afecta a enfermedades o trastornos",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
 
         let summary = PatientRowDiagnosisSummaryBuilder.summary(from: [principal])
@@ -175,12 +175,12 @@ struct Ars_Medica_DigitalisTests {
         let olderDiagnosis = Diagnosis(
             icdCode: "6D10.Z",
             icdTitleEs: "Ansiedad no especificada",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
         let latestDiagnosis = Diagnosis(
             icdCode: "QE84",
             icdTitleEs: "Reacción aguda al estrés",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
 
         let olderSession = Session(
@@ -268,8 +268,8 @@ struct Ars_Medica_DigitalisTests {
         try context.save()
 
         #expect(patient.currencyCode == "USD")
-        #expect((patient.currencyVersions ?? []).count == 1)
-        #expect(patient.currencyVersions?.first?.currencyCode == "USD")
+        #expect(patient.currencyVersions.count == 1)
+        #expect(patient.currencyVersions.first?.currencyCode == "USD")
     }
 
     @Test("PatientViewModel usa la moneda default del profesional en pacientes nuevos")
@@ -291,7 +291,7 @@ struct Ars_Medica_DigitalisTests {
 
         #expect(viewModel.currencyCode == "ARS")
         #expect(patient.currencyCode == "ARS")
-        #expect(patient.currencyVersions?.first?.currencyCode == "ARS")
+        #expect(patient.currencyVersions.first?.currencyCode == "ARS")
     }
 
     @Test("PatientViewModel genera HC para altas con valor vacío o espacios")
@@ -381,7 +381,7 @@ struct Ars_Medica_DigitalisTests {
         try context.save()
 
         let suggestedID = professional.defaultFinancialSessionTypeID
-        let firstTypeID = (professional.sessionCatalogTypes ?? [])
+        let firstTypeID = professional.sessionCatalogTypes
             .sorted { $0.sortOrder < $1.sortOrder }
             .first?.id
 
@@ -407,9 +407,9 @@ struct Ars_Medica_DigitalisTests {
         usdViewModel.price = 60
         try usdViewModel.save(for: professional, in: context)
 
-        let sessionTypes = professional.sessionCatalogTypes ?? []
+        let sessionTypes = professional.sessionCatalogTypes
         #expect(sessionTypes.count == 1)
-        #expect(sessionTypes.first?.priceVersions?.count == 2)
+        #expect(sessionTypes.first?.priceVersions.count == 2)
     }
 
     @Test("Crear otra moneda reutiliza el tipo aunque el profesional se recargue desde SwiftData")
@@ -448,7 +448,7 @@ struct Ars_Medica_DigitalisTests {
         let sessionTypes = try freshContext.fetch(sessionTypeDescriptor)
 
         #expect(sessionTypes.count == 1)
-        #expect(sessionTypes.first?.priceVersions?.count == 2)
+        #expect(sessionTypes.first?.priceVersions.count == 2)
     }
 
     @Test("HonorariosSuggestedTypeRules usa la preferencia activa del profesional")
@@ -599,7 +599,7 @@ struct Ars_Medica_DigitalisTests {
         try viewModel.createSession(for: patient, in: context)
         try context.save()
 
-        let activeURIs = Set((patient.activeDiagnoses ?? []).map(\.icdURI))
+        let activeURIs = Set(patient.activeDiagnoses.map(\.icdURI))
         #expect(activeURIs == [activeDiagnosis.icdURI])
     }
 
@@ -632,7 +632,7 @@ struct Ars_Medica_DigitalisTests {
         try viewModel.createSession(for: patient, in: context)
         try context.save()
 
-        #expect((patient.activeDiagnoses ?? []).isEmpty)
+        #expect(patient.activeDiagnoses.isEmpty)
     }
 
     @Test("SessionViewModel.update no altera vigentes si no se editaron diagnósticos")
@@ -675,7 +675,7 @@ struct Ars_Medica_DigitalisTests {
         try viewModel.update(session, in: context)
         try context.save()
 
-        let activeURIs = Set((patient.activeDiagnoses ?? []).map(\.icdURI))
+        let activeURIs = Set(patient.activeDiagnoses.map(\.icdURI))
         #expect(activeURIs == [activeDiagnosis.icdURI])
     }
 
@@ -1197,7 +1197,7 @@ struct Ars_Medica_DigitalisTests {
     }
 
     @Test("SessionPhantomRepairService elimina borradores fantasma vacíos")
-    func sessionPhantomRepairServiceRemovesPhantomSessions() throws {
+    func sessionPhantomRepairServiceRemovesPhantomSessions() async throws {
         let container = try makeInMemoryContainer()
         let context = container.mainContext
 
@@ -1219,7 +1219,7 @@ struct Ars_Medica_DigitalisTests {
         context.insert(validSession)
         try context.save()
 
-        let result = try SessionPhantomRepairService().repairIfNeeded(in: context)
+        let result = try await SessionPhantomRepairService().repairIfNeeded(in: context)
 
         #expect(result.removedCount == 1)
         #expect(try context.fetchCount(FetchDescriptor<Session>()) == 1)
@@ -1227,7 +1227,7 @@ struct Ars_Medica_DigitalisTests {
     }
 
     @Test("SessionPhantomRepairService es idempotente")
-    func sessionPhantomRepairServiceIsIdempotent() throws {
+    func sessionPhantomRepairServiceIsIdempotent() async throws {
         let container = try makeInMemoryContainer()
         let context = container.mainContext
 
@@ -1242,8 +1242,8 @@ struct Ars_Medica_DigitalisTests {
         )
         try context.save()
 
-        let firstResult = try SessionPhantomRepairService().repairIfNeeded(in: context)
-        let secondResult = try SessionPhantomRepairService().repairIfNeeded(in: context)
+        let firstResult = try await SessionPhantomRepairService().repairIfNeeded(in: context)
+        let secondResult = try await SessionPhantomRepairService().repairIfNeeded(in: context)
 
         #expect(firstResult.removedCount == 1)
         #expect(secondResult.removedCount == 0)
@@ -1802,25 +1802,8 @@ struct Ars_Medica_DigitalisTests {
     }
 
     private func makeInMemoryContainer() throws -> ModelContainer {
-        let schema = Schema([
-            Professional.self,
-            PricingAdjustmentPolicy.self,
-            Patient.self,
-            Session.self,
-            SessionCatalogType.self,
-            SessionTypePriceVersion.self,
-            PatientCurrencyVersion.self,
-            PatientSessionDefaultPrice.self,
-            Payment.self,
-            Diagnosis.self,
-            Attachment.self,
-            PriorTreatment.self,
-            Hospitalization.self,
-            AnthropometricRecord.self,
-            ICD11Entry.self,
-            Medication.self,
-        ])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let schema = Schema(AppSchemaV1.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: config)
     }
 }

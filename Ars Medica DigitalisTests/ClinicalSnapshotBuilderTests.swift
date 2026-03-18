@@ -21,12 +21,12 @@ struct ClinicalSnapshotBuilderTests {
         let principal = Diagnosis(
             icdCode: "QE84",
             icdTitleEs: "Reacción aguda al estrés",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
         let secondary = Diagnosis(
             icdCode: "6D10.Z",
             icdTitleEs: "Ansiedad no especificada",
-            diagnosisType: "secundario"
+            diagnosisType: .secundario
         )
         patient.activeDiagnoses = [secondary, principal]
 
@@ -93,12 +93,12 @@ struct ClinicalSnapshotBuilderTests {
         let oldDiagnosis = Diagnosis(
             icdCode: "6D10.Z",
             icdTitleEs: "Ansiedad no especificada",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
         let latestDiagnosis = Diagnosis(
             icdCode: "6B40",
             icdTitleEs: "Estrés, no clasificado en otra parte",
-            diagnosisType: "principal"
+            diagnosisType: .principal
         )
 
         let oldSession = Session(

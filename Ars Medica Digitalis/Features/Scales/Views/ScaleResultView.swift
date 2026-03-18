@@ -105,6 +105,7 @@ struct ScaleResultView: View {
             // Disclaimer
             Text("Este resultado no constituye diagnóstico clínico.")
                 .font(.footnote)
+                .lineHeight(.loose)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

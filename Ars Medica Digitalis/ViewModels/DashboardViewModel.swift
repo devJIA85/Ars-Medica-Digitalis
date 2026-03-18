@@ -14,25 +14,28 @@ import SwiftUI
 
 /// Segmento para SectorMark (donut charts)
 struct ChartSegment: Identifiable {
-    let id = UUID()
     let label: String
     let count: Int
     let color: Color
+
+    var id: String { label }
 }
 
 /// Barra para BarMark horizontal/vertical
 struct ChartBar: Identifiable {
-    let id = UUID()
     let label: String
     let value: Double
+
+    var id: String { label }
 }
 
 /// Punto temporal para LineMark / AreaMark
 struct ChartTimePoint: Identifiable {
-    let id = UUID()
     let date: Date
     let value: Int
     let series: String
+
+    var id: String { "\(date.timeIntervalSinceReferenceDate)|\(series)" }
 }
 
 /// Actividad de pacientes por período:
@@ -40,11 +43,12 @@ struct ChartTimePoint: Identifiable {
 /// - altas del período
 /// - bajas del período
 struct PatientActivityPoint: Identifiable {
-    let id = UUID()
     let bucketStart: Date
     let activePatients: Int
     let admissions: Int
     let discharges: Int
+
+    var id: TimeInterval { bucketStart.timeIntervalSinceReferenceDate }
 }
 
 enum PatientActivityPeriod: String, CaseIterable {
@@ -67,9 +71,15 @@ enum TimePeriod: String, CaseIterable {
 @Observable
 final class DashboardViewModel {
 
-    /// Variante que recibe directamente la lista de pacientes del profesional
-    /// (activos e inactivos para poder calcular altas/bajas).
-    /// Evita depender de la relación inversa `professional.patients` que puede no estar faulted.
+    /// **Función canónica de cómputo estadístico.**
+    ///
+    /// Recibe la lista completa de pacientes (activos e inactivos) y actualiza
+    /// todos los KPIs y distribuciones del dashboard en memoria, sin requerir
+    /// `ModelContext` ni `FetchDescriptor`. Apta para llamarse en tests unitarios
+    /// pasando directamente un array de objetos.
+    ///
+    /// `loadStatistics(for:)` es un alias de conveniencia que extrae los pacientes
+    /// del profesional y delega aquí. Toda la lógica de cómputo vive en este método.
     func loadStatistics(from allPatients: [Patient]) {
         let activePatients = allPatients.filter(\.isActive)
         allPatientsCache = allPatients
@@ -77,13 +87,11 @@ final class DashboardViewModel {
         // Recolectar todas las sesiones una sola vez
         allSessions = activePatients.flatMap { $0.sessions ?? [] }
 
-        computeKPIs()
+        computeSessionAggregates()
         computeGenderDistribution(activePatients)
         computeAgeRangeDistribution(activePatients)
         computeTopDiagnoses(activePatients)
         recomputeSessionsOverTime()
-        computeSessionsByModality()
-        computeSessionsByStatus()
         computeLifestyleFactors(activePatients)
         computeFamilyHistoryPrevalence(activePatients)
         computePatientGrowth(activePatients)
@@ -130,57 +138,69 @@ final class DashboardViewModel {
 
     // MARK: - Carga principal
 
-    /// Recorre el grafo completo del profesional y computa todas las estadísticas.
-    /// Se llama una vez en .onAppear de DashboardView.
+    /// Variante de conveniencia que extrae los pacientes del profesional y delega.
+    /// `loadStatistics(from:)` es la única fuente de verdad del cómputo.
     func loadStatistics(for professional: Professional) {
-        let allPatients = professional.patients ?? []
-        let activePatients = allPatients.filter(\.isActive)
-        allPatientsCache = allPatients
-        totalPatients = activePatients.count
-
-        // Recolectar todas las sesiones una sola vez
-        allSessions = activePatients.flatMap { $0.sessions ?? [] }
-
-        computeKPIs()
-        computeGenderDistribution(activePatients)
-        computeAgeRangeDistribution(activePatients)
-        computeTopDiagnoses(activePatients)
-        recomputeSessionsOverTime()
-        computeSessionsByModality()
-        computeSessionsByStatus()
-        computeLifestyleFactors(activePatients)
-        computeFamilyHistoryPrevalence(activePatients)
-        computePatientGrowth(activePatients)
-        recomputePatientActivity()
+        loadStatistics(from: professional.patients ?? [])
     }
 
-    // MARK: - KPIs
+    // MARK: - Agregados de sesiones (KPIs + modalidad + estado en un solo pase)
 
-    private func computeKPIs() {
+    /// Un único recorrido sobre `allSessions` que computa simultáneamente KPIs,
+    /// distribución por modalidad y distribución por estado.
+    /// Evita tres iteraciones independientes sobre la misma colección.
+    private func computeSessionAggregates() {
         let calendar = Calendar.current
         let now = Date()
+        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))
+            ?? calendar.startOfDay(for: now)
 
-        // Sesiones del mes actual
-        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now))!
-        sessionsThisMonth = allSessions.filter { $0.sessionDate >= startOfMonth && $0.sessionDate <= now }.count
+        var monthCount = 0
+        var completedDuration = 0
+        var completedCount = 0
+        var nonScheduledCount = 0
+        var completedNonScheduledCount = 0
+        var modalityCounts: [String: Int] = [:]
+        var statusCounts: [String: Int] = [:]
 
-        // Duración promedio de sesiones completadas
-        let completed = allSessions.filter { $0.sessionStatusValue == .completada }
-        if completed.isEmpty {
-            averageDurationMinutes = 0
-        } else {
-            let totalMinutes = completed.reduce(0) { $0 + $1.durationMinutes }
-            averageDurationMinutes = Double(totalMinutes) / Double(completed.count)
+        for session in allSessions {
+            let sv = session.sessionStatusValue
+
+            if session.sessionDate >= startOfMonth && session.sessionDate <= now {
+                monthCount += 1
+            }
+
+            if sv == .completada {
+                completedDuration += session.durationMinutes
+                completedCount += 1
+            }
+
+            if sv != .programada {
+                nonScheduledCount += 1
+                if sv == .completada { completedNonScheduledCount += 1 }
+            }
+
+            modalityCounts[session.sessionType, default: 0] += 1
+            statusCounts[session.status, default: 0] += 1
         }
 
-        // Tasa de completado: completadas / total (excluyendo programadas futuras)
-        let nonScheduled = allSessions.filter { $0.sessionStatusValue != .programada }
-        if nonScheduled.isEmpty {
-            completionRate = 0
-        } else {
-            let completedCount = nonScheduled.filter { $0.sessionStatusValue == .completada }.count
-            completionRate = (Double(completedCount) / Double(nonScheduled.count)) * 100
-        }
+        sessionsThisMonth = monthCount
+        averageDurationMinutes = completedCount > 0
+            ? Double(completedDuration) / Double(completedCount)
+            : 0
+        completionRate = nonScheduledCount > 0
+            ? (Double(completedNonScheduledCount) / Double(nonScheduledCount)) * 100
+            : 0
+
+        sessionsByModality = modalityCounts.map { type, count in
+            let (label, color) = modalityLabelColor(type)
+            return ChartSegment(label: label, count: count, color: color)
+        }.sorted { $0.count > $1.count }
+
+        sessionsByStatus = statusCounts.map { status, count in
+            let (label, color) = statusLabelColor(status)
+            return ChartSegment(label: label, count: count, color: color)
+        }.sorted { $0.count > $1.count }
     }
 
     // MARK: - Distribución por Género
@@ -314,41 +334,11 @@ final class DashboardViewModel {
         ?? status.capitalized
     }
 
-    // MARK: - Sesiones por Modalidad
-
-    private func computeSessionsByModality() {
-        var counts: [String: Int] = [:]
-        for session in allSessions {
-            counts[session.sessionType, default: 0] += 1
-        }
-
-        sessionsByModality = counts.map { type, count in
-            let (label, color) = modalityLabelColor(type)
-            return ChartSegment(label: label, count: count, color: color)
-        }
-        .sorted { $0.count > $1.count }
-    }
-
     private func modalityLabelColor(_ type: String) -> (String, Color) {
         if let mapping = SessionTypeMapping(sessionTypeRawValue: type) {
             return (mapping.label, mapping.tint)
         }
         return (type.capitalized, .secondary)
-    }
-
-    // MARK: - Sesiones por Status
-
-    private func computeSessionsByStatus() {
-        var counts: [String: Int] = [:]
-        for session in allSessions {
-            counts[session.status, default: 0] += 1
-        }
-
-        sessionsByStatus = counts.map { status, count in
-            let (label, color) = statusLabelColor(status)
-            return ChartSegment(label: label, count: count, color: color)
-        }
-        .sorted { $0.count > $1.count }
     }
 
     private func statusLabelColor(_ status: String) -> (String, Color) {
@@ -361,37 +351,51 @@ final class DashboardViewModel {
     // MARK: - Factores de Estilo de Vida
 
     /// Porcentaje de pacientes con cada factor activo (0–100)
+    /// Un único pase sobre `patients` en lugar de cuatro `.filter` independientes.
     private func computeLifestyleFactors(_ patients: [Patient]) {
         guard !patients.isEmpty else {
             lifestyleFactors = []
             return
         }
 
-        let total = Double(patients.count)
-        let smoking = Double(patients.filter(\.smokingStatus).count)
-        let alcohol = Double(patients.filter(\.alcoholUse).count)
-        let drugs = Double(patients.filter(\.drugUse).count)
-        let checkups = Double(patients.filter(\.routineCheckups).count)
+        var smoking = 0, alcohol = 0, drugs = 0, checkups = 0
+        for patient in patients {
+            if patient.smokingStatus  { smoking  += 1 }
+            if patient.alcoholUse     { alcohol  += 1 }
+            if patient.drugUse        { drugs    += 1 }
+            if patient.routineCheckups { checkups += 1 }
+        }
 
+        let total = Double(patients.count)
         lifestyleFactors = [
-            ChartBar(label: "Tabaquismo", value: (smoking / total) * 100),
-            ChartBar(label: "Alcohol", value: (alcohol / total) * 100),
-            ChartBar(label: "Drogas", value: (drugs / total) * 100),
-            ChartBar(label: "Chequeos", value: (checkups / total) * 100),
+            ChartBar(label: "Tabaquismo", value: (Double(smoking)  / total) * 100),
+            ChartBar(label: "Alcohol",    value: (Double(alcohol)  / total) * 100),
+            ChartBar(label: "Drogas",     value: (Double(drugs)    / total) * 100),
+            ChartBar(label: "Chequeos",   value: (Double(checkups) / total) * 100),
         ]
     }
 
     // MARK: - Prevalencia de Antecedentes Familiares
 
-    /// Conteo absoluto de pacientes con cada antecedente familiar activo
+    /// Conteo absoluto de pacientes con cada antecedente familiar activo.
+    /// Un único pase sobre `patients` en lugar de seis `.filter` independientes.
     private func computeFamilyHistoryPrevalence(_ patients: [Patient]) {
+        var hta = 0, acv = 0, cancer = 0, diabetes = 0, heart = 0, mental = 0
+        for patient in patients {
+            if patient.familyHistoryHTA          { hta     += 1 }
+            if patient.familyHistoryACV          { acv     += 1 }
+            if patient.familyHistoryCancer       { cancer  += 1 }
+            if patient.familyHistoryDiabetes     { diabetes += 1 }
+            if patient.familyHistoryHeartDisease { heart   += 1 }
+            if patient.familyHistoryMentalHealth { mental  += 1 }
+        }
         familyHistoryPrevalence = [
-            ChartBar(label: "HTA", value: Double(patients.filter(\.familyHistoryHTA).count)),
-            ChartBar(label: "ACV", value: Double(patients.filter(\.familyHistoryACV).count)),
-            ChartBar(label: "Cáncer", value: Double(patients.filter(\.familyHistoryCancer).count)),
-            ChartBar(label: "Diabetes", value: Double(patients.filter(\.familyHistoryDiabetes).count)),
-            ChartBar(label: "Cardiopatía", value: Double(patients.filter(\.familyHistoryHeartDisease).count)),
-            ChartBar(label: "Salud mental", value: Double(patients.filter(\.familyHistoryMentalHealth).count)),
+            ChartBar(label: "HTA",          value: Double(hta)),
+            ChartBar(label: "ACV",          value: Double(acv)),
+            ChartBar(label: "Cáncer",       value: Double(cancer)),
+            ChartBar(label: "Diabetes",     value: Double(diabetes)),
+            ChartBar(label: "Cardiopatía",  value: Double(heart)),
+            ChartBar(label: "Salud mental", value: Double(mental)),
         ]
     }
 
@@ -404,7 +408,8 @@ final class DashboardViewModel {
         // Agrupar por inicio de mes
         var monthlyCounts: [Date: Int] = [:]
         for patient in patients {
-            let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: patient.createdAt))!
+            let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: patient.createdAt))
+                ?? calendar.startOfDay(for: patient.createdAt)
             monthlyCounts[startOfMonth, default: 0] += 1
         }
 

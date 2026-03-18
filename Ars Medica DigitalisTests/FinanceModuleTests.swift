@@ -409,8 +409,8 @@ struct FinanceModuleTests {
         #expect(session.totalPaid == 100)
         #expect(session.debt == 0)
         #expect(session.paymentState == .paidFull)
-        #expect((session.payments ?? []).count == 1)
-        #expect(session.payments?.first?.currencyCode == "USD")
+        #expect(session.payments.count == 1)
+        #expect(session.payments.first?.currencyCode == "USD")
     }
 
     @Test("Completar con pago parcial calcula la deuda restante")
@@ -463,8 +463,8 @@ struct FinanceModuleTests {
         #expect(session.totalPaid == 40)
         #expect(session.debt == 110)
         #expect(session.paymentState == .paidPartial)
-        #expect((session.payments ?? []).count == 1)
-        #expect(session.payments?.first?.amount == 40)
+        #expect(session.payments.count == 1)
+        #expect(session.payments.first?.amount == 40)
     }
 
     @Test("Completar sin pago deja la deuda total")
@@ -517,7 +517,7 @@ struct FinanceModuleTests {
         #expect(session.totalPaid == 0)
         #expect(session.debt == 95)
         #expect(session.paymentState == .unpaid)
-        #expect((session.payments ?? []).isEmpty)
+        #expect(session.payments.isEmpty)
     }
 
     @Test("Completar una cortesía no crea pagos")
@@ -572,7 +572,7 @@ struct FinanceModuleTests {
         #expect(session.totalPaid == 0)
         #expect(session.debt == 0)
         #expect(session.paymentState == .paidFull)
-        #expect((session.payments ?? []).isEmpty)
+        #expect(session.payments.isEmpty)
     }
 
     @Test("SessionTypeManagementViewModel renombra el tipo validando duplicados")
@@ -1942,25 +1942,8 @@ struct FinanceModuleTests {
     }
 
     private func makeInMemoryContainer() throws -> ModelContainer {
-        let schema = Schema([
-            Professional.self,
-            PricingAdjustmentPolicy.self,
-            Patient.self,
-            Session.self,
-            SessionCatalogType.self,
-            SessionTypePriceVersion.self,
-            PatientCurrencyVersion.self,
-            PatientSessionDefaultPrice.self,
-            Payment.self,
-            Diagnosis.self,
-            Attachment.self,
-            PriorTreatment.self,
-            Hospitalization.self,
-            AnthropometricRecord.self,
-            ICD11Entry.self,
-            Medication.self,
-        ])
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let schema = Schema(AppSchemaV1.models)
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: configuration)
     }
 

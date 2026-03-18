@@ -56,14 +56,13 @@ final class Session {
     /// sin depender de scheduledAt ni de la última edición de la sesión.
     var completedAt: Date? = nil
 
-    // Relaciones opcionales por requisito CloudKit
     var patient: Patient? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \Diagnosis.session)
-    var diagnoses: [Diagnosis]? = []
+    var diagnoses: [Diagnosis] = []
 
     @Relationship(deleteRule: .cascade, inverse: \Attachment.session)
-    var attachments: [Attachment]? = []
+    var attachments: [Attachment] = []
 
     // Flujo financiero desacoplado del registro clínico:
     // Session referencia un tipo facturable y acumula Payment sin tocar
@@ -84,7 +83,7 @@ final class Session {
     var isCourtesy: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \Payment.session)
-    var payments: [Payment]? = []
+    var payments: [Payment] = []
 
     /// API rica para la UI de edición.
     /// Conserva `notes` como fallback plano para compatibilidad y exportación.
@@ -157,33 +156,38 @@ final class Session {
 
     /// Precio efectivo de la sesión.
     ///
-    /// Para sesiones completadas lee `finalPriceSnapshot` directamente, sin
-    /// instanciar ningún servicio — es el path caliente en todas las listas.
-    /// Solo cuando el snapshot no existe (sesión abierta, o completada antes
-    /// de que se implementara el congelamiento) crea SessionPricingService
-    /// con el contexto disponible para resolver el precio dinámico.
+    /// Estrategia de resolución:
+    /// - Cortesía → 0 (sin importar snapshots).
+    /// - Completada con `finalPriceSnapshot` → snapshot (valor histórico inmutable).
+    /// - Si `resolvedPrice` existe (> 0), se usa como valor persistido compatible.
+    /// - Si falta precio persistido, recalcula en vivo con `SessionPricingService`
+    ///   para no dejar en cero sesiones históricas sin snapshot ni caché.
     @MainActor
     var effectivePrice: Decimal {
         if isCourtesy { return 0 }
         if isCompleted, let snapshot = finalPriceSnapshot { return snapshot }
-        return SessionPricingService(modelContext: modelContext).resolveDynamicPrice(for: self)
+        if resolvedPrice > 0 { return resolvedPrice }
+        return pricingService.resolveDynamicPrice(for: self)
     }
 
     /// Moneda efectiva de la sesión.
     ///
-    /// Idéntica estrategia que `effectivePrice`: snapshot primero, servicio
-    /// solo como fallback. Elimina la instanciación en sesiones ya cerradas.
+    /// Estrategia de resolución:
+    /// - Completada con `finalCurrencySnapshot` no vacío → snapshot (moneda histórica inmutable).
+    /// - Si falta snapshot, recalcula la moneda vigente para `scheduledAt` usando
+    ///   el historial del paciente y cae al `currencyCode` escalar por compatibilidad.
     @MainActor
     var effectiveCurrency: String {
         if isCompleted, let snapshot = finalCurrencySnapshot, !snapshot.isEmpty { return snapshot }
         guard let patient else { return "" }
-        return SessionPricingService(modelContext: modelContext).resolveCurrency(for: patient, at: scheduledAt)
+        let resolvedCurrency = pricingService.resolveCurrency(for: patient, at: scheduledAt)
+        return resolvedCurrency.isEmpty ? patient.currencyCode : resolvedCurrency
     }
 
     /// Suma de pagos efectivamente registrados sobre la sesión.
     /// Se calcula en vivo para soportar pagos parciales o múltiples.
     var totalPaid: Decimal {
-        (payments ?? []).reduce(0) { partialResult, payment in
+        payments.reduce(0) { partialResult, payment in
             partialResult + payment.amount
         }
     }
@@ -224,6 +228,13 @@ final class Session {
         return .unpaid
     }
 
+    @MainActor
+    private var pricingService: SessionPricingService {
+        SessionPricingService(
+            modelContext: modelContext ?? patient?.modelContext ?? financialSessionType?.modelContext
+        )
+    }
+
     init(
         id: UUID = UUID(),
         sessionDate: Date = Date(),
@@ -241,15 +252,15 @@ final class Session {
         updatedAt: Date = Date(),
         completedAt: Date? = nil,
         patient: Patient? = nil,
-        diagnoses: [Diagnosis]? = [],
-        attachments: [Attachment]? = [],
+        diagnoses: [Diagnosis] = [],
+        attachments: [Attachment] = [],
         financialSessionType: SessionCatalogType? = nil,
         resolvedPrice: Decimal = 0,
         priceWasManuallyOverridden: Bool = false,
         finalPriceSnapshot: Decimal? = nil,
         finalCurrencySnapshot: String? = nil,
         isCourtesy: Bool = false,
-        payments: [Payment]? = [],
+        payments: [Payment] = [],
         notesRTFData: Data? = nil,
         treatmentPlanRTFData: Data? = nil
     ) {

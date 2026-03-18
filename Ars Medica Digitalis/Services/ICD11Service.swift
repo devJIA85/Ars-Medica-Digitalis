@@ -12,8 +12,31 @@
 //
 
 import Foundation
+import OSLog
 
 actor ICD11Service {
+
+    private nonisolated let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "ICD11Cache")
+
+    // MARK: - Init
+
+    init() {
+        guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            cacheDirectory = nil
+            return
+        }
+        let dir = base.appendingPathComponent(cacheFolderName, isDirectory: true)
+        if FileManager.default.fileExists(atPath: dir.path) {
+            cacheDirectory = dir
+            return
+        }
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+            cacheDirectory = dir
+        } catch {
+            cacheDirectory = nil
+        }
+    }
 
     // MARK: - Singleton
 
@@ -33,6 +56,10 @@ actor ICD11Service {
     // MARK: - Cache persistente (disco)
 
     private let cacheFolderName = "ICD11SearchCache"
+
+    /// URL del directorio de caché en disco. Se computa una sola vez en `init()`
+    /// para evitar dos syscalls (fileExists + createDirectory) en cada acceso.
+    private let cacheDirectory: URL?
 
     // MARK: - Configuración
 
@@ -140,43 +167,43 @@ actor ICD11Service {
     private func loadSearchCache(for cacheKey: String) -> [ICD11SearchResult]? {
         guard let url = cacheFileURL(for: cacheKey),
               let data = try? Data(contentsOf: url) else {
+            return nil  // cache miss — comportamiento esperado
+        }
+        do {
+            return try JSONDecoder().decode([ICD11SearchResult].self, from: data)
+        } catch {
+            logger.warning("ICD11 cache decode failed for key \(cacheKey, privacy: .public): \(error)")
             return nil
         }
-        return try? JSONDecoder().decode([ICD11SearchResult].self, from: data)
     }
 
     private func saveSearchCache(_ results: [ICD11SearchResult], for cacheKey: String) {
-        guard let url = cacheFileURL(for: cacheKey),
-              let data = try? JSONEncoder().encode(results) else {
-            return
+        guard let url = cacheFileURL(for: cacheKey) else { return }
+        do {
+            let data = try JSONEncoder().encode(results)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            logger.warning("ICD11 cache write failed for key \(cacheKey, privacy: .public): \(error)")
         }
-        try? data.write(to: url, options: [.atomic])
     }
 
     private func clearDiskCache() {
-        guard let directory = cacheDirectoryURL() else { return }
-        try? FileManager.default.removeItem(at: directory)
+        guard let directory = cacheDirectory else { return }
+        do {
+            let cachedFiles = try FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            )
+            for fileURL in cachedFiles {
+                try FileManager.default.removeItem(at: fileURL)
+            }
+        } catch {
+            logger.warning("ICD11 cache clear failed: \(error)")
+        }
     }
 
     private func cacheFileURL(for cacheKey: String) -> URL? {
-        guard let directory = cacheDirectoryURL() else { return nil }
-        let fileName = cacheFileName(for: cacheKey)
-        return directory.appendingPathComponent(fileName)
-    }
-
-    private func cacheDirectoryURL() -> URL? {
-        guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let directory = base.appendingPathComponent(cacheFolderName, isDirectory: true)
-        if !FileManager.default.fileExists(atPath: directory.path) {
-            try? FileManager.default.createDirectory(
-                at: directory,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-        }
-        return directory
+        cacheDirectory?.appendingPathComponent(cacheFileName(for: cacheKey))
     }
 
     private func cacheFileName(for cacheKey: String) -> String {

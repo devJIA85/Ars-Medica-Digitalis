@@ -148,12 +148,6 @@ struct ContentView: View {
                     ClinicalDashboardView(professional: professional)
                 }
             }
-
-            Tab("Perfil", systemImage: "person.crop.circle") {
-                NavigationStack {
-                    ProfileView(professional: professional)
-                }
-            }
         }
         .symbolRenderingMode(.hierarchical)
         .tabBarMinimizeBehavior(.onScrollDown)

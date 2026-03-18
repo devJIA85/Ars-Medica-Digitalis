@@ -758,6 +758,7 @@ private struct FamilyHistoryFormSection: View {
                 HStack(alignment: .top, spacing: AppSpacing.sm) {
                     TextField("Detalle breve", text: $viewModel.familyHistoryOther, axis: .vertical)
                         .lineLimit(1...2)
+                        .lineHeight(.leading(increase: 2))
                         .textInputAutocapitalization(.sentences)
                         .padding(.horizontal, AppSpacing.sm)
                         .padding(.vertical, AppSpacing.sm)

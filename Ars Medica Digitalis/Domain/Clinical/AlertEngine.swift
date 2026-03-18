@@ -29,7 +29,7 @@ struct PatientAlert: Sendable, Equatable, Hashable {
 struct AlertEngine: Sendable {
 
     func alerts(for snapshot: PatientClinicalSnapshot) -> [PatientAlert] {
-        let risk = MentalHealthRiskEngine().computeRisk(snapshot: snapshot)
+        let risk = MentalHealthRiskEngine.computeRisk(snapshot: snapshot)
         var alerts: [PatientAlert] = []
 
         if let daysSinceLastSession = snapshot.daysSinceLastSession,

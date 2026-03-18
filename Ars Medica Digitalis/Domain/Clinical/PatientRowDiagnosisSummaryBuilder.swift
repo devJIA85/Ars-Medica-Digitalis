@@ -32,9 +32,8 @@ enum PatientRowDiagnosisSummaryBuilder {
             return nil
         }
 
-        let preferredDiagnosis = validDiagnoses.first {
-            $0.diagnosisType.localizedCaseInsensitiveCompare("principal") == .orderedSame
-        } ?? validDiagnoses.first
+        let preferredDiagnosis = validDiagnoses.first { $0.diagnosisTypeValue.isPrimary }
+            ?? validDiagnoses.first
 
         guard let preferredDiagnosis else {
             return nil

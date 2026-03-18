@@ -86,7 +86,8 @@ struct SessionDetailView: View {
             }
 
             // MARK: - Diagnósticos CIE-11
-            if let diagnoses = session.diagnoses, !diagnoses.isEmpty {
+            let diagnoses = session.diagnoses
+            if !diagnoses.isEmpty {
                 Section {
                     let visible = showAllDiagnoses
                         ? diagnoses
@@ -108,7 +109,7 @@ struct SessionDetailView: View {
                                         .background(.quaternary, in: Capsule())
                                 }
 
-                                Text(diagnosisTypeLabel(diagnosis.diagnosisType))
+                                Text(diagnosis.diagnosisTypeValue.label)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -161,6 +162,7 @@ struct SessionDetailView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                             Text(session.notes)
+                                .lineHeight(.multiple(factor: 1.4))
                         }
                     }
 
@@ -170,6 +172,7 @@ struct SessionDetailView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                             Text(session.treatmentPlan)
+                                .lineHeight(.multiple(factor: 1.4))
                         }
                     }
                 }
@@ -329,14 +332,6 @@ struct SessionDetailView: View {
         )
     }
 
-    private func diagnosisTypeLabel(_ type: String) -> String {
-        switch type {
-        case "principal": "Principal"
-        case "secundario": "Secundario"
-        case "diferencial": "Diferencial"
-        default: type.capitalized
-        }
-    }
 }
 
 #Preview {

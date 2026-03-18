@@ -62,8 +62,15 @@ enum ClinicalSnapshotBuilder {
         calendar: Calendar,
         context: ModelContext?
     ) -> PatientClinicalSnapshot {
-        let completedSessions = patient.sessions.filter { $0.status == .completed }
-        let cancelledSessions = patient.sessions.filter { $0.status == .cancelled }
+        var completedSessions: [SessionClinicalSource] = []
+        var cancelledSessions: [SessionClinicalSource] = []
+        for session in patient.sessions {
+            switch session.status {
+            case .completed:  completedSessions.append(session)
+            case .cancelled:  cancelledSessions.append(session)
+            case .scheduled:  break
+            }
+        }
         let today = calendar.startOfDay(for: referenceDate)
 
         let lastSessionDate = completedSessions
@@ -161,9 +168,8 @@ enum ClinicalSnapshotBuilder {
         }
         guard validDiagnoses.isEmpty == false else { return nil }
 
-        let preferredDiagnosis = validDiagnoses.first {
-            $0.diagnosisType.localizedCaseInsensitiveCompare("principal") == .orderedSame
-        } ?? validDiagnoses.first
+        let preferredDiagnosis = validDiagnoses.first { $0.diagnosisTypeValue.isPrimary }
+            ?? validDiagnoses.first
 
         guard let preferredDiagnosis else { return nil }
 
@@ -310,20 +316,16 @@ enum ClinicalSnapshotBuilder {
         return resolveCurrency(for: patient, at: session.sessionDate)
     }
 
+    /// `currencyVersions` está pre-ordenado ascendente en `PatientClinicalSource.init`.
+    /// `last(where:)` devuelve la versión más reciente válida en O(n) sin re-sort.
     private static func resolveCurrency(
         for patient: PatientClinicalSource,
         at date: Date
     ) -> String {
-        let versions = patient.currencyVersions
-            .filter { $0.effectiveFrom <= date && $0.currencyCode.isEmpty == false }
-            .sorted { lhs, rhs in
-                if lhs.effectiveFrom == rhs.effectiveFrom {
-                    return lhs.updatedAt > rhs.updatedAt
-                }
-                return lhs.effectiveFrom > rhs.effectiveFrom
-            }
-
-        return versions.first?.currencyCode ?? patient.fallbackCurrencyCode
+        patient.currencyVersions
+            .last { !$0.currencyCode.isEmpty && $0.effectiveFrom <= date }?
+            .currencyCode
+            ?? patient.fallbackCurrencyCode
     }
 
     private static func resolvePatientDefaultPrice(
@@ -417,7 +419,14 @@ private struct PatientClinicalSource: Sendable {
         sessions = (patient.sessions ?? []).map(SessionClinicalSource.init)
         activeDiagnoses = (patient.activeDiagnoses ?? []).map(DiagnosisClinicalSource.init)
         sessionDefaultPrices = (patient.sessionDefaultPrices ?? []).map(PatientSessionDefaultPriceSource.init)
-        currencyVersions = (patient.currencyVersions ?? []).map(PatientCurrencyVersionSource.init)
+        // Pre-ordenado ascendente para que resolveCurrency use last(where:) en O(n) sin re-sort.
+        currencyVersions = (patient.currencyVersions ?? [])
+            .map(PatientCurrencyVersionSource.init)
+            .sorted { lhs, rhs in
+                lhs.effectiveFrom == rhs.effectiveFrom
+                    ? lhs.updatedAt < rhs.updatedAt
+                    : lhs.effectiveFrom < rhs.effectiveFrom
+            }
         professionalSessionTypes = (patient.professional?.sessionCatalogTypes ?? []).map(SessionCatalogTypeSource.init)
     }
 }
@@ -468,12 +477,12 @@ private enum SessionClinicalStatus: Sendable {
 
 private struct DiagnosisClinicalSource: Sendable {
     let displayTitle: String
-    let diagnosisType: String
+    let diagnosisTypeValue: DiagnosisType
 
     @MainActor
     init(_ diagnosis: Diagnosis) {
         displayTitle = diagnosis.displayTitle
-        diagnosisType = diagnosis.diagnosisType
+        diagnosisTypeValue = diagnosis.diagnosisTypeValue
     }
 }
 

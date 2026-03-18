@@ -60,7 +60,7 @@ struct SessionPricingPreview: Sendable {
 /// Borrador financiero puro para cálculos previos a la persistencia.
 /// Mantiene referencias a modelos SwiftData solo dentro del MainActor y evita
 /// crear Session @Model temporales que luego puedan filtrarse al contexto.
-struct SessionFinancialDraft: @unchecked Sendable {
+struct SessionFinancialDraft {
     let scheduledAt: Date
     let patient: Patient?
     let financialSessionType: SessionCatalogType?
@@ -252,13 +252,11 @@ final class SessionViewModel {
     init() {}
 
     /// Init con fecha inicial (ej: día seleccionado en calendario + hora actual).
-    /// Ajusta el status automáticamente según si la fecha es futura.
+    /// Delega el ajuste de status en `adjustStatusForDate()` para no duplicar
+    /// la lógica que ya vive en ese método.
     init(initialDate: Date) {
         self.sessionDate = initialDate
-        // Ajustar status coherente con la fecha recibida
-        if initialDate > Date() {
-            self.status = SessionStatusMapping.programada.rawValue
-        }
+        adjustStatusForDate()
     }
 
     // MARK: - Validación

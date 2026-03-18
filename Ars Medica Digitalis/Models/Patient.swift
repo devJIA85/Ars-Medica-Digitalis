@@ -11,7 +11,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Patient: SoftDeletable {
+final class Patient {
 
     var id: UUID = UUID()
 
@@ -80,7 +80,7 @@ final class Patient: SoftDeletable {
 
     /// Medicación actual seleccionada desde el vademécum local.
     @Relationship(deleteRule: .nullify, inverse: \Medication.patients)
-    var currentMedications: [Medication]? = []
+    var currentMedications: [Medication] = []
 
     // MARK: - Antropometría
 
@@ -136,62 +136,69 @@ final class Patient: SoftDeletable {
     var professional: Professional? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \Session.patient)
-    var sessions: [Session]? = []
+    var sessions: [Session] = []
 
     /// Diagnósticos vigentes del paciente, editables directamente desde el perfil.
     /// Independientes de las sesiones — permiten agregar/quitar diagnósticos
     /// sin necesidad de crear una nueva sesión clínica.
     @Relationship(deleteRule: .cascade, inverse: \Diagnosis.patient)
-    var activeDiagnoses: [Diagnosis]? = []
+    var activeDiagnoses: [Diagnosis] = []
 
     /// Antecedentes de tratamientos previos (psicoterapia, psiquiatría, etc.)
     @Relationship(deleteRule: .cascade, inverse: \PriorTreatment.patient)
-    var priorTreatments: [PriorTreatment]? = []
+    var priorTreatments: [PriorTreatment] = []
 
     /// Internaciones previas del paciente
     @Relationship(deleteRule: .cascade, inverse: \Hospitalization.patient)
-    var hospitalizations: [Hospitalization]? = []
+    var hospitalizations: [Hospitalization] = []
 
     /// Registros históricos de antropometría para graficar evolución
     /// con Swift Charts (peso, IMC, cintura a lo largo del tiempo)
     @Relationship(deleteRule: .cascade, inverse: \AnthropometricRecord.patient)
-    var anthropometricRecords: [AnthropometricRecord]? = []
+    var anthropometricRecords: [AnthropometricRecord] = []
 
     // Flujo de configuración financiera del paciente:
     // Patient -> PatientCurrencyVersion para moneda vigente por fecha.
     // Patient -> PatientSessionDefaultPrice para precios por defecto por tipo.
     // Se agrega separado del dominio clínico para no alterar los formularios actuales.
     @Relationship(deleteRule: .cascade, inverse: \PatientCurrencyVersion.patient)
-    var currencyVersions: [PatientCurrencyVersion]? = []
+    var currencyVersions: [PatientCurrencyVersion] = []
 
     @Relationship(deleteRule: .cascade, inverse: \PatientSessionDefaultPrice.patient)
-    var sessionDefaultPrices: [PatientSessionDefaultPrice]? = []
+    var sessionDefaultPrices: [PatientSessionDefaultPrice] = []
 
     // MARK: - Computed properties (no se persisten)
 
     var fullName: String { "\(firstName) \(lastName)" }
-    // isActive viene de SoftDeletable (deletedAt == nil)
-
     /// Resume si el paciente mantiene deuda en sesiones ya completadas.
+    @MainActor
     var hasOutstandingDebt: Bool {
         debtByCurrency.isEmpty == false
     }
 
-    /// Agrupa la deuda pendiente del paciente por moneda efectiva, usando
-    /// exclusivamente los snapshots congelados al completar cada sesión.
+    /// Agrupa la deuda pendiente del paciente por moneda efectiva.
     ///
     /// El cálculo es puramente in-memory sobre la relación `sessions` ya
     /// cargada: no dispara FetchDescriptors adicionales dentro del modelo,
     /// eliminando el patrón N+1 cuando se llama sobre listas de pacientes.
-    /// Solo se consideran sesiones con `finalPriceSnapshot != nil` — si ese
-    /// valor está ausente la sesión no cerró correctamente y no genera deuda.
+    /// Prioriza snapshots congelados al completar, pero conserva compatibilidad
+    /// con sesiones históricas que quedaron completadas sin snapshot final,
+    /// usando `effectivePrice` y `effectiveCurrency` como fallback.
+    @MainActor
     var debtByCurrency: [PatientDebtCurrencySummary] {
-        let groupedDebt = (sessions ?? [])
+        let groupedDebt = sessions
             .filter { $0.sessionStatusValue == .completada }
             .reduce(into: [String: (debt: Decimal, sessionCount: Int)]()) { result, session in
-                guard let price = session.finalPriceSnapshot,
-                      let currency = session.finalCurrencySnapshot,
-                      !currency.isEmpty else { return }
+                let price = session.finalPriceSnapshot ?? session.effectivePrice
+                guard price > 0 else { return }
+
+                let currency: String
+                if let finalCurrency = session.finalCurrencySnapshot, !finalCurrency.isEmpty {
+                    currency = finalCurrency
+                } else {
+                    currency = session.effectiveCurrency
+                }
+                guard !currency.isEmpty else { return }
 
                 let paid = session.totalPaid
                 let remaining = price - paid
@@ -272,7 +279,7 @@ final class Patient: SoftDeletable {
         clinicalStatus: String = ClinicalStatusMapping.estable.rawValue,
         medicalRecordNumber: String = "",
         currentMedication: String = "",
-        currentMedications: [Medication]? = [],
+        currentMedications: [Medication] = [],
         weightKg: Double = 0,
         heightCm: Double = 0,
         waistCm: Double = 0,
@@ -293,13 +300,13 @@ final class Patient: SoftDeletable {
         updatedAt: Date = Date(),
         currencyCode: String = "",
         professional: Professional? = nil,
-        sessions: [Session]? = [],
-        activeDiagnoses: [Diagnosis]? = [],
-        priorTreatments: [PriorTreatment]? = [],
-        hospitalizations: [Hospitalization]? = [],
-        anthropometricRecords: [AnthropometricRecord]? = [],
-        currencyVersions: [PatientCurrencyVersion]? = [],
-        sessionDefaultPrices: [PatientSessionDefaultPrice]? = []
+        sessions: [Session] = [],
+        activeDiagnoses: [Diagnosis] = [],
+        priorTreatments: [PriorTreatment] = [],
+        hospitalizations: [Hospitalization] = [],
+        anthropometricRecords: [AnthropometricRecord] = [],
+        currencyVersions: [PatientCurrencyVersion] = [],
+        sessionDefaultPrices: [PatientSessionDefaultPrice] = []
     ) {
         self.id = id
         self.firstName = firstName
@@ -354,5 +361,21 @@ final class Patient: SoftDeletable {
         self.anthropometricRecords = anthropometricRecords
         self.currencyVersions = currencyVersions
         self.sessionDefaultPrices = sessionDefaultPrices
+    }
+}
+
+extension Patient {
+
+    var isActive: Bool { deletedAt == nil }
+
+    func softDelete() {
+        let now = Date()
+        deletedAt = now
+        updatedAt = now
+    }
+
+    func restore() {
+        deletedAt = nil
+        updatedAt = Date()
     }
 }

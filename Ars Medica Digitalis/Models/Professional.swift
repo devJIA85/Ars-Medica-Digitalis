@@ -39,17 +39,16 @@ final class Professional {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
-    // Relación opcional por requisito de CloudKit: puede descargar hijos antes que padres.
-    // En la lógica de negocio, un Professional siempre tiene patients (nunca nil en práctica).
+    // SwiftData modela relaciones to-many como colecciones vacías, no opcionales.
     @Relationship(deleteRule: .cascade, inverse: \Patient.professional)
-    var patients: [Patient]? = []
+    var patients: [Patient] = []
 
     // Flujo base del módulo financiero:
     // Professional -> SessionCatalogType -> SessionTypePriceVersion.
     // El profesional administra su catálogo facturable sin alterar la modalidad
     // clínica ya persistida en Session.sessionType.
     @Relationship(deleteRule: .cascade, inverse: \SessionCatalogType.professional)
-    var sessionCatalogTypes: [SessionCatalogType]? = []
+    var sessionCatalogTypes: [SessionCatalogType] = []
 
     // Política global del motor de inteligencia económica:
     // Professional -> PricingAdjustmentPolicy.
@@ -69,8 +68,8 @@ final class Professional {
         defaultFinancialSessionTypeID: UUID? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        patients: [Patient]? = [],
-        sessionCatalogTypes: [SessionCatalogType]? = [],
+        patients: [Patient] = [],
+        sessionCatalogTypes: [SessionCatalogType] = [],
         pricingAdjustmentPolicy: PricingAdjustmentPolicy? = nil
     ) {
         self.id = id

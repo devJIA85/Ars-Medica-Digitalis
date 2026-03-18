@@ -92,10 +92,10 @@ struct PatientDetailView: View {
                     )
                 }
 
-                // Historial financiero: visible cuando hay sesiones facturables,
-                // independientemente de si hay deuda pendiente o no.
+                // Historial financiero centrado en sesiones: una fila = una sesión,
+                // estado de cobro visible de inmediato sin cálculo mental.
                 if !FinancialLedgerBuilder.availableCurrencies(for: patient).isEmpty {
-                    PatientFinancialHistoryCard(patient: patient)
+                    PatientSessionFinancialListView(patient: patient)
                 }
 
                 // 5. Sessions — timeline
@@ -323,7 +323,7 @@ struct PatientDetailView: View {
     // MARK: - Medicación
 
     private var activeMedicationCount: Int {
-        let structured = patient.currentMedications?.count ?? 0
+        let structured = patient.currentMedications.count
         if structured > 0 { return structured }
         return patient.currentMedication.trimmed.isEmpty ? 0 : 1
     }
@@ -333,8 +333,8 @@ struct PatientDetailView: View {
     /// Diagnósticos ordenados: principal primero, luego secundario/diferencial por fecha
     private var sortedActiveDiagnoses: [Diagnosis] {
         (patient.activeDiagnoses ?? []).sorted { a, b in
-            let aIsPrimary = a.diagnosisType.lowercased() == "principal"
-            let bIsPrimary = b.diagnosisType.lowercased() == "principal"
+            let aIsPrimary = a.diagnosisTypeValue.isPrimary
+            let bIsPrimary = b.diagnosisTypeValue.isPrimary
             if aIsPrimary != bIsPrimary { return aIsPrimary }
             return a.diagnosedAt > b.diagnosedAt
         }
@@ -349,9 +349,8 @@ struct PatientDetailView: View {
         guard !existing.contains(where: { $0.icdURI == result.id }) else { return }
 
         // Si no hay diagnósticos, el primero es principal; sino secundario
-        let type = existing.isEmpty ? "principal" : "secundario"
-        let diagnosis = Diagnosis(from: result, patient: patient)
-        diagnosis.diagnosisType = type
+        let type: DiagnosisType = existing.isEmpty ? .principal : .secundario
+        let diagnosis = Diagnosis(from: result, diagnosisType: type, patient: patient)
         modelContext.insert(diagnosis)
         patient.updatedAt = Date()
     }
@@ -363,10 +362,10 @@ struct PatientDetailView: View {
 
     /// Marca un diagnóstico como principal y degrada el anterior principal a secundario
     private func markDiagnosisAsPrimary(_ diagnosis: Diagnosis) {
-        for d in patient.activeDiagnoses ?? [] where d.diagnosisType.lowercased() == "principal" {
-            d.diagnosisType = "secundario"
+        for d in patient.activeDiagnoses ?? [] where d.diagnosisTypeValue.isPrimary {
+            d.diagnosisTypeValue = .secundario
         }
-        diagnosis.diagnosisType = "principal"
+        diagnosis.diagnosisTypeValue = .principal
         patient.updatedAt = Date()
     }
 
@@ -729,16 +728,11 @@ private struct ActiveDiagnosesListView: View {
     }
 
     private func isPrimary(_ diagnosis: Diagnosis) -> Bool {
-        diagnosis.diagnosisType.lowercased() == "principal"
+        diagnosis.diagnosisTypeValue.isPrimary
     }
 
     private func diagnosisTypeLabel(for diagnosis: Diagnosis) -> String {
-        switch diagnosis.diagnosisType.lowercased() {
-        case "principal": return "Principal"
-        case "secundario": return "Secundario"
-        case "diferencial": return "Diferencial"
-        default: return diagnosis.diagnosisType.capitalized
-        }
+        diagnosis.diagnosisTypeValue.label
     }
 }
 

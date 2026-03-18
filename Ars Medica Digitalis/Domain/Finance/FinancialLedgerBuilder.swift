@@ -29,56 +29,46 @@ enum FinancialLedgerBuilder {
 
         var raw: [(date: Date, sortOrder: Int, entry: FinancialLedgerEntry)] = []
 
-        for session in patient.sessions ?? [] {
-            guard session.status == SessionStatusMapping.completada.rawValue else { continue }
-            guard !session.isCourtesy else { continue }
+        for item in billableSessions(for: patient) where item.currency == currencyCode {
+            let chargeDate = item.session.completedAt ?? item.session.sessionDate
 
-            let sessionCurrency = session.finalCurrencySnapshot ?? session.effectiveCurrency
-            guard sessionCurrency == currencyCode else { continue }
-
-            let chargeAmount = resolvedChargeAmount(for: session)
-            guard chargeAmount > 0 else { continue }
-
-            let chargeDate = session.completedAt ?? session.sessionDate
-
-            // Cargo por la sesión completada
-            let chargeEntry = FinancialLedgerEntry(
-                id: session.id,
+            raw.append((
                 date: chargeDate,
-                kind: .charge,
-                amount: chargeAmount,
-                currencyCode: currencyCode,
-                label: sessionTypeLabel(for: session),
-                runningBalance: 0,
-                sourceSessionID: session.id
-            )
-            raw.append((date: chargeDate, sortOrder: 0, entry: chargeEntry))
-
-            // Cobros asociados a esta sesión
-            for payment in session.payments ?? [] where payment.currencyCode == currencyCode {
-                let paymentEntry = FinancialLedgerEntry(
-                    id: payment.id,
-                    date: payment.paidAt,
-                    kind: .payment,
-                    amount: payment.amount,
+                sortOrder: 0,
+                entry: FinancialLedgerEntry(
+                    id: item.session.id,
+                    date: chargeDate,
+                    kind: .charge,
+                    amount: item.amount,
                     currencyCode: currencyCode,
-                    label: payment.notes.isEmpty ? "Pago" : payment.notes,
+                    label: sessionTypeLabel(for: item.session),
                     runningBalance: 0,
-                    sourceSessionID: session.id
+                    sourceSessionID: item.session.id
                 )
-                raw.append((date: payment.paidAt, sortOrder: 1, entry: paymentEntry))
+            ))
+
+            for payment in item.session.payments where payment.currencyCode == currencyCode {
+                raw.append((
+                    date: payment.paidAt,
+                    sortOrder: 1,
+                    entry: FinancialLedgerEntry(
+                        id: payment.id,
+                        date: payment.paidAt,
+                        kind: .payment,
+                        amount: payment.amount,
+                        currencyCode: currencyCode,
+                        label: payment.notes.isEmpty ? "Pago" : payment.notes,
+                        runningBalance: 0,
+                        sourceSessionID: item.session.id
+                    )
+                ))
             }
         }
 
-        // Ordenar cronológicamente; en empate, cargo antes que cobro
         raw.sort { lhs, rhs in
-            if lhs.date == rhs.date {
-                return lhs.sortOrder < rhs.sortOrder
-            }
-            return lhs.date < rhs.date
+            lhs.date == rhs.date ? lhs.sortOrder < rhs.sortOrder : lhs.date < rhs.date
         }
 
-        // Calcular saldo acumulado en un solo pase
         var balance: Decimal = 0
         return raw.map { item in
             switch item.entry.kind {
@@ -101,25 +91,38 @@ enum FinancialLedgerBuilder {
     // MARK: - Monedas disponibles
 
     /// Retorna los códigos de moneda con al menos un cargo facturable.
-    /// Permite que la UI construya selectores de moneda sin generar el libro completo.
+    /// Delega en `billableSessions` para que las reglas de elegibilidad
+    /// vivan en un único lugar.
     static func availableCurrencies(for patient: Patient) -> [String] {
-        var currencies: Set<String> = []
-
-        for session in patient.sessions ?? [] {
-            guard session.status == SessionStatusMapping.completada.rawValue else { continue }
-            guard !session.isCourtesy else { continue }
-
-            let currency = session.finalCurrencySnapshot ?? session.effectiveCurrency
-            guard !currency.isEmpty else { continue }
-            guard resolvedChargeAmount(for: session) > 0 else { continue }
-
-            currencies.insert(currency)
-        }
-
-        return currencies.sorted()
+        Set(billableSessions(for: patient).map(\.currency)).sorted()
     }
 
     // MARK: - Privados
+
+    /// **Única fuente de verdad para la elegibilidad financiera.**
+    ///
+    /// Define exactamente qué sesiones generan cargo en el libro mayor.
+    /// Tanto `entries(for:currencyCode:)` como `availableCurrencies(for:)` delegan aquí;
+    /// cualquier cambio en las reglas de inclusión se aplica una sola vez.
+    ///
+    /// Criterios de elegibilidad (todos deben cumplirse):
+    /// 1. `status == "completada"` — sesiones abiertas o canceladas no generan cargo.
+    /// 2. `isCourtesy == false` — las sesiones de cortesía no generan ingreso.
+    /// 3. Moneda resuelta no vacía — `finalCurrencySnapshot` con prioridad, luego `effectiveCurrency`.
+    /// 4. Importe > 0 — `finalPriceSnapshot` con prioridad, luego `resolvedPrice`.
+    private static func billableSessions(
+        for patient: Patient
+    ) -> [(session: Session, currency: String, amount: Decimal)] {
+        patient.sessions.compactMap { session in
+            guard session.status == SessionStatusMapping.completada.rawValue,
+                  !session.isCourtesy else { return nil }
+            let currency = session.finalCurrencySnapshot ?? session.effectiveCurrency
+            guard !currency.isEmpty else { return nil }
+            let amount = resolvedChargeAmount(for: session)
+            guard amount > 0 else { return nil }
+            return (session: session, currency: currency, amount: amount)
+        }
+    }
 
     /// Precio efectivo de una sesión completada.
     /// `finalPriceSnapshot` es el valor canónico fijado al cierre;
@@ -140,4 +143,3 @@ enum FinancialLedgerBuilder {
         }
     }
 }
-

@@ -114,7 +114,7 @@ struct ScaleIntroView: View {
         Text(scale.description)
             .font(.body)
             .foregroundStyle(.secondary)
-            .lineSpacing(4)
+            .lineHeight(.leading(increase: 4))
             .lineLimit(nil)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: 500, alignment: .leading)

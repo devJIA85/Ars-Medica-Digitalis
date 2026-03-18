@@ -194,7 +194,7 @@ final class SessionPricingService {
     }
 
     private func resolveCurrencyInMemory(for patient: Patient, at date: Date) -> String? {
-        let versions = (patient.currencyVersions ?? [])
+        let versions = patient.currencyVersions
             .filter { $0.effectiveFrom <= date && !$0.currencyCode.isEmpty }
             .sorted { lhs, rhs in
                 if lhs.effectiveFrom == rhs.effectiveFrom {
@@ -249,7 +249,7 @@ final class SessionPricingService {
         sessionType: SessionCatalogType,
         currencyCode: String
     ) -> Decimal? {
-        (patient.sessionDefaultPrices ?? [])
+        patient.sessionDefaultPrices
             .filter {
                 $0.sessionCatalogType?.id == sessionType.id
                 && $0.currencyCode == currencyCode
@@ -308,7 +308,7 @@ final class SessionPricingService {
         currencyCode: String,
         scheduledAt: Date
     ) -> Decimal? {
-        let versions = (sessionType.priceVersions ?? [])
+        let versions = sessionType.priceVersions
             .filter { $0.currencyCode == currencyCode }
 
         return resolveCatalogPriceVersion(
@@ -394,7 +394,7 @@ final class SessionPricingService {
     /// del Professional ya esté materializada en memoria al momento de cobrar.
     private func fetchSessionCatalogTypes(for professional: Professional) -> [SessionCatalogType] {
         guard let context = resolveContext(preferred: professional.modelContext) else {
-            return professional.sessionCatalogTypes ?? []
+            return professional.sessionCatalogTypes
         }
 
         let professionalID = professional.id
@@ -408,7 +408,7 @@ final class SessionPricingService {
             ]
         )
 
-        return (try? context.fetch(descriptor)) ?? (professional.sessionCatalogTypes ?? [])
+        return (try? context.fetch(descriptor)) ?? professional.sessionCatalogTypes
     }
 
     private func normalizedSessionTypeName(_ value: String) -> String {

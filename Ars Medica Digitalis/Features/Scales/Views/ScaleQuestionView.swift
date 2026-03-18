@@ -94,6 +94,7 @@ struct ScaleQuestionView: View {
             ) {
                 Text(item.title)
                     .font(.title3.weight(.semibold))
+                    .lineHeight(.normal)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .foregroundStyle(.primary)
             }
@@ -124,6 +125,7 @@ struct ScaleQuestionView: View {
 
                 Text(option.text)
                     .font(.body)
+                    .lineHeight(.normal)
                     .multilineTextAlignment(.leading)
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)

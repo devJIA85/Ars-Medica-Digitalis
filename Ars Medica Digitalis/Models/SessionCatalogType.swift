@@ -39,13 +39,13 @@ final class SessionCatalogType {
     var professional: Professional? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \SessionTypePriceVersion.sessionCatalogType)
-    var priceVersions: [SessionTypePriceVersion]? = []
+    var priceVersions: [SessionTypePriceVersion] = []
 
     @Relationship(deleteRule: .cascade, inverse: \PatientSessionDefaultPrice.sessionCatalogType)
-    var patientDefaultPrices: [PatientSessionDefaultPrice]? = []
+    var patientDefaultPrices: [PatientSessionDefaultPrice] = []
 
     @Relationship(deleteRule: .nullify, inverse: \Session.financialSessionType)
-    var sessions: [Session]? = []
+    var sessions: [Session] = []
 
     init(
         id: UUID = UUID(),
@@ -57,9 +57,9 @@ final class SessionCatalogType {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         professional: Professional? = nil,
-        priceVersions: [SessionTypePriceVersion]? = [],
-        patientDefaultPrices: [PatientSessionDefaultPrice]? = [],
-        sessions: [Session]? = []
+        priceVersions: [SessionTypePriceVersion] = [],
+        patientDefaultPrices: [PatientSessionDefaultPrice] = [],
+        sessions: [Session] = []
     ) {
         self.id = id
         self.name = name

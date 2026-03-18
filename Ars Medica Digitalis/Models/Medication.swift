@@ -33,7 +33,7 @@ final class Medication: Identifiable {
 
     /// Relación inversa many-to-many con pacientes.
     @Relationship
-    var patients: [Patient]? = []
+    var patients: [Patient] = []
 
     init(
         id: UUID = UUID(),
@@ -48,7 +48,7 @@ final class Medication: Identifiable {
         isUserCreated: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        patients: [Patient]? = []
+        patients: [Patient] = []
     ) {
         self.id = id
         self.principioActivo = principioActivo

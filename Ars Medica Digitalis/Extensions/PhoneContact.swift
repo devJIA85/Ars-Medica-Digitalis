@@ -89,8 +89,12 @@ enum PhoneContact {
     /// Construye la URL tel:// para iniciar una llamada telefónica.
     /// Preserva el símbolo + del código de país si está presente.
     static func callURL(for rawPhone: String) -> URL? {
-        let cleaned = rawPhone.filter { $0.isNumber || $0 == "+" }
-        guard !cleaned.isEmpty else { return nil }
+        let digits = rawPhone.filter(\.isNumber)
+        guard !digits.isEmpty else { return nil }
+
+        let cleaned = rawPhone.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("+")
+            ? "+\(digits)"
+            : digits
         return URL(string: "tel://\(cleaned)")
     }
 

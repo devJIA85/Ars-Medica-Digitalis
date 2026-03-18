@@ -64,6 +64,7 @@ struct RichTextClinicalEditor: View {
                     // TextEditor rico de iOS 26: texto + selección atribuida.
                     TextEditor(text: $text, selection: $selection)
                         .font(.body)
+                        .lineHeight(.leading(increase: 4))
                         // Fuerza contexto regional en español para que el sistema
                         // no priorice heurísticas de autocorrección en inglés.
                         .environment(\.locale, editorLocale)

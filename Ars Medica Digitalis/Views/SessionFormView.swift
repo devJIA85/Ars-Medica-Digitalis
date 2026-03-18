@@ -7,6 +7,7 @@
 //  Los diagnósticos CIE-11 se seleccionan desde ICD11SearchView.
 //
 
+import OSLog
 import SwiftUI
 import SwiftData
 
@@ -20,6 +21,8 @@ private struct PendingSessionCompletion: Identifiable {
 }
 
 struct SessionFormView: View {
+
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "CalendarSync")
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -928,7 +931,7 @@ struct SessionFormView: View {
                 session.updatedAt = Date()
                 try modelContext.save()
             } catch {
-                print("CalendarIntegrationService delete failed: \(error.localizedDescription)")
+                logger.error("CalendarIntegrationService delete failed: \(error.localizedDescription, privacy: .private)")
             }
             return
         }
@@ -955,7 +958,7 @@ struct SessionFormView: View {
                 try modelContext.save()
             }
         } catch {
-            print("CalendarIntegrationService sync failed: \(error.localizedDescription)")
+            logger.error("CalendarIntegrationService sync failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 

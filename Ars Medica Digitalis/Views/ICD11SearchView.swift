@@ -212,9 +212,7 @@ struct ICD11SearchView: View {
     NavigationStack {
         ICD11SearchView(
             alreadySelected: [],
-            onSelect: { result in
-                print("Seleccionado: \(result.title)")
-            }
+            onSelect: { _ in }
         )
     }
 }

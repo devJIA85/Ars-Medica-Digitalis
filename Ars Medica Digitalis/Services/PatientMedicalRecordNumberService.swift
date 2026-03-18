@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 struct PatientMedicalRecordRepairResult: Sendable {
@@ -15,6 +16,8 @@ struct PatientMedicalRecordRepairResult: Sendable {
 }
 
 struct PatientMedicalRecordNumberService {
+
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "RecordRepair")
 
     func resolvedRecordNumber(from rawValue: String) -> String {
         Self.normalizedRecordNumber(from: rawValue) ?? Self.generateRecordNumber()
@@ -48,8 +51,8 @@ struct PatientMedicalRecordNumberService {
         }
 
         let skippedCount = patients.count - generatedCount - normalizedCount
-        print(
-            "PatientMedicalRecordNumberService: generated=\(generatedCount) normalized=\(normalizedCount) skipped=\(skippedCount)"
+        logger.info(
+            "PatientMedicalRecordNumberService: generated=\(generatedCount, privacy: .public) normalized=\(normalizedCount, privacy: .public) skipped=\(skippedCount, privacy: .public)"
         )
 
         return PatientMedicalRecordRepairResult(

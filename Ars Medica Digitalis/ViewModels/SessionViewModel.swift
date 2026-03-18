@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 private extension AttributedString {
@@ -198,6 +199,8 @@ enum SessionCompletionError: LocalizedError {
 
 @Observable
 final class SessionViewModel {
+
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "SessionViewModel")
 
     // MARK: - Campos editables del formulario
 
@@ -599,7 +602,7 @@ final class SessionViewModel {
                 try await service.deleteEvent(for: session)
             } catch {
                 // Si el evento ya no existe en EventKit, no bloqueamos el borrado clínico.
-                print("SessionViewModel calendar cleanup failed: \(error.localizedDescription)")
+                logger.error("SessionViewModel calendar cleanup failed: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -1158,7 +1161,7 @@ final class SessionViewModel {
     private func syncCompletionMetadata(for session: Session) {
         if session.sessionStatusValue == .completada {
             if session.completedAt == nil {
-                session.completedAt = Date()
+                session.completedAt = min(session.sessionDate, Date())
             }
         } else {
             session.completedAt = nil

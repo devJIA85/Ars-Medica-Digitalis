@@ -5,6 +5,7 @@
 //  Created by Juan Ignacio Antolini on 18/02/2026.
 //
 
+import OSLog
 import SwiftUI
 import SwiftData
 
@@ -12,6 +13,8 @@ import SwiftData
 /// - Sin Professional → Onboarding (HU-01)
 /// - Con Professional → Lista de pacientes (HU-02, HU-03)
 struct ContentView: View {
+
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "LaunchRepair")
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -324,10 +327,10 @@ struct ContentView: View {
 
         do {
             let result = try await SessionPhantomRepairService().repairIfNeeded(in: modelContext)
-            print("SessionPhantomRepairService removed=\(result.removedCount) skipped=\(result.skippedCount)")
+            logger.info("SessionPhantomRepairService removed=\(result.removedCount, privacy: .public) skipped=\(result.skippedCount, privacy: .public)")
             didRunSessionPhantomRepair = true
         } catch {
-            print("SessionPhantomRepairService failed: \(error.localizedDescription)")
+            logger.error("SessionPhantomRepairService failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -354,7 +357,7 @@ struct ContentView: View {
             _ = try PatientMedicalRecordNumberService()
                 .repairMissingRecordNumbers(in: modelContext)
         } catch {
-            print("PatientMedicalRecordNumberService failed: \(error.localizedDescription)")
+            logger.error("PatientMedicalRecordNumberService failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 }

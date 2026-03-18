@@ -271,28 +271,11 @@ actor ICD11Service {
         let clientSecret: String
     }
 
-    /// Carga client_id y client_secret desde ICD11Config.plist.
-    /// Este archivo debe existir en el bundle pero NO estar versionado en git.
+    /// Carga client_id y client_secret desde el Keychain del dispositivo.
+    /// En el primer uso migra automáticamente desde `ICD11Config.plist`.
     private func loadCredentials() throws -> APICredentials {
-        guard let url = Bundle.main.url(forResource: "ICD11Config", withExtension: "plist") else {
-            throw ICD11Error.missingConfiguration(
-                "ICD11Config.plist no encontrado en el bundle. "
-                + "Crear el archivo con las claves 'clientId' y 'clientSecret'."
-            )
-        }
-
-        guard let data = try? Data(contentsOf: url),
-              let dict = try? PropertyListSerialization.propertyList(
-                  from: data, options: [], format: nil
-              ) as? [String: String],
-              let clientId = dict["clientId"],
-              let clientSecret = dict["clientSecret"] else {
-            throw ICD11Error.missingConfiguration(
-                "ICD11Config.plist debe contener 'clientId' y 'clientSecret' como String."
-            )
-        }
-
-        return APICredentials(clientId: clientId, clientSecret: clientSecret)
+        let stored = try ICD11KeychainStore.loadCredentials()
+        return APICredentials(clientId: stored.clientId, clientSecret: stored.clientSecret)
     }
 
     // MARK: - Parseo JSON

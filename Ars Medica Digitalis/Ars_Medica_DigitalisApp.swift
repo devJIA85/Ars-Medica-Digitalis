@@ -61,6 +61,18 @@ struct Ars_Medica_DigitalisApp: App {
                 configurations: [modelConfiguration]
             )
 
+            // Aplica protección de archivo al nivel máximo compatible con CloudKit.
+            // .completeFileProtectionUnlessOpen permite que CloudKit acceda en background
+            // mientras mantiene el archivo cifrado cuando la app está cerrada y el
+            // dispositivo bloqueado.
+            if isUITestLaunch == false {
+                let dbURL = modelConfiguration.url
+                try? (dbURL as NSURL).setResourceValue(
+                    FileProtectionType.completeUnlessOpen,
+                    forKey: .fileProtectionKey
+                )
+            }
+
             if isProfileDashboardUITest {
                 seedProfileDashboardUITestDataIfNeeded(in: container.mainContext)
             }

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 /// Heurísticas compartidas para detectar sesiones internas que no fueron
@@ -36,6 +37,8 @@ struct SessionRepairResult: Sendable {
 @MainActor
 struct SessionPhantomRepairService {
 
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "SessionRepair")
+
     /// Ejecuta una limpieza conservadora de sesiones fantasma.
     /// Solo elimina registros imposibles de haber sido creados desde la UI
     /// real para no tocar sesiones clínicas legítimas.
@@ -46,7 +49,7 @@ struct SessionPhantomRepairService {
 
         let phantomSessions = allSessions.filter(SessionPhantomHeuristics.isPhantomCandidate)
         guard phantomSessions.isEmpty == false else {
-            print("SessionPhantomRepairService: no se encontraron sesiones fantasma.")
+            logger.debug("SessionPhantomRepairService: no se encontraron sesiones fantasma.")
             return SessionRepairResult(removedCount: 0, skippedCount: allSessions.count)
         }
 
@@ -55,7 +58,7 @@ struct SessionPhantomRepairService {
                 do {
                     try await calendarService.deleteEvent(for: session)
                 } catch {
-                    print("SessionPhantomRepairService calendar cleanup failed: \(error.localizedDescription)")
+                    logger.error("SessionPhantomRepairService calendar cleanup failed: \(error.localizedDescription, privacy: .private)")
                 }
             }
             context.delete(session)
@@ -63,8 +66,8 @@ struct SessionPhantomRepairService {
 
         try context.save()
 
-        print(
-            "SessionPhantomRepairService: se eliminaron \(phantomSessions.count) sesiones fantasma y se conservaron \(allSessions.count - phantomSessions.count)."
+        logger.info(
+            "SessionPhantomRepairService: eliminadas=\(phantomSessions.count, privacy: .public) conservadas=\(allSessions.count - phantomSessions.count, privacy: .public)"
         )
 
         return SessionRepairResult(

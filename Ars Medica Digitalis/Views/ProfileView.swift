@@ -187,7 +187,7 @@ struct ProfileView: View {
     }
 
     private var activeSessionTypes: [SessionCatalogType] {
-        (professional.sessionCatalogTypes ?? [])
+        professional.sessionCatalogTypes
             .filter(\.isActive)
             .sorted { lhs, rhs in
                 if lhs.sortOrder == rhs.sortOrder {

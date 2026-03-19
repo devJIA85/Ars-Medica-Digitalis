@@ -173,7 +173,7 @@ struct PatientPDFExportService {
     }
 
     private func drawActiveDiagnoses(patient: Patient, using composer: PDFComposer) {
-        let activeDiagnoses = (patient.activeDiagnoses ?? []).sorted { $0.createdAt > $1.createdAt }
+        let activeDiagnoses = patient.activeDiagnoses.sorted { $0.createdAt > $1.createdAt }
         composer.drawSectionTitle("Diagnósticos Vigentes")
 
         if activeDiagnoses.isEmpty {
@@ -193,7 +193,7 @@ struct PatientPDFExportService {
     }
 
     private func drawPriorTreatments(patient: Patient, using composer: PDFComposer) {
-        let priorTreatments = (patient.priorTreatments ?? []).sorted { $0.createdAt > $1.createdAt }
+        let priorTreatments = patient.priorTreatments.sorted { $0.createdAt > $1.createdAt }
         composer.drawSectionTitle("Tratamientos Previos")
 
         if priorTreatments.isEmpty {
@@ -235,7 +235,7 @@ struct PatientPDFExportService {
     }
 
     private func drawHospitalizations(patient: Patient, using composer: PDFComposer) {
-        let hospitalizations = (patient.hospitalizations ?? []).sorted { $0.admissionDate > $1.admissionDate }
+        let hospitalizations = patient.hospitalizations.sorted { $0.admissionDate > $1.admissionDate }
         composer.drawSectionTitle("Internaciones Previas")
 
         if hospitalizations.isEmpty {
@@ -265,7 +265,7 @@ struct PatientPDFExportService {
     }
 
     private func drawAnthropometricRecords(patient: Patient, using composer: PDFComposer) {
-        let anthropometricRecords = (patient.anthropometricRecords ?? []).sorted { $0.recordDate > $1.recordDate }
+        let anthropometricRecords = patient.anthropometricRecords.sorted { $0.recordDate > $1.recordDate }
         composer.drawSectionTitle("Registros Antropométricos")
 
         if anthropometricRecords.isEmpty {
@@ -285,7 +285,7 @@ struct PatientPDFExportService {
 
     private func drawSessions(patient: Patient, using composer: PDFComposer) {
         composer.drawSectionTitle("Sesiones Clínicas")
-        let sessions = (patient.sessions ?? []).sorted { $0.sessionDate > $1.sessionDate }
+        let sessions = patient.sessions.sorted { $0.sessionDate > $1.sessionDate }
 
         if sessions.isEmpty {
             composer.drawParagraph("Sin sesiones registradas.", attributes: composer.bodyAttributes)
@@ -306,7 +306,7 @@ struct PatientPDFExportService {
             composer.drawKeyValue("Notas clínicas", composer.valueOrFallback(session.notes))
             composer.drawKeyValue("Plan de tratamiento", composer.valueOrFallback(session.treatmentPlan))
 
-            let diagnoses = (session.diagnoses ?? []).sorted { $0.createdAt > $1.createdAt }
+            let diagnoses = session.diagnoses.sorted { $0.createdAt > $1.createdAt }
             if diagnoses.isEmpty {
                 composer.drawKeyValue("Diagnósticos", "Sin diagnósticos en esta sesión")
             } else {
@@ -332,7 +332,7 @@ struct PatientPDFExportService {
                 }
             }
 
-            let attachments = (session.attachments ?? []).sorted { $0.createdAt > $1.createdAt }
+            let attachments = session.attachments.sorted { $0.createdAt > $1.createdAt }
             if attachments.isEmpty {
                 composer.drawKeyValue("Adjuntos", "Sin adjuntos")
             } else {

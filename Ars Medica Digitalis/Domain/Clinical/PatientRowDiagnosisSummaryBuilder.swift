@@ -11,11 +11,11 @@ enum PatientRowDiagnosisSummaryBuilder {
 
     @MainActor
     static func primarySummary(for patient: Patient) -> String? {
-        if let activeSummary = summary(from: patient.activeDiagnoses ?? []) {
+        if let activeSummary = summary(from: patient.activeDiagnoses) {
             return activeSummary
         }
 
-        let latestCompletedDiagnoses = (patient.sessions ?? [])
+        let latestCompletedDiagnoses = patient.sessions
             .filter { SessionStatusMapping(sessionStatusRawValue: $0.status) == .completada }
             .max(by: { $0.sessionDate < $1.sessionDate })?
             .diagnoses ?? []

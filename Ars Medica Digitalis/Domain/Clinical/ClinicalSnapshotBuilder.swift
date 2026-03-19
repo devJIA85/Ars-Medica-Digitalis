@@ -416,11 +416,11 @@ private struct PatientClinicalSource: Sendable {
     init(_ patient: Patient) {
         patientID = patient.id
         fallbackCurrencyCode = patient.currencyCode
-        sessions = (patient.sessions ?? []).map(SessionClinicalSource.init)
-        activeDiagnoses = (patient.activeDiagnoses ?? []).map(DiagnosisClinicalSource.init)
-        sessionDefaultPrices = (patient.sessionDefaultPrices ?? []).map(PatientSessionDefaultPriceSource.init)
+        sessions = patient.sessions.map(SessionClinicalSource.init)
+        activeDiagnoses = patient.activeDiagnoses.map(DiagnosisClinicalSource.init)
+        sessionDefaultPrices = patient.sessionDefaultPrices.map(PatientSessionDefaultPriceSource.init)
         // Pre-ordenado ascendente para que resolveCurrency use last(where:) en O(n) sin re-sort.
-        currencyVersions = (patient.currencyVersions ?? [])
+        currencyVersions = patient.currencyVersions
             .map(PatientCurrencyVersionSource.init)
             .sorted { lhs, rhs in
                 lhs.effectiveFrom == rhs.effectiveFrom
@@ -446,12 +446,12 @@ private struct SessionClinicalSource: Sendable {
     init(_ session: Session) {
         sessionDate = session.sessionDate
         status = SessionClinicalStatus(rawValue: session.status)
-        diagnoses = (session.diagnoses ?? []).map(DiagnosisClinicalSource.init)
+        diagnoses = session.diagnoses.map(DiagnosisClinicalSource.init)
         finalPriceSnapshot = session.finalPriceSnapshot
         finalCurrencySnapshot = session.finalCurrencySnapshot
         resolvedPrice = session.resolvedPrice
         isCourtesy = session.isCourtesy
-        totalPaid = (session.payments ?? []).reduce(0) { partialResult, payment in
+        totalPaid = session.payments.reduce(0) { partialResult, payment in
             partialResult + payment.amount
         }
         financialSessionType = session.financialSessionType.map(SessionCatalogTypeSource.init)
@@ -527,7 +527,7 @@ private struct SessionCatalogTypeSource: Sendable {
         id = sessionType.id
         name = sessionType.name
         isActive = sessionType.isActive
-        priceVersions = (sessionType.priceVersions ?? []).map(SessionTypePriceVersionSource.init)
+        priceVersions = sessionType.priceVersions.map(SessionTypePriceVersionSource.init)
     }
 }
 

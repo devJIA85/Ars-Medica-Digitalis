@@ -67,7 +67,7 @@ struct ClinicalStatusSection: View {
     }
 
     private var records: [AnthropometricRecord] {
-        patient.anthropometricRecords ?? []
+        patient.anthropometricRecords
     }
 
     private var latestMeasurementDate: Date? {

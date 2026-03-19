@@ -83,7 +83,7 @@ final class HonorariumCreateViewModel {
             for: professional,
             in: context
         ) ?? {
-            let nextSortOrder = ((professional.sessionCatalogTypes ?? []).map(\.sortOrder).max() ?? -1) + 1
+            let nextSortOrder = (professional.sessionCatalogTypes.map(\.sortOrder).max() ?? -1) + 1
             let newSessionType = SessionCatalogType(
                 name: trimmedName,
                 iconSystemName: resolvedSymbolName,
@@ -152,7 +152,7 @@ final class HonorariumCreateViewModel {
         // Consultamos SwiftData antes que la relación viva porque en app real
         // el Professional puede llegar sin hijos materializados todavía.
         let sessionTypes = (try? context.fetch(descriptor))
-            ?? (professional.sessionCatalogTypes ?? [])
+            ?? professional.sessionCatalogTypes
 
         return sessionTypes
             .sorted { lhs, rhs in

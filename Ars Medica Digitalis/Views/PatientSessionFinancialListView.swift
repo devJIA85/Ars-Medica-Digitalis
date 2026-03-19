@@ -29,7 +29,7 @@ struct PatientSessionFinancialListView: View {
     /// Sesiones completadas, no cortesía, con precio > 0, filtradas por moneda,
     /// ordenadas de más reciente a más antigua.
     private var financialSessions: [Session] {
-        (patient.sessions ?? [])
+        patient.sessions
             .filter { session in
                 session.sessionStatusValue == .completada
                     && !session.isCourtesy
@@ -312,7 +312,7 @@ struct SessionPaymentBreakdownView: View {
     }
 
     private var sortedPayments: [Payment] {
-        (session.payments ?? []).sorted { $0.paidAt < $1.paidAt }
+        session.payments.sorted { $0.paidAt < $1.paidAt }
     }
 
     var body: some View {

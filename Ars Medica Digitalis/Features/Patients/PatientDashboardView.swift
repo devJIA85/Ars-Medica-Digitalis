@@ -742,7 +742,7 @@ struct PatientDashboardRowModel: Identifiable, Equatable {
     }
 
     private static func makeAdherenceTrend(from patient: Patient) -> PatientAdherenceTrend {
-        let closedSessions = (patient.sessions ?? [])
+        let closedSessions = patient.sessions
             .filter { session in
                 let status = session.sessionStatusValue
                 return status == .completada || status == .cancelada

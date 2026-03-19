@@ -38,7 +38,7 @@ struct PatientFormView: View {
 
     /// Países frecuentes calculados a partir de los pacientes del profesional
     private var frequentCountryCodes: [String] {
-        CountryCatalog.frequentCodes(from: professional.patients ?? [])
+        CountryCatalog.frequentCodes(from: professional.patients)
     }
 
     init(professional: Professional, patient: Patient? = nil) {
@@ -243,7 +243,7 @@ struct PatientFormView: View {
             sortBy: [SortDescriptor(\Patient.updatedAt, order: .reverse)]
         )
 
-        return (try? modelContext.fetch(descriptor)) ?? (professional.patients ?? [])
+        return (try? modelContext.fetch(descriptor)) ?? professional.patients
     }
 
     private var overwritePromptBinding: Binding<Bool> {

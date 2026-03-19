@@ -44,6 +44,6 @@ struct TreatmentsSection: View {
     }
 
     private var sortedTreatments: [PriorTreatment] {
-        (patient.priorTreatments ?? []).sorted(by: { $0.createdAt > $1.createdAt })
+        patient.priorTreatments.sorted(by: { $0.createdAt > $1.createdAt })
     }
 }

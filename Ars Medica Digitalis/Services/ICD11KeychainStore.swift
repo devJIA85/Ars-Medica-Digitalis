@@ -16,7 +16,7 @@ import Foundation
 import Security
 import OSLog
 
-enum ICD11KeychainStore {
+nonisolated enum ICD11KeychainStore {
 
     private static let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "ICD11Keychain")
 

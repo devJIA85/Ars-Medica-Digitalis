@@ -23,9 +23,9 @@ enum SessionPhantomHeuristics {
         && session.treatmentPlan.trimmed.isEmpty
         && session.sessionStatusValue == .programada
         && session.completedAt == nil
-        && (session.payments ?? []).isEmpty
-        && (session.diagnoses ?? []).isEmpty
-        && (session.attachments ?? []).isEmpty
+        && session.payments.isEmpty
+        && session.diagnoses.isEmpty
+        && session.attachments.isEmpty
     }
 }
 

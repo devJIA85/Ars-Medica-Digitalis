@@ -85,7 +85,7 @@ final class DashboardViewModel {
         allPatientsCache = allPatients
         totalPatients = activePatients.count
         // Recolectar todas las sesiones una sola vez
-        allSessions = activePatients.flatMap { $0.sessions ?? [] }
+        allSessions = activePatients.flatMap(\.sessions)
 
         computeSessionAggregates()
         computeGenderDistribution(activePatients)
@@ -141,7 +141,7 @@ final class DashboardViewModel {
     /// Variante de conveniencia que extrae los pacientes del profesional y delega.
     /// `loadStatistics(from:)` es la única fuente de verdad del cómputo.
     func loadStatistics(for professional: Professional) {
-        loadStatistics(from: professional.patients ?? [])
+        loadStatistics(from: professional.patients)
     }
 
     // MARK: - Agregados de sesiones (KPIs + modalidad + estado en un solo pase)
@@ -269,7 +269,7 @@ final class DashboardViewModel {
 
     private func computeTopDiagnoses(_ patients: [Patient]) {
         // Recolectar todos los diagnósticos vigentes (activeDiagnoses)
-        let allDiagnoses = patients.flatMap { $0.activeDiagnoses ?? [] }
+        let allDiagnoses = patients.flatMap(\.activeDiagnoses)
 
         // Agrupar por código CIE-11
         var grouped: [String: (title: String, count: Int)] = [:]

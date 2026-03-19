@@ -29,13 +29,13 @@ enum ClinicalDashboardRefreshTokenBuilder {
     static func token(from patients: [Patient]) -> String {
         let patientStamps = patients.map { EntityStamp(id: $0.id, date: $0.updatedAt) }
 
-        let sessions = patients.flatMap { $0.sessions ?? [] }
+        let sessions = patients.flatMap(\.sessions)
         let sessionStamps = sessions.map { EntityStamp(id: $0.id, date: $0.updatedAt) }
 
-        let payments = sessions.flatMap { $0.payments ?? [] }
+        let payments = sessions.flatMap(\.payments)
         let paymentStamps = payments.map { EntityStamp(id: $0.id, date: $0.updatedAt) }
 
-        let diagnoses = patients.flatMap { $0.activeDiagnoses ?? [] }
+        let diagnoses = patients.flatMap(\.activeDiagnoses)
         let diagnosisStamps = diagnoses.map { EntityStamp(id: $0.id, date: $0.diagnosedAt) }
 
         return token(

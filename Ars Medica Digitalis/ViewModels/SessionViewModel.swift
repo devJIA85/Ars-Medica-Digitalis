@@ -309,7 +309,7 @@ final class SessionViewModel {
     func preloadDiagnoses(from patient: Patient) {
         guard selectedDiagnoses.isEmpty else { return }
 
-        let active = patient.activeDiagnoses ?? []
+        let active = patient.activeDiagnoses
         guard !active.isEmpty else { return }
 
         selectedDiagnoses = active.map(\.asSearchResult)
@@ -335,7 +335,7 @@ final class SessionViewModel {
 
         // Reconstruir DTOs desde los Diagnosis persistidos para que la UI
         // muestre los diagnósticos sin necesidad de llamar a la API.
-        selectedDiagnoses = (session.diagnoses ?? []).map(\.asSearchResult)
+        selectedDiagnoses = session.diagnoses.map(\.asSearchResult)
     }
 
     // MARK: - Creación
@@ -518,7 +518,7 @@ final class SessionViewModel {
         session.updatedAt = Date()
 
         // Reconciliar diagnósticos: eliminar los que ya no están seleccionados
-        let existingDiagnoses = session.diagnoses ?? []
+        let existingDiagnoses = session.diagnoses
         let selectedURIs = Set(snapshot.selectedDiagnoses.map(\.id))
 
         for existing in existingDiagnoses {
@@ -725,7 +725,7 @@ final class SessionViewModel {
         paymentIntent: PaymentIntent
     ) throws {
         let wasCompleted = session.sessionStatusValue == .completada
-        if wasCompleted, session.isCourtesy == false, (session.payments ?? []).isEmpty == false {
+        if wasCompleted, session.isCourtesy == false, session.payments.isEmpty == false {
             throw SessionCompletionError.sessionAlreadyCompleted
         }
 
@@ -770,7 +770,7 @@ final class SessionViewModel {
         selectedDiagnoses: [ICD11SearchResult],
         in context: ModelContext
     ) {
-        let currentActive = patient.activeDiagnoses ?? []
+        let currentActive = patient.activeDiagnoses
         let selectedURIs = Set(selectedDiagnoses.map(\.id))
         let activeURIs = Set(currentActive.map(\.icdURI))
 
@@ -1012,7 +1012,7 @@ final class SessionViewModel {
             return []
         }
 
-        let fallbackTypes = (professional.sessionCatalogTypes ?? [])
+        let fallbackTypes = professional.sessionCatalogTypes
             .filter(\.isActive)
             .sorted { lhs, rhs in
                 if lhs.sortOrder == rhs.sortOrder {

@@ -99,7 +99,7 @@ struct ClinicalActivityTimeline: View {
         var events: [ClinicalEvent] = []
 
         // Sessions
-        for session in patient.sessions ?? [] {
+        for session in patient.sessions {
             let summary: String
             if session.sessionStatusValue == .completada {
                 summary = "Sesión completada"
@@ -118,7 +118,7 @@ struct ClinicalActivityTimeline: View {
         }
 
         // Diagnoses
-        for diagnosis in patient.activeDiagnoses ?? [] {
+        for diagnosis in patient.activeDiagnoses {
             events.append(ClinicalEvent(
                 id: diagnosis.id,
                 date: diagnosis.diagnosedAt,

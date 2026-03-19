@@ -381,7 +381,7 @@ struct PatientMedicalHistoryFormView: View {
     private func initializeStateIfNeeded() {
         guard !didInitializeState else { return }
 
-        let medications = uniqueMedications(patient.currentMedications ?? [])
+        let medications = uniqueMedications(patient.currentMedications)
         selectedMedications = medications
         initialSelectedMedicationIDs = Set(medications.map(\.id))
         didTouchMedicationSelection = false

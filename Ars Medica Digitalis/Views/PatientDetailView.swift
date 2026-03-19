@@ -303,7 +303,7 @@ struct PatientDetailView: View {
 
     private var nextAppointmentDate: Date? {
         let today = Calendar.current.startOfDay(for: Date())
-        return (patient.sessions ?? [])
+        return patient.sessions
             .filter { $0.sessionStatusValue == .programada && $0.sessionDate >= today }
             .map(\.sessionDate)
             .min()
@@ -332,7 +332,7 @@ struct PatientDetailView: View {
 
     /// Diagnósticos ordenados: principal primero, luego secundario/diferencial por fecha
     private var sortedActiveDiagnoses: [Diagnosis] {
-        (patient.activeDiagnoses ?? []).sorted { a, b in
+        patient.activeDiagnoses.sorted { a, b in
             let aIsPrimary = a.diagnosisTypeValue.isPrimary
             let bIsPrimary = b.diagnosisTypeValue.isPrimary
             if aIsPrimary != bIsPrimary { return aIsPrimary }
@@ -341,11 +341,11 @@ struct PatientDetailView: View {
     }
 
     private var activeDiagnosesAsDTO: [ICD11SearchResult] {
-        (patient.activeDiagnoses ?? []).map(\.asSearchResult)
+        patient.activeDiagnoses.map(\.asSearchResult)
     }
 
     private func addActiveDiagnosis(_ result: ICD11SearchResult) {
-        let existing = patient.activeDiagnoses ?? []
+        let existing = patient.activeDiagnoses
         guard !existing.contains(where: { $0.icdURI == result.id }) else { return }
 
         // Si no hay diagnósticos, el primero es principal; sino secundario
@@ -362,7 +362,7 @@ struct PatientDetailView: View {
 
     /// Marca un diagnóstico como principal y degrada el anterior principal a secundario
     private func markDiagnosisAsPrimary(_ diagnosis: Diagnosis) {
-        for d in patient.activeDiagnoses ?? [] where d.diagnosisTypeValue.isPrimary {
+        for d in patient.activeDiagnoses where d.diagnosisTypeValue.isPrimary {
             d.diagnosisTypeValue = .secundario
         }
         diagnosis.diagnosisTypeValue = .principal
@@ -505,7 +505,7 @@ private struct PatientQuickInfo: View {
 
     private var nextAppointmentDate: Date? {
         let today = Calendar.current.startOfDay(for: Date())
-        return (patient.sessions ?? [])
+        return patient.sessions
             .filter { $0.sessionStatusValue == .programada && $0.sessionDate >= today }
             .map(\.sessionDate)
             .min()
@@ -796,7 +796,7 @@ private struct SessionsSection: View {
     private static let visibleLimit = 3
 
     private var sortedSessions: [Session] {
-        (patient.sessions ?? []).sorted { $0.sessionDate > $1.sessionDate }
+        patient.sessions.sorted { $0.sessionDate > $1.sessionDate }
     }
 
     private var visibleSessions: [Session] {
@@ -806,7 +806,9 @@ private struct SessionsSection: View {
     var body: some View {
         CardContainer(style: .flat) {
             VStack(spacing: AppSpacing.md) {
-                // Header: título + botón "+"
+                // Header: título + botón "+" — solo visible cuando hay sesiones.
+                // En estado vacío, el CTA explícito ("Crear primera sesión") es la
+                // única acción primaria, siguiendo las guías de Apple para empty states.
                 HStack {
                     Text("Sesiones")
                         .font(.title3.bold())
@@ -814,19 +816,21 @@ private struct SessionsSection: View {
 
                     Spacer(minLength: 0)
 
-                    Button {
-                        addSessionBounce += 1
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        onCreateSession()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 28, height: 28)
-                            .symbolEffect(.bounce, value: addSessionBounce)
+                    if !sortedSessions.isEmpty {
+                        Button {
+                            addSessionBounce += 1
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            onCreateSession()
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.body.weight(.semibold))
+                                .frame(width: 28, height: 28)
+                                .symbolEffect(.bounce, value: addSessionBounce)
+                        }
+                        .buttonStyle(.glass)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityLabel("Nueva sesión")
                     }
-                    .buttonStyle(.glass)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityLabel("Nueva sesión")
                 }
 
                 if sortedSessions.isEmpty {
@@ -945,7 +949,7 @@ private struct SessionHistoryListView: View {
     let patient: Patient
 
     private var sortedSessions: [Session] {
-        (patient.sessions ?? []).sorted { $0.sessionDate > $1.sessionDate }
+        patient.sessions.sorted { $0.sessionDate > $1.sessionDate }
     }
 
     var body: some View {

@@ -163,20 +163,20 @@ private struct PatientFilteredList: View {
         let patientUpdate = patients.map(\.updatedAt.timeIntervalSince1970).max() ?? 0
         let sessionCount = patients.reduce(0) { $0 + $1.sessions.count }
         let sessionUpdate = patients
-            .flatMap { $0.sessions ?? [] }
+            .flatMap(\.sessions)
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
         let paymentCount = patients
-            .flatMap { $0.sessions ?? [] }
+            .flatMap(\.sessions)
             .reduce(0) { $0 + $1.payments.count }
         let paymentUpdate = patients
-            .flatMap { $0.sessions ?? [] }
-            .flatMap { $0.payments ?? [] }
+            .flatMap(\.sessions)
+            .flatMap(\.payments)
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
         let diagnosisCount = patients.reduce(0) { $0 + $1.activeDiagnoses.count }
         let diagnosisUpdate = patients
-            .flatMap { $0.activeDiagnoses ?? [] }
+            .flatMap(\.activeDiagnoses)
             .map(\.diagnosedAt.timeIntervalSince1970)
             .max() ?? 0
 

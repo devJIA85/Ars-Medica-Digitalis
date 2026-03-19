@@ -70,7 +70,7 @@ struct MedicationSection: View {
     }
 
     private var sortedCurrentMedications: [Medication] {
-        (patient.currentMedications ?? []).sorted {
+        patient.currentMedications.sorted {
             if $0.principioActivo.caseInsensitiveCompare($1.principioActivo) == .orderedSame {
                 return $0.nombreComercial.localizedCaseInsensitiveCompare($1.nombreComercial) == .orderedAscending
             }
@@ -79,7 +79,7 @@ struct MedicationSection: View {
     }
 
     private func deleteMedication(_ medication: Medication) {
-        patient.currentMedications = (patient.currentMedications ?? []).filter { $0.id != medication.id }
+        patient.currentMedications = patient.currentMedications.filter { $0.id != medication.id }
         patient.updatedAt = Date()
     }
 

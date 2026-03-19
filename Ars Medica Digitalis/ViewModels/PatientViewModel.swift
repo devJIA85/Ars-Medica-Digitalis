@@ -331,7 +331,7 @@ final class PatientViewModel {
             return
         }
 
-        let latestVersion = (patient.currencyVersions ?? [])
+        let latestVersion = patient.currencyVersions
             .sorted(by: sortCurrencyVersionsDescending)
             .first
 

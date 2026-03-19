@@ -172,11 +172,11 @@ struct DashboardView: View {
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
         let latestSessionUpdate = patients
-            .flatMap { $0.sessions ?? [] }
+            .flatMap(\.sessions)
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
         let activeDiagnosisCount = patients
-            .flatMap { $0.activeDiagnoses ?? [] }
+            .flatMap(\.activeDiagnoses)
             .count
 
         return "\(patientCount)-\(deletedPatients)-\(latestPatientUpdate)-\(latestSessionUpdate)-\(activeDiagnosisCount)"

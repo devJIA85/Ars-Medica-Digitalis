@@ -21,6 +21,7 @@ struct PatientDetailView: View {
     @State private var showingEdit: Bool = false
     @State private var showingNewSession: Bool = false
     @State private var showingDeleteConfirmation: Bool = false
+    @State private var showingReactivateConfirmation: Bool = false
     @State private var isExportingPDF: Bool = false
     @State private var showingPDFShareSheet: Bool = false
     @State private var exportedPDFURL: URL? = nil
@@ -29,12 +30,7 @@ struct PatientDetailView: View {
     @State private var didAppearDiagnoses: Bool = false
     @State private var didAppearSessions: Bool = false
 
-    // FAB — acciones rápidas con Liquid Glass morph
-    @State private var showingAddDiagnosisFromFAB: Bool = false
-    @State private var showingMedicalHistoryFromFAB: Bool = false
-
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
         ScrollView {
             GlassEffectContainer {
             VStack(spacing: AppSpacing.sectionGap) {
@@ -61,30 +57,52 @@ struct PatientDetailView: View {
                     value: didAppearDiagnoses
                 )
 
-                // 3. Clinical activity timeline — recent events summary
-                ClinicalActivityTimeline(patient: patient)
+                // 3. Sessions — timeline protagonista: acción clínica primaria.
+                // El padding(.top) adicional amplía el espacio visual por encima
+                // de la sección dominante, separándola del diagnóstico (más ligero)
+                // y haciendo visible la jerarquía sin cambiar el sectionGap global.
+                SessionsSection(
+                    patient: patient,
+                    onCreateSession: { showingNewSession = true }
+                )
+                .padding(.top, AppSpacing.sm)
+                .opacity(didAppearSessions ? 1 : 0)
+                .offset(y: (didAppearSessions || reduceMotion) ? 0 : 16)
+                .animation(
+                    reduceMotion ? .easeIn(duration: 0.15) : .smooth(duration: 0.4).delay(0.08),
+                    value: didAppearSessions
+                )
 
-                // 4. Clinical modules — historia clínica + escalas
-                ClinicalModuleRow(
-                    title: "Historia clínica",
-                    systemImage: "heart.text.clipboard",
-                    detail: medicationDetail
-                ) {
-                    PatientMedicalHistoryView(patient: patient, professional: professional)
+                // 4 + 5. Cluster secundario: timeline + módulos clínicos agrupados
+                // con spacing reducido (sm vs sectionGap) para distinguirlos
+                // visualmente del bloque primario (diagnóstico + sesiones).
+                // El agrupamiento perceptual comunica "esto es de segunda lectura".
+                VStack(spacing: AppSpacing.sm) {
+                    ClinicalActivityTimeline(patient: patient)
+
+                    ClinicalModuleRow(
+                        title: "Historia clínica",
+                        systemImage: "heart.text.clipboard",
+                        detail: medicationDetail
+                    ) {
+                        PatientMedicalHistoryView(patient: patient, professional: professional)
+                    }
+
+                    ClinicalModuleRow(
+                        title: "Escalas clínicas",
+                        systemImage: "list.bullet.clipboard",
+                        detail: scalesDetail
+                    ) {
+                        ScalesListView(
+                            patientID: patient.id,
+                            patientName: patient.fullName
+                        )
+                    }
+                    .accessibilityIdentifier("patient.detail.scales")
                 }
 
-                ClinicalModuleRow(
-                    title: "Escalas clínicas",
-                    systemImage: "list.bullet.clipboard",
-                    detail: scalesDetail
-                ) {
-                    ScalesListView(
-                        patientID: patient.id,
-                        patientName: patient.fullName
-                    )
-                }
-                .accessibilityIdentifier("patient.detail.scales")
-
+                // 6. Finanzas — contexto administrativo de apoyo, no interrumpe
+                // el flujo clínico al aparecer después de los módulos clínicos.
                 if patient.hasOutstandingDebt {
                     PatientFinanceCard(
                         patient: patient,
@@ -98,29 +116,14 @@ struct PatientDetailView: View {
                     PatientSessionFinancialListView(patient: patient)
                 }
 
-                // 5. Sessions — timeline
-                SessionsSection(
-                    patient: patient,
-                    onCreateSession: { showingNewSession = true }
-                )
-                .opacity(didAppearSessions ? 1 : 0)
-                .offset(y: (didAppearSessions || reduceMotion) ? 0 : 16)
-                .animation(
-                    reduceMotion ? .easeIn(duration: 0.15) : .smooth(duration: 0.4).delay(0.08),
-                    value: didAppearSessions
-                )
-
-                // 6. Patient info — collapsible, reduced dividers
+                // 7. Patient info — collapsible, reduced dividers
                 CollapsibleContextSection(
                     patient: patient,
                     professional: professional,
                     hasContactData: hasContactData,
                     emergencyContactSummary: emergencyContactSummary,
                     onDeactivate: { showingDeleteConfirmation = true },
-                    onRestore: {
-                        patient.deletedAt = nil
-                        patient.updatedAt = Date()
-                    }
+                    onRestore: { showingReactivateConfirmation = true }
                 )
             }
             .padding(.horizontal, AppSpacing.lg)
@@ -130,47 +133,17 @@ struct PatientDetailView: View {
         }
         .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
-        // Reserva espacio para que el FAB no tape el último elemento
-        .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 80)
-        }
         .onAppear {
             guard !didAppearDiagnoses else { return }
             didAppearDiagnoses = true
             didAppearSessions = true
         }
-
-        // FAB flotante — esquina inferior trailing con Liquid Glass morph
-        ClinicalFABView(
-            onNuevaSession: { showingNewSession = true },
-            onAgregarDiagnostico: { showingAddDiagnosisFromFAB = true },
-            onHistoriaClinica: { showingMedicalHistoryFromFAB = true }
-        )
-        .padding(.trailing, AppSpacing.lg)
-        .padding(.bottom, AppSpacing.sm)
-
-        } // ZStack
+        // El título nativo aparece en la barra solo cuando PatientQuickInfo
+        // sale del viewport al hacer scroll, eliminando la duplicación permanente.
+        .navigationTitle(patient.fullName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                PatientHeaderContent(patient: patient)
-            }
-
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    exportPatientPDF()
-                } label: {
-                    if isExportingPDF {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "doc.richtext")
-                    }
-                }
-                .disabled(isExportingPDF)
-                .buttonStyle(.glass)
-                .accessibilityLabel("Exportar PDF")
-            }
-
+            // Edición: acción primaria de contenido — trailing por convención iOS.
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingEdit = true
@@ -180,18 +153,42 @@ struct PatientDetailView: View {
                 .buttonStyle(.glass)
                 .accessibilityLabel("Editar paciente")
             }
-        }
-        // FAB — navegación a Historia Clínica (push dentro del NavigationStack padre)
-        .navigationDestination(isPresented: $showingMedicalHistoryFromFAB) {
-            PatientMedicalHistoryView(patient: patient, professional: professional)
-        }
-        // FAB — agregar diagnóstico CIE-11 directamente desde la acción rápida
-        .sheet(isPresented: $showingAddDiagnosisFromFAB) {
-            NavigationStack {
-                ICD11SearchView(
-                    alreadySelected: activeDiagnosesAsDTO,
-                    onSelect: { result in addActiveDiagnosis(result) }
-                )
+
+            // Exportar PDF: acción secundaria de utilidad — dentro de un menú
+            // para no saturar el espacio y mantener jerarquía visual.
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        exportPatientPDF()
+                    } label: {
+                        Label("Exportar PDF", systemImage: "doc.richtext")
+                    }
+                    .disabled(isExportingPDF)
+
+                    Divider()
+
+                    if patient.isActive {
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Label("Desactivar paciente", systemImage: "person.crop.circle.badge.xmark")
+                        }
+                    } else {
+                        Button {
+                            showingReactivateConfirmation = true
+                        } label: {
+                            Label("Reactivar paciente", systemImage: "person.crop.circle.badge.checkmark")
+                        }
+                    }
+                } label: {
+                    if isExportingPDF {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Más acciones")
             }
         }
         .sheet(isPresented: $showingEdit) {
@@ -242,6 +239,17 @@ struct PatientDetailView: View {
         } message: {
             Text("El paciente desaparecerá de la lista principal. Su historia clínica se conservará íntegra.")
         }
+        .confirmationDialog(
+            "Reactivar paciente",
+            isPresented: $showingReactivateConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reactivar") {
+                patient.restore()
+            }
+        } message: {
+            Text("Este paciente volverá a estar activo y disponible en el sistema.")
+        }
     }
 
     // MARK: - Helpers
@@ -268,20 +276,13 @@ struct PatientDetailView: View {
 
     @ViewBuilder
     private var contextBadges: some View {
-        let next = nextAppointmentDate
+        // Próxima sesión ya está integrada en PatientQuickInfo.metadataLine —
+        // aquí solo mostramos badges de estado financiero/administrativo.
         let currency = patient.currencyCode.trimmed
         let hasDebt = patient.hasOutstandingDebt
 
-        if next != nil || currency.isEmpty == false || hasDebt {
+        if currency.isEmpty == false || hasDebt {
             HStack(spacing: AppSpacing.sm) {
-                if let next {
-                    StatusBadge(
-                        label: "Próxima: \(next.esDayMonthAbbrev())",
-                        variant: .warning,
-                        systemImage: "calendar.badge.clock"
-                    )
-                }
-
                 if currency.isEmpty == false {
                     StatusBadge(
                         label: currency,
@@ -299,14 +300,6 @@ struct PatientDetailView: View {
                 }
             }
         }
-    }
-
-    private var nextAppointmentDate: Date? {
-        let today = Calendar.current.startOfDay(for: Date())
-        return patient.sessions
-            .filter { $0.sessionStatusValue == .programada && $0.sessionDate >= today }
-            .map(\.sessionDate)
-            .min()
     }
 
     // MARK: - Clinical module details
@@ -429,19 +422,6 @@ private struct PatientFinanceCard: View {
     }
 }
 
-// MARK: - Header (toolbar principal — compact)
-
-private struct PatientHeaderContent: View {
-    let patient: Patient
-
-    var body: some View {
-        Text(patient.fullName)
-            .font(.headline)
-            .lineLimit(1)
-            .accessibilityLabel(patient.fullName)
-    }
-}
-
 // MARK: - Quick Info (compact header — avatar + identity + status)
 
 private struct PatientQuickInfo: View {
@@ -467,8 +447,12 @@ private struct PatientQuickInfo: View {
 
                 ClinicalStatusBadge(status: patient.clinicalStatusValue)
 
+                // .medium weight cuando hay próxima sesión: la línea lleva
+                // información accionable y merece un toque más de masa tipográfica.
+                // Cuando no hay sesión próxima, .regular mantiene la calma visual.
                 Text(metadataLine)
                     .font(.subheadline)
+                    .fontWeight(nextAppointmentDate != nil ? .medium : .regular)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -482,7 +466,12 @@ private struct PatientQuickInfo: View {
 
     private var metadataLine: String {
         var parts = ["\(patient.age) años"]
-        if let nextBirthday = patient.nextBirthday {
+        // Próxima sesión tiene prioridad clínica inmediata sobre el cumpleaños.
+        // Integrarla aquí hace el header autosuficiente como snapshot clínico
+        // sin necesidad de leer el badge row separado debajo.
+        if let next = nextAppointmentDate {
+            parts.append("Próx. \(next.esDayMonthAbbrev())")
+        } else if let nextBirthday = patient.nextBirthday {
             parts.append("Cumple \(nextBirthday.esDayMonthAbbrev())")
         }
         if let flag = patient.nationality.flagEmoji {
@@ -524,7 +513,9 @@ private struct ActiveDiagnosesCard: View {
 
     var body: some View {
         if diagnoses.isEmpty {
-            CardContainer(style: .elevated) {
+            // .flat: thinMaterial + glassEffect .clear — peso visual reducido.
+            // El diagnóstico es contexto informativo; no compite con Sesiones.
+            CardContainer(style: .flat) {
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Label("Diagnóstico principal", systemImage: "cross.case")
                         .font(.headline)
@@ -560,7 +551,7 @@ private struct ActiveDiagnosesCard: View {
                     onMarkAsPrimary: onMarkAsPrimary
                 )
             } label: {
-                CardContainer(style: .elevated) {
+                CardContainer(style: .flat) {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         HStack {
                             Label("Diagnóstico principal", systemImage: "cross.case")
@@ -579,6 +570,8 @@ private struct ActiveDiagnosesCard: View {
                                 .foregroundStyle(.primary)
                                 .lineLimit(3)
                                 .multilineTextAlignment(.leading)
+
+                            icd11ChipRow(code: primary.icdCode, chapter: primary.icdChapter)
                         }
 
                         if diagnoses.count > 1 {
@@ -689,6 +682,8 @@ private struct ActiveDiagnosesListView: View {
                         .lineLimit(2)
                 }
 
+                icd11ChipRow(code: diagnosis.icdCode, chapter: diagnosis.icdChapter)
+
                 HStack(spacing: AppSpacing.sm) {
                     Text(diagnosisTypeLabel(for: diagnosis))
                         .font(.caption)
@@ -733,6 +728,27 @@ private struct ActiveDiagnosesListView: View {
 
     private func diagnosisTypeLabel(for diagnosis: Diagnosis) -> String {
         diagnosis.diagnosisTypeValue.label
+    }
+}
+
+// MARK: - ICD-11 chip row (shared between collapsed card and list rows)
+
+/// Fila de píldoras CIE-11: código MMS (énfasis alto) + nombre de capítulo (énfasis bajo).
+/// Renderiza nada si ambos campos están vacíos.
+@ViewBuilder
+private func icd11ChipRow(code: String, chapter: String) -> some View {
+    let codeTrimmed = code.trimmed
+    let name = icd11ChapterName(for: chapter.trimmed.isEmpty ? nil : chapter.trimmed)
+    if !codeTrimmed.isEmpty || !name.isEmpty {
+        let color = icd11ChapterColor(for: chapter.trimmed.isEmpty ? nil : chapter.trimmed)
+        HStack(spacing: AppSpacing.xs) {
+            if !codeTrimmed.isEmpty {
+                ICD11ChipView(text: codeTrimmed, color: color, emphasis: .high)
+            }
+            if !name.isEmpty {
+                ICD11ChipView(text: name, color: color, emphasis: .low)
+            }
+        }
     }
 }
 
@@ -792,6 +808,9 @@ private struct SessionsSection: View {
     @State private var pendingCompletion: PendingPatientSessionCompletion?
     @State private var completionErrorMessage: String?
     @State private var addSessionBounce: Int = 0
+    // Sheet de edición — mismo modelo de presentación que la creación.
+    // HIG: crear y editar la misma entidad deben usar el mismo patrón modal.
+    @State private var sessionToEdit: Session? = nil
 
     private static let visibleLimit = 3
 
@@ -804,14 +823,20 @@ private struct SessionsSection: View {
     }
 
     var body: some View {
-        CardContainer(style: .flat) {
-            VStack(spacing: AppSpacing.md) {
+        // .elevated: regularMaterial + glassEffect .regular + radio 20 + sombra mayor.
+        // Sessions es la sección primaria — su peso visual debe dominarlo todo.
+        CardContainer(style: .elevated) {
+            // lg (24pt) en lugar de md (16pt): las secciones hero tienen más aire
+            // interno, lo que el ojo interpreta como mayor peso sin cambiar tamaño.
+            VStack(spacing: AppSpacing.lg) {
                 // Header: título + botón "+" — solo visible cuando hay sesiones.
                 // En estado vacío, el CTA explícito ("Crear primera sesión") es la
                 // única acción primaria, siguiendo las guías de Apple para empty states.
                 HStack {
+                    // title2 > title3: un escalón tipográfico arriba para señalar
+                    // que esta sección es la de mayor jerarquía en la pantalla.
                     Text("Sesiones")
-                        .font(.title3.bold())
+                        .font(.title2.bold())
                         .foregroundStyle(.primary)
 
                     Spacer(minLength: 0)
@@ -819,7 +844,6 @@ private struct SessionsSection: View {
                     if !sortedSessions.isEmpty {
                         Button {
                             addSessionBounce += 1
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             onCreateSession()
                         } label: {
                             Image(systemName: "plus")
@@ -830,25 +854,35 @@ private struct SessionsSection: View {
                         .buttonStyle(.glass)
                         .frame(minWidth: 44, minHeight: 44)
                         .accessibilityLabel("Nueva sesión")
+                        // .sensoryFeedback reemplaza UIImpactFeedbackGenerator:
+                        // es puro SwiftUI y respeta automáticamente la
+                        // configuración del sistema (Reduce Motion, Haptics off).
+                        .sensoryFeedback(.impact(weight: .light), trigger: addSessionBounce)
                     }
                 }
 
                 if sortedSessions.isEmpty {
-                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                    // Estado vacío centrado con padding vertical generoso:
+                    // el área en blanco refuerza que este es el espacio a completar.
+                    // Alineación central y escala de texto mayor que en secciones
+                    // secundarias — coherente con ContentUnavailableView de Apple.
+                    VStack(alignment: .center, spacing: AppSpacing.sm) {
                         Text("No hay sesiones registradas")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
 
                         Button {
                             addSessionBounce += 1
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             onCreateSession()
                         } label: {
                             Label("Crear primera sesión", systemImage: "plus.circle")
-                                .font(.subheadline.weight(.medium))
+                                .font(.body.weight(.medium))
                                 .symbolEffect(.bounce, value: addSessionBounce)
                         }
+                        .sensoryFeedback(.impact(weight: .light), trigger: addSessionBounce)
                     }
+                    .padding(.vertical, AppSpacing.lg)
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(visibleSessions.enumerated()), id: \.element.id) { index, session in
@@ -880,6 +914,11 @@ private struct SessionsSection: View {
                 }
             }
         }
+        .sheet(item: $sessionToEdit) { session in
+            NavigationStack {
+                SessionFormView(patient: patient, session: session)
+            }
+        }
         .sheet(item: $pendingCompletion) { item in
             PaymentFlowView(draft: item.completionDraft, onCancel: {}) { paymentIntent in
                 try sessionViewModel.completeSession(item.session, in: modelContext, paymentIntent: paymentIntent)
@@ -892,13 +931,19 @@ private struct SessionsSection: View {
         } message: {
             Text(completionErrorMessage ?? "Ocurrió un error al registrar el cierre.")
         }
+        // Feedback de selección al tocar una fila de sesión.
+        // La forma closure devuelve nil en el dismiss (sessionToEdit → nil)
+        // para evitar doble haptic: solo dispara al abrir, no al cerrar.
+        .sensoryFeedback(trigger: sessionToEdit) {
+            sessionToEdit != nil ? .selection : nil
+        }
     }
 
     @ViewBuilder
     private func sessionListItem(for session: Session, isFirst: Bool, isLast: Bool) -> some View {
         HStack(alignment: .top, spacing: AppSpacing.sm) {
-            NavigationLink {
-                SessionFormView(patient: patient, session: session)
+            Button {
+                sessionToEdit = session
             } label: {
                 SessionRowView(
                     session: session,
@@ -908,6 +953,7 @@ private struct SessionsSection: View {
             }
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHint("Abre la sesión para editar")
 
             if canCompleteSession(session) {
                 Button {

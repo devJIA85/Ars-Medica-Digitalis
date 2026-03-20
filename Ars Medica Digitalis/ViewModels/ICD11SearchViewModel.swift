@@ -12,10 +12,13 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 @Observable
 final class ICD11SearchViewModel {
+
+    private nonisolated let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "ICD11Search")
 
     // MARK: - Estado observable
 
@@ -78,7 +81,7 @@ final class ICD11SearchViewModel {
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                // Si no teníamos resultados locales, mostrar error
+                logger.error("ICD11 online search failed: \(error)")
                 if results.isEmpty {
                     errorMessage = error.localizedDescription
                 }

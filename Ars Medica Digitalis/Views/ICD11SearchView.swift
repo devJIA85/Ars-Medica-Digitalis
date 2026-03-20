@@ -92,7 +92,7 @@ struct ICD11SearchView: View {
     @ViewBuilder
     private func diagnosisRow(_ result: ICD11SearchResult) -> some View {
         let isAlreadySelected = alreadySelected.contains { $0.id == result.id }
-        let chapterColor = chapterColor(for: result.chapter)
+        let chapterColor = icd11ChapterColor(for: result.chapter)
         let relevance = relevanceBadge(for: result.score)
 
         HStack {
@@ -103,15 +103,15 @@ struct ICD11SearchView: View {
 
                 HStack(spacing: 6) {
                     if let code = result.theCode, !code.isEmpty {
-                        chip(text: code, color: chapterColor)
+                        ICD11ChipView(text: code, color: chapterColor, emphasis: .high)
                     }
 
                     if let chapter = result.chapter, !chapter.isEmpty {
-                        chip(text: "Cap. \(chapter)", color: chapterColor)
+                        ICD11ChipView(text: icd11ChapterName(for: chapter), color: chapterColor, emphasis: .low)
                     }
 
                     if let relevance {
-                        chip(text: relevance.label, color: relevance.color)
+                        ICD11ChipView(text: relevance.label, color: relevance.color, emphasis: .low)
                     }
                 }
             }
@@ -126,28 +126,9 @@ struct ICD11SearchView: View {
         .contentShape(Rectangle())
     }
 
-    private func chip(text: String, color: Color) -> some View {
-        Text(text)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.14), in: Capsule())
-    }
-
-    private func chapterColor(for chapter: String?) -> Color {
-        guard let chapter, !chapter.isEmpty else { return .blue }
-
-        let palette: [Color] = [.blue, .teal, .green, .mint, .indigo, .cyan, .orange, .pink]
-        let hash = chapter.unicodeScalars.reduce(into: 0) { partialResult, scalar in
-            partialResult += Int(scalar.value)
-        }
-        return palette[hash % palette.count]
-    }
-
     private func titleColor(for chapter: String?) -> Color {
         guard let chapter, !chapter.isEmpty else { return .primary }
-        let base = chapterColor(for: chapter)
+        let base = icd11ChapterColor(for: chapter)
         return base.opacity(colorScheme == .dark ? 0.95 : 0.9)
     }
 

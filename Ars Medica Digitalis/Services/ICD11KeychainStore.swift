@@ -36,8 +36,14 @@ nonisolated enum ICD11KeychainStore {
 
         // Primera vez: migrar desde plist
         let plist = try loadFromPlist()
-        try writeToKeychain(clientId: plist.clientId, clientSecret: plist.clientSecret)
-        logger.info("ICD11 credentials migrated to Keychain.")
+        do {
+            try writeToKeychain(clientId: plist.clientId, clientSecret: plist.clientSecret)
+            logger.info("ICD11 credentials migrated to Keychain.")
+        } catch {
+            // Si el Keychain falla (ej. simulador), devolver las credenciales del plist
+            // sin bloquear la funcionalidad. Se reintentará la migración en el próximo lanzamiento.
+            logger.warning("Keychain migration failed, using plist fallback: \(error)")
+        }
         return plist
     }
 

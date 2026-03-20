@@ -14,7 +14,6 @@ struct FinanceSection: View {
     @Binding var defaultFinancialSessionTypeID: UUID?
 
     let sessionTypes: [SessionCatalogType]
-    let onManageFees: () -> Void
 
     var body: some View {
         CardContainer(style: .flat) {
@@ -37,23 +36,6 @@ struct FinanceSection: View {
                     sessionTypeMenu
                 }
 
-                Divider()
-
-                Button(action: onManageFees) {
-                    SettingsRow(
-                        systemImage: "slider.horizontal.3",
-                        title: "Gestionar honorarios",
-                        subtitle: sessionTypes.isEmpty
-                        ? "Crea tu primer honorario para habilitar sugerencias"
-                        : "\(sessionTypes.count) tipos activos disponibles"
-                    ) {
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .buttonStyle(.plain)
             }
         }
     }

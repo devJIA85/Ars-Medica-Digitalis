@@ -14,15 +14,12 @@ struct ProfileHeaderSection: View {
     let fullName: String
     let professionalTitle: String
     let licenseNumber: String
-    let onEdit: () -> Void
 
     var body: some View {
         CardContainer(style: .elevated) {
             HStack(alignment: .center, spacing: AppSpacing.md) {
                 avatar
                 professionalInfo
-                Spacer(minLength: AppSpacing.sm)
-                editButton
             }
         }
     }
@@ -69,21 +66,4 @@ struct ProfileHeaderSection: View {
         }
     }
 
-    /// Botón cápsula azul que desplaza la vista hasta el formulario editable.
-    private var editButton: some View {
-        Button(action: onEdit) {
-            HStack(spacing: 4) {
-                Image(systemName: "pencil")
-                    .font(.footnote.weight(.semibold))
-                Text("Editar")
-                    .font(.subheadline.weight(.medium))
-            }
-            .foregroundStyle(.blue)
-            .padding(.horizontal, AppSpacing.md)
-            .padding(.vertical, AppSpacing.sm)
-            .background(.blue.opacity(0.1), in: Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Editar datos profesionales")
-    }
 }

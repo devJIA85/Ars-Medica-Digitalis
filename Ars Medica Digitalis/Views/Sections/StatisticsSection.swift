@@ -36,26 +36,28 @@ struct StatisticsSection: View {
 
                 insetDivider
 
-                // Finanzas → sheet
+                // Finanzas → sheet (no chevron: chevron signals push navigation only)
                 Button(action: onShowFinances) {
                     activityRow(
                         systemImage: "dollarsign.arrow.circlepath",
                         color: .green,
                         title: "Finanzas",
-                        subtitle: "Ingresos, cobros y deuda por moneda"
+                        subtitle: "Ingresos, cobros y deuda por moneda",
+                        showsChevron: false
                     )
                 }
                 .buttonStyle(.plain)
 
                 insetDivider
 
-                // Honorarios → sheet
+                // Honorarios → sheet (no chevron)
                 Button(action: onShowFees) {
                     activityRow(
                         systemImage: "briefcase",
                         color: .purple,
                         title: "Honorarios",
-                        subtitle: "Catálogo y valores vigentes"
+                        subtitle: "Catálogo y valores vigentes",
+                        showsChevron: false
                     )
                 }
                 .buttonStyle(.plain)
@@ -65,14 +67,16 @@ struct StatisticsSection: View {
 
     // MARK: - Helpers
 
-    /// Fila de navegación con ícono squircle, títulos y chevron derecho.
+    /// Fila de acción con ícono squircle, títulos y chevron opcional.
+    /// showsChevron: true solo para NavigationLink (push). Filas que abren sheets → false.
     /// Área mínima de 44pt para accesibilidad.
     @ViewBuilder
     private func activityRow(
         systemImage: String,
         color: Color,
         title: String,
-        subtitle: String
+        subtitle: String,
+        showsChevron: Bool = true
     ) -> some View {
         HStack(spacing: AppSpacing.md) {
             SquircleIconView(systemImage: systemImage, color: color)
@@ -90,10 +94,12 @@ struct StatisticsSection: View {
 
             Spacer(minLength: AppSpacing.sm)
 
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
         }
         // Área de tap mínima 44pt para cumplir con accesibilidad
         .frame(minHeight: 44)

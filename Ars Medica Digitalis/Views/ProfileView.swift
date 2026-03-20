@@ -27,32 +27,22 @@ struct ProfileView: View {
     // Controla la animación de entrada en cascada de los 5 módulos
     @State private var appeared: Bool = false
 
-    private enum ScrollTarget: Hashable {
-        case professionalData
-    }
-
     var body: some View {
         @Bindable var viewModel = viewModel
 
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: AppSpacing.sectionGap) {
+        ScrollView {
+            LazyVStack(spacing: AppSpacing.sectionGap) {
 
                     // MARK: — Módulo 1: Identidad
                     ProfileHeaderSection(
                         fullName: viewModel.fullName,
                         professionalTitle: viewModel.specialty,
-                        licenseNumber: viewModel.licenseNumber,
-                        onEdit: {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo(ScrollTarget.professionalData, anchor: .top)
-                            }
-                        }
+                        licenseNumber: viewModel.licenseNumber
                     )
                     .moduleEntrance(appeared: appeared, delay: 0.00)
 
-                    // MARK: — Módulo 2: Actividad
-                    sectionHeader("Actividad")
+                    // MARK: — Módulo 2: Herramientas (dashboards y módulos de gestión)
+                    sectionHeader("Herramientas")
                         .moduleEntrance(appeared: appeared, delay: 0.05)
 
                     StatisticsSection(
@@ -62,7 +52,10 @@ struct ProfileView: View {
                     )
                     .moduleEntrance(appeared: appeared, delay: 0.10)
 
-                    // MARK: — Ajustes
+                    // MARK: — Módulo 3: Ajustes (privacidad, apariencia — pantalla dedicada)
+                    sectionHeader("Ajustes")
+                        .moduleEntrance(appeared: appeared, delay: 0.15)
+
                     NavigationLink {
                         ProfileSettingsView(professional: professional)
                     } label: {
@@ -84,50 +77,41 @@ struct ProfileView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .moduleEntrance(appeared: appeared, delay: 0.15)
+                    .moduleEntrance(appeared: appeared, delay: 0.18)
 
-                    // MARK: — Módulo 3: Preferencias
+                    // MARK: — Módulo 4: Preferencias (configuración inline pura)
                     sectionHeader("Preferencias")
-                        .moduleEntrance(appeared: appeared, delay: 0.18)
+                        .moduleEntrance(appeared: appeared, delay: 0.20)
 
                     FinanceSection(
                         defaultPatientCurrencyCode: $viewModel.defaultPatientCurrencyCode,
                         defaultFinancialSessionTypeID: $viewModel.defaultFinancialSessionTypeID,
-                        sessionTypes: activeSessionTypes,
-                        onManageFees: { showingHonorarios = true }
+                        sessionTypes: activeSessionTypes
                     )
-                    .moduleEntrance(appeared: appeared, delay: 0.20)
+                    .moduleEntrance(appeared: appeared, delay: 0.24)
 
-                    // MARK: — Módulo 4: Datos profesionales
+                    // MARK: — Módulo 5: Datos profesionales (incluye email)
                     sectionHeader("Datos profesionales")
                         .moduleEntrance(appeared: appeared, delay: 0.28)
 
                     ProfessionalDataSection(
                         fullName: $viewModel.fullName,
                         professionalTitle: $viewModel.specialty,
-                        licenseNumber: $viewModel.licenseNumber
+                        licenseNumber: $viewModel.licenseNumber,
+                        email: $viewModel.email
                     )
-                    .id(ScrollTarget.professionalData)
                     .moduleEntrance(appeared: appeared, delay: 0.30)
-
-                    // MARK: — Módulo 5: Contacto
-                    sectionHeader("Contacto")
-                        .moduleEntrance(appeared: appeared, delay: 0.38)
-
-                    ContactSection(email: $viewModel.email)
-                        .moduleEntrance(appeared: appeared, delay: 0.40)
-                }
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.xl)
             }
-            .scrollContentBackground(.hidden)
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollIndicators(.hidden)
-            // Dispara la animación de entrada en cascada al aparecer la vista
-            .onAppear {
-                appeared = true
-            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.top, AppSpacing.lg)
+            .padding(.bottom, AppSpacing.xl)
+        }
+        .scrollContentBackground(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
+        // Dispara la animación de entrada en cascada al aparecer la vista
+        .onAppear {
+            appeared = true
         }
         .themedBackground()
         .navigationTitle("Perfil")

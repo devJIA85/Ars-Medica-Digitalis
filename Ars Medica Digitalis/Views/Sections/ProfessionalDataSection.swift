@@ -14,6 +14,7 @@ struct ProfessionalDataSection: View {
     @Binding var fullName: String
     @Binding var professionalTitle: String
     @Binding var licenseNumber: String
+    @Binding var email: String
 
     var body: some View {
         CardContainer(style: .flat, usesGlassEffect: false) {
@@ -43,6 +44,18 @@ struct ProfessionalDataSection: View {
                     text: $licenseNumber,
                     capitalization: .characters
                 )
+
+                Divider()
+
+                labeledFieldRow(
+                    icon: "envelope.fill",
+                    title: "Email",
+                    text: $email,
+                    capitalization: .never,
+                    contentType: .emailAddress,
+                    keyboardType: .emailAddress,
+                    autocorrectionDisabled: true
+                )
             }
         }
     }
@@ -52,7 +65,9 @@ struct ProfessionalDataSection: View {
         title: String,
         text: Binding<String>,
         capitalization: TextInputAutocapitalization = .sentences,
-        contentType: UITextContentType? = nil
+        contentType: UITextContentType? = nil,
+        keyboardType: UIKeyboardType = .default,
+        autocorrectionDisabled: Bool = false
     ) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
             Image(systemName: icon)
@@ -65,6 +80,8 @@ struct ProfessionalDataSection: View {
                 .textFieldStyle(.plain)
                 .textInputAutocapitalization(capitalization)
                 .textContentType(contentType)
+                .keyboardType(keyboardType)
+                .autocorrectionDisabled(autocorrectionDisabled)
                 .foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

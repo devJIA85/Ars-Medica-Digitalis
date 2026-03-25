@@ -81,7 +81,7 @@ struct PatientDetailView: View {
                     ClinicalActivityTimeline(patient: patient)
 
                     ClinicalModuleRow(
-                        title: "Historia clínica",
+                        title: L10n.tr("patient.section.clinicalData.title"),
                         systemImage: "heart.text.clipboard",
                         detail: medicationDetail
                     ) {
@@ -237,7 +237,7 @@ struct PatientDetailView: View {
                 patient.softDelete()
             }
         } message: {
-            Text("El paciente desaparecerá de la lista principal. Su historia clínica se conservará íntegra.")
+            Text(L10n.tr("patient.confirmation.deactivate.message"))
         }
         .confirmationDialog(
             "Reactivar paciente",
@@ -1480,7 +1480,7 @@ private struct PDFExportShareView: View {
                 Text("PDF generado")
                     .font(.title3.bold())
 
-                Text("Historia clínica de \(patientName)")
+                Text(L10n.tr("patient.pdf.title", patientName))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -1492,7 +1492,7 @@ private struct PDFExportShareView: View {
 
                 ShareLink(
                     item: fileURL,
-                    preview: SharePreview("Historia clínica de \(patientName)")
+                    preview: SharePreview(L10n.tr("patient.pdf.title", patientName))
                 ) {
                     Label("Compartir PDF", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)

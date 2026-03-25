@@ -2,6 +2,9 @@
 //  RiskFactorsSection.swift
 //  Ars Medica Digitalis
 //
+//  Two-column compact grid — no chevrons, no delete affordance.
+//  Delete was dead code (swipe actions require List context, not VStack).
+//
 
 import SwiftUI
 
@@ -13,56 +16,44 @@ struct RiskFactorsSection: View {
     var body: some View {
         SectionCard(
             title: "Factores de riesgo",
-            icon: "exclamationmark.shield"
+            icon: "exclamationmark.shield",
+            prominence: .secondary
         ) {
-            VStack(spacing: 0) {
-                ForEach(Array(riskFactors.enumerated()), id: \.element.title) { index, factor in
-                    ClinicalListRow(
-                        icon: factor.systemImage,
-                        title: factor.title,
-                        value: factor.isActive ? "Sí" : "No",
-                        onTap: onEditMedicalHistory,
-                        onDelete: {
-                            deleteRiskFactor(factor.kind)
-                        },
-                        onEdit: onEditMedicalHistory
-                    )
-
-                    if index < riskFactors.count - 1 {
-                        Divider()
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: AppSpacing.sm
+            ) {
+                ForEach(riskFactors, id: \.title) { factor in
+                    Button(action: onEditMedicalHistory) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(factor.title)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(factor.isActive ? "Sí" : "No")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(factor.valueColor)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppSpacing.sm)
+                        .background(
+                            .quaternary.opacity(0.6),
+                            in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous)
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
     }
 
-    private var riskFactors: [(title: String, systemImage: String, isActive: Bool, kind: RiskFactorKind)] {
+    private var riskFactors: [(title: String, isActive: Bool, valueColor: Color)] {
         [
-            ("Tabaquismo", "smoke", patient.smokingStatus, .smoking),
-            ("Consumo de alcohol", "wineglass", patient.alcoholUse, .alcohol),
-            ("Consumo de drogas", "pill", patient.drugUse, .drugs),
-            ("Chequeos de rutina", "heart.text.clipboard", patient.routineCheckups, .routineCheckups)
+            ("Tabaquismo",        patient.smokingStatus,   patient.smokingStatus   ? Color.red    : Color.secondary),
+            ("Alcohol",           patient.alcoholUse,      patient.alcoholUse      ? Color.orange : Color.secondary),
+            ("Drogas",            patient.drugUse,         patient.drugUse         ? Color.red    : Color.secondary),
+            ("Chequeos de rutina", patient.routineCheckups, patient.routineCheckups ? Color.green  : Color.secondary)
         ]
     }
-
-    private func deleteRiskFactor(_ factor: RiskFactorKind) {
-        switch factor {
-        case .smoking:
-            patient.smokingStatus = false
-        case .alcohol:
-            patient.alcoholUse = false
-        case .drugs:
-            patient.drugUse = false
-        case .routineCheckups:
-            patient.routineCheckups = false
-        }
-        patient.updatedAt = Date()
-    }
-}
-
-private enum RiskFactorKind {
-    case smoking
-    case alcohol
-    case drugs
-    case routineCheckups
 }

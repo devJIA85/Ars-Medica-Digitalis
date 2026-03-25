@@ -82,20 +82,20 @@ struct SettingsRow<Accessory: View>: View {
         }
     }
 
+    // Icon container — matches SquircleIconView visual language at configuration-row density.
+    // Shape: RoundedRectangle(cornerRadius: AppCornerRadius.sm, .continuous)
+    // Size: 36×36   Background: tint.opacity(0.15)   Foreground: tint
+    // No stroke. No material. Single source of truth for settings-row icons.
     private var iconBadge: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(.thinMaterial)
+        Image(systemName: systemImage)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(tint)
             .frame(width: 36, height: 36)
-            .overlay {
-                Image(systemName: systemImage)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .accessibilityHidden(true)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(.primary.opacity(0.10))
-            }
+            .background(
+                tint.opacity(0.15),
+                in: RoundedRectangle(cornerRadius: AppCornerRadius.sm, style: .continuous)
+            )
+            .accessibilityHidden(true)
     }
 }
 

@@ -331,7 +331,8 @@ struct PatientDashboardView: View {
     let professional: Professional
     let state: PatientDashboardState
     let namespace: Namespace.ID
-    let onDelete: (Patient) -> Void
+
+    @State private var patientToDelete: Patient?
 
     var body: some View {
         ScrollView {
@@ -351,14 +352,14 @@ struct PatientDashboardView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             if row.isActive {
                                 Button(L10n.tr("Baja"), role: .destructive) {
-                                    onDelete(row.patient)
+                                    patientToDelete = row.patient
                                 }
                             }
                         }
                         .contextMenu {
                             if row.isActive {
                                 Button(L10n.tr("Baja"), role: .destructive) {
-                                    onDelete(row.patient)
+                                    patientToDelete = row.patient
                                 }
                             }
                         }
@@ -381,6 +382,31 @@ struct PatientDashboardView: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollEdgeEffectStyle(.soft, for: .all)
+        // Confirmación de baja lógica (HU-03).
+        // Estado local: PatientDashboardView es la capa más cercana al origen de la acción.
+        // iPhone: action sheet desde el borde inferior (comportamiento HIG estándar).
+        // iPad: el sistema puede anclar la presentación al contexto del row.
+        .confirmationDialog(
+            "¿Dar de baja a este paciente?",
+            isPresented: Binding(
+                get: { patientToDelete != nil },
+                set: { if !$0 { patientToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Dar de Baja", role: .destructive) {
+                if let patient = patientToDelete {
+                    patient.deletedAt = Date()
+                    patient.updatedAt = Date()
+                    patientToDelete = nil
+                }
+            }
+            Button("Cancelar", role: .cancel) {
+                patientToDelete = nil
+            }
+        } message: {
+            Text(L10n.tr("patient.confirmation.deactivate.message"))
+        }
     }
 }
 

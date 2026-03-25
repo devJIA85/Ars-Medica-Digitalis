@@ -166,7 +166,7 @@ struct PatientMedicalHistoryFormView: View {
         .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
         .scrollBounceBehavior(.basedOnSize)
-        .navigationTitle("Historia Clínica")
+        .navigationTitle(L10n.tr("patient.section.clinicalData.title"))
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(autosaveSubtitle)
         .toolbar {

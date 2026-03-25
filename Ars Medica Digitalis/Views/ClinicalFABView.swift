@@ -28,7 +28,7 @@ struct ClinicalFABView: View {
                     VStack(spacing: 8) {
                         fabBadge(
                             systemImage: "heart.text.clipboard",
-                            label: "Historia clínica",
+                            label: L10n.tr("patient.section.clinicalData.title"),
                             id: "fab-hc",
                             action: { onHistoriaClinica(); collapse() }
                         )

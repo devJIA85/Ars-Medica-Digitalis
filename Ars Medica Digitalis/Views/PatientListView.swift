@@ -21,7 +21,6 @@ struct PatientListView: View {
 
     @State private var searchText: String = ""
     @State private var showInactive: Bool = false
-    @State private var patientToDelete: Patient? = nil
 
     var body: some View {
         content
@@ -33,10 +32,7 @@ struct PatientListView: View {
             searchText: searchText,
             showInactive: showInactive,
             professional: professional,
-            namespace: namespace,
-            onDelete: { patient in
-                patientToDelete = patient
-            }
+            namespace: namespace
         )
             .navigationTitle(showInactive ? "Inactivos" : "Pacientes")
             .toolbar {
@@ -71,25 +67,6 @@ struct PatientListView: View {
 
                 // El CTA principal vive en el top bar, junto a perfil.
             }
-            // Diálogo de confirmación para baja lógica (HU-03)
-            .confirmationDialog(
-                "¿Dar de baja a este paciente?",
-                isPresented: Binding(
-                    get: { patientToDelete != nil },
-                    set: { if !$0 { patientToDelete = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("Dar de Baja", role: .destructive) {
-                    if let patient = patientToDelete {
-                        patient.deletedAt = Date()
-                        patient.updatedAt = Date()
-                        patientToDelete = nil
-                    }
-                }
-            } message: {
-                Text("El paciente desaparecerá de la lista principal. Su historia clínica se conservará íntegra.")
-            }
 
         if enablesSearch {
             dashboard.searchable(text: $searchText, placement: .automatic, prompt: "Buscar paciente")
@@ -111,18 +88,15 @@ private struct PatientFilteredList: View {
     @Environment(\.modelContext) private var modelContext
 
     let professional: Professional
-    let onDelete: (Patient) -> Void
     let namespace: Namespace.ID
 
     init(
         searchText: String,
         showInactive: Bool,
         professional: Professional,
-        namespace: Namespace.ID,
-        onDelete: @escaping (Patient) -> Void
+        namespace: Namespace.ID
     ) {
         self.professional = professional
-        self.onDelete = onDelete
         self.namespace = namespace
 
         let trimmed = searchText.trimmed.lowercased()
@@ -150,8 +124,7 @@ private struct PatientFilteredList: View {
         PatientDashboardView(
             professional: professional,
             state: store.state,
-            namespace: namespace,
-            onDelete: onDelete
+            namespace: namespace
         )
         .task(id: refreshToken) {
             store.load(from: patients, context: modelContext)

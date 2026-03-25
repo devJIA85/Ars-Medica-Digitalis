@@ -22,7 +22,7 @@ struct PatientClinicalDashboardView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: AppSpacing.xxl) {
+            LazyVStack(spacing: AppSpacing.lg) {
                 PatientSummaryCard(
                     patientName: patient.fullName,
                     age: patient.age,

@@ -2,134 +2,89 @@
 //  PatientSummarySection.swift
 //  Ars Medica Digitalis
 //
+//  Datos del paciente — layout Health.app: etiqueta fija (secundaria) + valor (primario).
+//  Grid auto-dimensiona la columna de etiquetas al texto más largo.
+//  Sin íconos: las etiquetas ya identifican cada campo.
+//
 
 import SwiftUI
 
 struct PatientSummarySection: View {
 
     let patient: Patient
-    private let columns = [
-        GridItem(.flexible(), spacing: AppSpacing.sm, alignment: .leading),
-        GridItem(.flexible(), spacing: AppSpacing.sm, alignment: .leading)
-    ]
 
     var body: some View {
-        SectionCard(
-            title: "Datos del paciente",
-            icon: "person.text.rectangle"
-        ) {
-            VStack(spacing: AppSpacing.sm) {
-                LazyVGrid(columns: columns, spacing: AppSpacing.sm) {
-                    ForEach(primaryItems, id: \.title) { item in
-                        SummaryInfoCompactTile(
-                            title: item.title,
-                            value: item.value,
-                            systemImage: item.systemImage,
-                            fixedHeight: 44,
-                            valueLineLimit: item.title == "Afiliado" ? 2 : 1
-                        )
-                    }
+        SectionCard(title: "Datos del paciente", icon: "person.text.rectangle", prominence: .secondary) {
+            Grid(alignment: .leading, horizontalSpacing: AppSpacing.md, verticalSpacing: 0) {
+
+                dataRow("Nacimiento", patient.dateOfBirth.compactDashboardDate)
+
+                Divider()
+
+                dataRow("DNI", displayValue(patient.nationalId))
+
+                Divider()
+
+                dataRow("Ocupación", displayValue(patient.occupation))
+
+                if !patient.healthInsurance.trimmed.isEmpty {
+                    Divider()
+                    dataRow("Cobertura", patient.healthInsurance)
                 }
 
-                if let addressItem {
-                    SummaryInfoCompactTile(
-                        title: addressItem.title,
-                        value: addressItem.value,
-                        systemImage: addressItem.systemImage,
-                        badge: addressItem.badge,
-                        fixedHeight: 40,
-                        valueLineLimit: 1
-                    )
+                if !patient.insuranceMemberNumber.trimmed.isEmpty {
+                    Divider()
+                    dataRow("Afiliado", patient.insuranceMemberNumber)
+                }
+
+                if !patient.insurancePlan.trimmed.isEmpty {
+                    Divider()
+                    dataRow("Plan", patient.insurancePlan)
+                }
+
+                if let addr = addressValue {
+                    Divider()
+                    dataRow("Dirección", addr)
                 }
             }
         }
     }
 
-    private var primaryItems: [(title: String, value: String, systemImage: String)] {
-        var items: [(title: String, value: String, systemImage: String)] = [
-            ("Nacimiento", patient.dateOfBirth.compactDashboardDate, "birthday.cake"),
-            ("DNI", displayValue(patient.nationalId), "person.text.rectangle"),
-            ("Ocupación", displayValue(patient.occupation), "briefcase")
-        ]
+    // MARK: - Row builder
 
-        if !patient.healthInsurance.trimmed.isEmpty {
-            items.append(("Cobertura", patient.healthInsurance, "cross.case"))
-        }
-
-        if !patient.insuranceMemberNumber.trimmed.isEmpty {
-            items.append(("Afiliado", patient.insuranceMemberNumber, "number"))
-        }
-
-        if !patient.insurancePlan.trimmed.isEmpty {
-            items.append(("Plan", patient.insurancePlan, "checklist"))
-        }
-
-        return items
-    }
-
-    private var addressItem: (title: String, value: String, systemImage: String, badge: String?)? {
-        let address = patient.address.trimmed
-        let countryFlag = patient.residenceCountry.flagEmoji
-        guard !address.isEmpty || countryFlag != nil else { return nil }
-        return ("Dirección", address.isEmpty ? "Sin domicilio" : address, "house", countryFlag)
-    }
-
-    private func displayValue(_ rawValue: String) -> String {
-        let trimmedValue = rawValue.trimmed
-        return trimmedValue.isEmpty ? "No registrado" : trimmedValue
-    }
-}
-
-private struct SummaryInfoCompactTile: View {
-
-    let title: String
-    let value: String
-    let systemImage: String
-    var badge: String? = nil
-    var fixedHeight: CGFloat = 72
-    var valueLineLimit: Int = 2
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12, height: 12)
-
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-
-                Spacer(minLength: 0)
-
-                if let badge {
-                    Text(badge)
-                        .font(.caption)
-                }
-            }
+    private func dataRow(_ label: String, _ value: String) -> some View {
+        GridRow(alignment: .center) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .gridColumnAlignment(.leading)
+                .padding(.vertical, 10)
 
             Text(value)
-                .font(.callout.weight(.semibold))
+                .font(.subheadline)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.leading)
-                .lineLimit(valueLineLimit)
-                .minimumScaleFactor(0.6)
-                .allowsTightening(true)
+                .lineLimit(2)
+                .padding(.vertical, 10)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .frame(maxWidth: .infinity, minHeight: fixedHeight, maxHeight: fixedHeight, alignment: .center)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            Color(uiColor: .secondarySystemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-        )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+        .accessibilityLabel(label)
         .accessibilityValue(value)
+    }
+
+    // MARK: - Helpers
+
+    private func displayValue(_ raw: String) -> String {
+        let trimmed = raw.trimmed
+        return trimmed.isEmpty ? "No registrado" : trimmed
+    }
+
+    private var addressValue: String? {
+        let address = patient.address.trimmed
+        let flag = patient.residenceCountry.flagEmoji
+        if address.isEmpty && flag == nil { return nil }
+        let parts = [address.isEmpty ? nil : address, flag].compactMap { $0 }
+        return parts.joined(separator: " ")
     }
 }
 

@@ -16,7 +16,7 @@ struct PrivacySection: View {
         SettingsSectionCard(
             title: "Privacidad",
             systemImage: "lock.shield",
-            subtitle: "Proteccion local para el acceso a historias clinicas."
+            subtitle: L10n.tr("settings.privacy.subtitle")
         ) {
             ToggleRow(
                 systemImage: biometricSystemImage,

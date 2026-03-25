@@ -5,6 +5,10 @@
 //  Datos editables de identidad profesional.
 //  El título de sección se renderiza externamente en ProfileView (small-caps "DATOS PROFESIONALES").
 //
+//  Layout: Grid con columna de etiquetas auto-dimensionada (Health.app pattern).
+//  La columna izquierda toma el ancho de la etiqueta más larga ("Título profesional");
+//  la columna derecha ocupa el espacio restante.
+//
 
 import SwiftUI
 import UIKit
@@ -18,10 +22,10 @@ struct ProfessionalDataSection: View {
 
     var body: some View {
         CardContainer(style: .flat, usesGlassEffect: false) {
-            VStack(spacing: 0) {
-                labeledFieldRow(
-                    icon: "person.fill",
-                    title: "Nombre completo",
+            Grid(alignment: .leading, horizontalSpacing: AppSpacing.md, verticalSpacing: 0) {
+
+                fieldRow(
+                    label: "Nombre completo",
                     text: $fullName,
                     capitalization: .words,
                     contentType: .name
@@ -29,27 +33,26 @@ struct ProfessionalDataSection: View {
 
                 Divider()
 
-                labeledFieldRow(
-                    icon: "stethoscope",
-                    title: "Título profesional",
+                fieldRow(
+                    label: "Título profesional",
                     text: $professionalTitle,
                     capitalization: .words
                 )
 
                 Divider()
 
-                labeledFieldRow(
-                    icon: "number",
-                    title: "Matrícula",
+                fieldRow(
+                    label: "Matrícula",
                     text: $licenseNumber,
-                    capitalization: .characters
+                    capitalization: .characters,
+                    keyboardType: .asciiCapable,
+                    autocorrectionDisabled: true
                 )
 
                 Divider()
 
-                labeledFieldRow(
-                    icon: "envelope.fill",
-                    title: "Email",
+                fieldRow(
+                    label: "Email",
                     text: $email,
                     capitalization: .never,
                     contentType: .emailAddress,
@@ -60,32 +63,37 @@ struct ProfessionalDataSection: View {
         }
     }
 
-    private func labeledFieldRow(
-        icon: String,
-        title: String,
+    // MARK: - Row builder
+
+    /// Fila etiqueta + campo de texto con alineación de columna auto-adaptable.
+    ///
+    /// Firma extensible: `validationState`, `helperText` y `trailingAccessory`
+    /// pueden agregarse como parámetros opcionales sin romper los call sites existentes.
+    private func fieldRow(
+        label: String,
         text: Binding<String>,
         capitalization: TextInputAutocapitalization = .sentences,
         contentType: UITextContentType? = nil,
         keyboardType: UIKeyboardType = .default,
         autocorrectionDisabled: Bool = false
     ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: AppSpacing.md) {
-            Image(systemName: icon)
-                .symbolRenderingMode(.hierarchical)
+        GridRow(alignment: .center) {
+            Text(label)
+                .font(.body)
                 .foregroundStyle(.secondary)
-                .frame(width: 24)
-                .accessibilityHidden(true)
+                .gridColumnAlignment(.leading)
+                .padding(.vertical, 12)
 
-            TextField(title, text: text)
+            TextField(label, text: text)
                 .textFieldStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
                 .textInputAutocapitalization(capitalization)
                 .textContentType(contentType)
                 .keyboardType(keyboardType)
                 .autocorrectionDisabled(autocorrectionDisabled)
-                .foregroundStyle(.primary)
+                .padding(.vertical, 12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 10)
     }
 }
-

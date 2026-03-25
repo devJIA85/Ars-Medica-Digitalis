@@ -14,7 +14,7 @@ struct ClinicalStatusSection: View {
             title: "Estado clínico",
             icon: "waveform.path.ecg.rectangle"
         ) {
-            VStack(alignment: .leading, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.lg) {
                 HStack(spacing: AppSpacing.sm) {
                     StatusBadge(
                         label: patient.clinicalStatusValue.label,

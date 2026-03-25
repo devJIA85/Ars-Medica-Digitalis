@@ -2,27 +2,37 @@
 //  SectionCard.swift
 //  Ars Medica Digitalis
 //
-//  Card reutilizable para secciones clínicas del dashboard.
+//  Card con encabezado para secciones siempre visibles del dashboard clínico.
+//  Delega el estilo visual (padding, fondo, radio, animación) a ClinicalSectionCard.
+//
+//  prominence: .primary  → .title3.weight(.semibold)   (ClinicalStatus, Medication)
+//  prominence: .secondary → .subheadline.weight(.semibold) (PatientSummary, RiskFactors)
 //
 
 import SwiftUI
+
+enum SectionProminence {
+    case primary
+    case secondary
+}
 
 struct SectionCard<Content: View, Action: View>: View {
 
     let title: String
     let icon: String?
+    let prominence: SectionProminence
     @ViewBuilder let content: Content
     @ViewBuilder let action: Action
-
-    @State private var hasAppeared = false
 
     init(
         title: String,
         icon: String? = nil,
+        prominence: SectionProminence = .primary,
         @ViewBuilder content: () -> Content
     ) where Action == EmptyView {
         self.title = title
         self.icon = icon
+        self.prominence = prominence
         self.content = content()
         self.action = EmptyView()
     }
@@ -30,32 +40,22 @@ struct SectionCard<Content: View, Action: View>: View {
     init(
         title: String,
         icon: String? = nil,
+        prominence: SectionProminence = .primary,
         @ViewBuilder action: () -> Action,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.icon = icon
+        self.prominence = prominence
         self.content = content()
         self.action = action()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            header
-            content
-        }
-        .padding(AppSpacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color(uiColor: .systemGroupedBackground),
-            in: RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
-        )
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : 14)
-        .onAppear {
-            guard hasAppeared == false else { return }
-            withAnimation(.easeOut(duration: 0.4)) {
-                hasAppeared = true
+        ClinicalSectionCard {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                header
+                content
             }
         }
     }
@@ -64,12 +64,12 @@ struct SectionCard<Content: View, Action: View>: View {
         HStack(alignment: .center, spacing: AppSpacing.sm) {
             Label {
                 Text(title)
-                    .font(.title3.weight(.bold))
+                    .font(headerFont)
                     .foregroundStyle(.primary)
             } icon: {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.title3.weight(.semibold))
+                        .font(headerFont)
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.secondary)
                 }
@@ -79,5 +79,11 @@ struct SectionCard<Content: View, Action: View>: View {
 
             action
         }
+    }
+
+    private var headerFont: Font {
+        prominence == .primary
+            ? .title3.weight(.semibold)
+            : .subheadline.weight(.semibold)
     }
 }

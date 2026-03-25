@@ -60,7 +60,7 @@ struct PatientMedicalHistoryView: View {
                 modelContext.delete(hospitalization)
             }
         )
-        .navigationTitle("Historia Clínica")
+        .navigationTitle(L10n.tr("patient.section.clinicalData.title"))
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
@@ -72,7 +72,7 @@ struct PatientMedicalHistoryView: View {
                     Image(systemName: "square.and.pencil")
                 }
                 .buttonStyle(.glass)
-                .accessibilityLabel("Editar historia clínica")
+                .accessibilityLabel(L10n.tr("patient.section.clinicalData.editAccessibility"))
             }
         }
         .sheet(isPresented: $showingEditForm) {

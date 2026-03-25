@@ -51,7 +51,7 @@ final class BiometricLockCoordinator {
     func authenticateBiometrically() async -> Bool {
         await performAuthentication {
             await self.service.authenticateBiometrically(
-                reason: "Desbloqueá Ars Medica Digitalis para acceder a historias clínicas."
+                reason: L10n.tr("biometric.reason")
             )
         }
     }

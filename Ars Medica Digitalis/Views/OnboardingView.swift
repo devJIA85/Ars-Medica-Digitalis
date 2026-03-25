@@ -126,7 +126,7 @@ struct OnboardingView: View {
                             .font(.system(size: layout.brandSize, weight: .semibold, design: .rounded))
                             .foregroundStyle(.primary)
 
-                        Text("Configurá tu perfil profesional para comenzar a gestionar historias clínicas.")
+                        Text(L10n.tr("onboarding.professionalSetup.subtitle"))
                             .font(.system(size: layout.subtitleSize, weight: .medium, design: .default))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

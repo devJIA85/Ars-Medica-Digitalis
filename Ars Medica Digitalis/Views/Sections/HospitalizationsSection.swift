@@ -16,6 +16,7 @@ struct HospitalizationsSection: View {
     let onDeleteHospitalization: (Hospitalization) -> Void
 
     @State private var isExpanded = false
+    @State private var hospitalizationPendingDeletion: Hospitalization? = nil
 
     var body: some View {
         ClinicalSectionCard {
@@ -50,7 +51,7 @@ struct HospitalizationsSection: View {
 
                                 ClinicalDeleteButton(
                                     label: "Eliminar internación del \(hospitalization.admissionDate.esShortDateAbbrev())",
-                                    action: { onDeleteHospitalization(hospitalization) }
+                                    action: { hospitalizationPendingDeletion = hospitalization }
                                 )
                             }
 
@@ -85,6 +86,26 @@ struct HospitalizationsSection: View {
                     .accessibilityLabel("Agregar internación")
                 }
             }
+        }
+        .confirmationDialog(
+            "Eliminar internación",
+            isPresented: Binding(
+                get: { hospitalizationPendingDeletion != nil },
+                set: { if !$0 { hospitalizationPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) {
+                if let hospitalization = hospitalizationPendingDeletion {
+                    onDeleteHospitalization(hospitalization)
+                }
+                hospitalizationPendingDeletion = nil
+            }
+            Button("Cancelar", role: .cancel) {
+                hospitalizationPendingDeletion = nil
+            }
+        } message: {
+            Text("Esta acción no se puede deshacer. El registro de la internación se eliminará definitivamente.")
         }
     }
 

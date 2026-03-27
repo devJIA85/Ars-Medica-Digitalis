@@ -14,6 +14,7 @@ struct TreatmentTimeline<Destination: View>: View {
     let onDelete: (PriorTreatment) -> Void
 
     @State private var visibleTreatmentIDs: Set<PriorTreatment.ID> = []
+    @State private var treatmentPendingDeletion: PriorTreatment? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -40,7 +41,7 @@ struct TreatmentTimeline<Destination: View>: View {
                     ClinicalDeleteButton(
                         label: "Eliminar tratamiento \(treatmentTypeLabel(for: treatment))",
                         action: {
-                            onDelete(treatment)
+                            treatmentPendingDeletion = treatment
                         }
                     )
                 }
@@ -54,6 +55,26 @@ struct TreatmentTimeline<Destination: View>: View {
                     Divider()
                 }
             }
+        }
+        .confirmationDialog(
+            "Eliminar tratamiento",
+            isPresented: Binding(
+                get: { treatmentPendingDeletion != nil },
+                set: { if !$0 { treatmentPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Eliminar", role: .destructive) {
+                if let treatment = treatmentPendingDeletion {
+                    onDelete(treatment)
+                }
+                treatmentPendingDeletion = nil
+            }
+            Button("Cancelar", role: .cancel) {
+                treatmentPendingDeletion = nil
+            }
+        } message: {
+            Text("Esta acción no se puede deshacer. El registro del tratamiento se eliminará definitivamente.")
         }
     }
 

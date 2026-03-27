@@ -29,6 +29,10 @@ nonisolated enum ICD11KeychainStore {
 
     /// Devuelve las credenciales desde el Keychain.
     /// En el primer lanzamiento migra automáticamente desde `ICD11Config.plist`.
+    ///
+    /// - En Release: requiere Keychain. Si la migración falla, lanza el error
+    ///   para evitar exponer credenciales del bundle en producción.
+    /// - En Debug/Simulator: permite fallback al plist para facilitar el desarrollo.
     static func loadCredentials() throws -> (clientId: String, clientSecret: String) {
         if let stored = readFromKeychain() {
             return stored
@@ -40,9 +44,16 @@ nonisolated enum ICD11KeychainStore {
             try writeToKeychain(clientId: plist.clientId, clientSecret: plist.clientSecret)
             logger.info("ICD11 credentials migrated to Keychain.")
         } catch {
-            // Si el Keychain falla (ej. simulador), devolver las credenciales del plist
-            // sin bloquear la funcionalidad. Se reintentará la migración en el próximo lanzamiento.
-            logger.warning("Keychain migration failed, using plist fallback: \(error)")
+#if DEBUG
+            // En simulador/debug el Keychain puede no estar disponible.
+            // Se acepta el fallback solo en entornos de desarrollo.
+            logger.warning("Keychain migration failed (DEBUG only fallback): \(error)")
+            return plist
+#else
+            // En producción, no continuar con credenciales del bundle en texto plano.
+            logger.error("Keychain migration failed in Release build: \(error, privacy: .public)")
+            throw error
+#endif
         }
         return plist
     }

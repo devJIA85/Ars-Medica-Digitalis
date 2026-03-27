@@ -7,9 +7,12 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 @main
 struct Ars_Medica_DigitalisApp: App {
+
+    private static let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "AppLaunch")
 
     private enum LaunchArgument {
         static let onboardingUITest = "UITEST_ONBOARDING"
@@ -24,6 +27,12 @@ struct Ars_Medica_DigitalisApp: App {
     /// Color de acento elegido por el profesional. Se aplica como tint global.
     @AppStorage("appearance.themeColor") private var themeColorRaw: String = AppThemeColor.blue.rawValue
 
+    /// Flag para alertar a ContentView que la base de datos no pudo inicializarse
+    /// correctamente y se está usando un contenedor en memoria temporario.
+    static var isDatabaseUnavailable: Bool = false
+
+    @State private var securityPreferences = SecurityPreferenceStore()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema(AppSchemaV1.models)
 
@@ -33,9 +42,9 @@ struct Ars_Medica_DigitalisApp: App {
         let isScalesUITest = launchArguments.contains(LaunchArgument.scalesUITest)
         let isUITestLaunch = isOnboardingUITest || isProfileDashboardUITest || isScalesUITest
 
-        if isUITestLaunch {
-            UserDefaults.standard.set(false, forKey: "security.biometricEnabled")
-        }
+        // La preferencia de biometría vive en Keychain (SecurityPreferenceStore).
+        // En tests con almacenamiento in-memory se gestiona a través del store
+        // inyectado en el entorno — no se toca UserDefaults ni Keychain aquí.
 
         // En UI tests de onboarding usamos almacenamiento en memoria para
         // garantizar estado vacío y flujo determinista.
@@ -83,7 +92,19 @@ struct Ars_Medica_DigitalisApp: App {
 
             return container
         } catch {
-            fatalError("No se pudo crear el ModelContainer: \(error)")
+            logger.critical("ModelContainer creation failed: \(error, privacy: .private)")
+
+            // Intentar con almacenamiento en memoria como fallback de emergencia.
+            // La app podrá usarse, pero los datos de esta sesión no se sincronizarán
+            // ni persistirán. ContentView muestra un aviso al usuario si este flag está activo.
+            let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            if let fallback = try? ModelContainer(for: schema, configurations: [fallbackConfig]) {
+                Ars_Medica_DigitalisApp.isDatabaseUnavailable = true
+                return fallback
+            }
+
+            // Si ni el contenedor en memoria funciona, el entorno está completamente roto.
+            fatalError("No se pudo crear el ModelContainer ni en memoria: \(error)")
         }
     }()
 
@@ -92,6 +113,7 @@ struct Ars_Medica_DigitalisApp: App {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
                 .tint(resolvedThemeColor)
+                .environment(\.securityPreferences, securityPreferences)
         }
         .modelContainer(sharedModelContainer)
     }
@@ -137,7 +159,7 @@ struct Ars_Medica_DigitalisApp: App {
         do {
             try context.save()
         } catch {
-            assertionFailure("No se pudo seedear resultado de escala UI test: \(error.localizedDescription)")
+            logger.error("No se pudo seedear resultado de escala UI test: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -178,7 +200,7 @@ struct Ars_Medica_DigitalisApp: App {
         do {
             try context.save()
         } catch {
-            assertionFailure("No se pudieron seedear datos UI test: \(error.localizedDescription)")
+            logger.error("No se pudieron seedear datos UI test: \(error.localizedDescription, privacy: .private)")
         }
 
         return patient

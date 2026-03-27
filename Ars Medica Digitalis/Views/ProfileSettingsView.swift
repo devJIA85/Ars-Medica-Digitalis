@@ -11,7 +11,7 @@ struct ProfileSettingsView: View {
 
     let professional: Professional
 
-    @AppStorage("security.biometricEnabled") private var biometricLockEnabled: Bool = false
+    @Environment(\.securityPreferences) private var securityPreferences
     @AppStorage("appearance.themeColor") private var themeColorRaw: String = AppThemeColor.blue.rawValue
 
     @State private var biometricCapability = BiometricCapability(
@@ -23,6 +23,7 @@ struct ProfileSettingsView: View {
     private let biometricAuthService = BiometricAuthService()
 
     var body: some View {
+        @Bindable var prefs = securityPreferences
         ScrollView {
             LazyVStack(spacing: AppSpacing.sectionGap) {
                 SettingsSectionCard(
@@ -37,7 +38,7 @@ struct ProfileSettingsView: View {
                             ? biometricCapability.localizedName
                             : "No disponible",
                         isEnabled: biometricCapability.isAvailable,
-                        isOn: $biometricLockEnabled
+                        isOn: $prefs.biometricEnabled
                     )
 
                     Divider()
@@ -90,8 +91,8 @@ struct ProfileSettingsView: View {
     private func loadBiometricCapability() async {
         biometricCapability = biometricAuthService.capability()
 
-        if biometricLockEnabled && !biometricCapability.isAvailable {
-            biometricLockEnabled = false
+        if securityPreferences.biometricEnabled && !biometricCapability.isAvailable {
+            securityPreferences.biometricEnabled = false
         }
     }
 

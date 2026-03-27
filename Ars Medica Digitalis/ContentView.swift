@@ -18,8 +18,8 @@ struct ContentView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.securityPreferences) private var securityPreferences
     @Query private var professionals: [Professional]
-    @AppStorage("security.biometricEnabled") private var biometricLockEnabled: Bool = false
     @AppStorage("repairs.sessionPhantoms.v1") private var didRunSessionPhantomRepair: Bool = false
     /// Namespace para la transición zoom entre la fila de paciente
     /// en la lista y su vista de detalle.
@@ -61,6 +61,11 @@ struct ContentView: View {
                 SplashView()
             case .ready:
                 rootContent
+                    .overlay(alignment: .top) {
+                        if Ars_Medica_DigitalisApp.isDatabaseUnavailable {
+                            databaseUnavailableBanner
+                        }
+                    }
             }
         }
         .task {
@@ -75,7 +80,7 @@ struct ContentView: View {
         .onChange(of: professionals.first?.id) { _, _ in
             handleProtectionContextChange()
         }
-        .onChange(of: biometricLockEnabled) { _, isEnabled in
+        .onChange(of: securityPreferences.biometricEnabled) { _, isEnabled in
             handleBiometricToggleChange(isEnabled: isEnabled)
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -182,7 +187,7 @@ struct ContentView: View {
     // MARK: - Seguridad y arranque
 
     private var shouldRequireLock: Bool {
-        biometricLockEnabled && professionals.first != nil
+        securityPreferences.biometricEnabled && professionals.first != nil
     }
 
     @MainActor
@@ -246,7 +251,7 @@ struct ContentView: View {
         if isEnabled {
             biometricLock.refreshCapability()
             guard biometricLock.capability.isAvailable else {
-                biometricLockEnabled = false
+                securityPreferences.biometricEnabled = false
                 return
             }
 
@@ -359,6 +364,26 @@ struct ContentView: View {
         } catch {
             logger.error("PatientMedicalRecordNumberService failed: \(error.localizedDescription, privacy: .private)")
         }
+    }
+
+    // MARK: - Banner de base de datos no disponible
+
+    /// Se muestra cuando la base de datos persistente no pudo inicializarse
+    /// y la app está corriendo sobre un contenedor en memoria temporario.
+    @ViewBuilder
+    private var databaseUnavailableBanner: some View {
+        Label(
+            "Los datos de esta sesión no se guardarán. Reiniciá la app para intentar recuperar el acceso.",
+            systemImage: "exclamationmark.triangle.fill"
+        )
+        .font(.footnote.weight(.medium))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.red.gradient, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .shadow(radius: 4)
     }
 }
 

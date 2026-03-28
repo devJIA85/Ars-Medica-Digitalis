@@ -9,11 +9,18 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 struct HospitalizationFormView: View {
 
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "HospitalizationFormView")
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.auditService) private var auditService
+    // TODO: [Audit Trail] Inyectar currentActorID desde ContentView:
+    // .environment(\.currentActorID, professional.id.uuidString)
+    @Environment(\.currentActorID) private var currentActorID
 
     let patient: Patient
 
@@ -87,6 +94,12 @@ struct HospitalizationFormView: View {
                 patient: patient
             )
             modelContext.insert(newHospitalization)
+            auditService.log(action: .create, on: newHospitalization, in: modelContext, performedBy: currentActorID)
+            do {
+                try modelContext.save()
+            } catch {
+                logger.error("Hospitalization create save failed: \(error, privacy: .private)")
+            }
         }
         dismiss()
     }

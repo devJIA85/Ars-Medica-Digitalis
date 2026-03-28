@@ -12,7 +12,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class PriorTreatment {
+final class PriorTreatment: SoftDeletable {
 
     var id: UUID = UUID()
 
@@ -32,6 +32,12 @@ final class PriorTreatment {
     var observations: String = ""
 
     var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+
+    // MARK: - Borrado lógico (SoftDeletable)
+    var deletedAt: Date? = nil
+    var deletedBy: String? = nil
+    var deletionReason: String? = nil
 
     // Relación opcional por requisito CloudKit
     var patient: Patient? = nil
@@ -44,6 +50,10 @@ final class PriorTreatment {
         outcome: String = "",
         observations: String = "",
         createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        deletedAt: Date? = nil,
+        deletedBy: String? = nil,
+        deletionReason: String? = nil,
         patient: Patient? = nil
     ) {
         self.id = id
@@ -53,6 +63,17 @@ final class PriorTreatment {
         self.outcome = outcome
         self.observations = observations
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.deletedBy = deletedBy
+        self.deletionReason = deletionReason
         self.patient = patient
     }
+}
+
+// MARK: - Auditable
+
+extension PriorTreatment: Auditable {
+    var entityID: UUID { id }
+    var auditEntityType: AuditEntityType { .priorTreatment }
 }

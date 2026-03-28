@@ -11,7 +11,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Patient {
+final class Patient: SoftDeletable {
 
     var id: UUID = UUID()
 
@@ -114,12 +114,14 @@ final class Patient {
     @Attribute(.externalStorage)
     var genogramData: Data? = nil
 
-    // MARK: - Borrado lógico
+    // MARK: - Borrado lógico (SoftDeletable)
     // Cuando deletedAt != nil, el paciente está inactivo.
     // El #Predicate filtra { $0.deletedAt == nil } en la vista principal.
     // CloudKit conserva el registro histórico sin excepción.
 
     var deletedAt: Date? = nil
+    var deletedBy: String? = nil
+    var deletionReason: String? = nil
 
     // MARK: - Trazabilidad
 
@@ -138,11 +140,17 @@ final class Patient {
     @Relationship(deleteRule: .cascade, inverse: \Session.patient)
     var sessions: [Session] = []
 
-    /// Diagnósticos vigentes del paciente, editables directamente desde el perfil.
-    /// Independientes de las sesiones — permiten agregar/quitar diagnósticos
-    /// sin necesidad de crear una nueva sesión clínica.
+    /// Colección persistida de TODOS los diagnósticos del paciente — activos y soft-deleted.
+    /// Es el lado de navegación de la relación SwiftData/CloudKit cuya foreign key
+    /// vive en Diagnosis.patient. El nombre refleja que no filtra por estado.
+    ///
+    /// ⚠️  ACCESO RESTRINGIDO — No leer directamente fuera de Patient.swift.
+    /// Toda la lógica de UI, exportaciones y dominio debe usar `activeDiagnoses`
+    /// (computed property que filtra `deletedAt == nil`) o una query con #Predicate.
+    /// Acceder a `allDiagnoses` directamente es un bug silencioso: expone registros
+    /// dados de baja que no deben aparecer en la historia clínica activa.
     @Relationship(deleteRule: .cascade, inverse: \Diagnosis.patient)
-    var activeDiagnoses: [Diagnosis] = []
+    private(set) var allDiagnoses: [Diagnosis] = []
 
     /// Antecedentes de tratamientos previos (psicoterapia, psiquiatría, etc.)
     @Relationship(deleteRule: .cascade, inverse: \PriorTreatment.patient)
@@ -296,12 +304,14 @@ final class Patient {
         familyHistoryOther: String = "",
         genogramData: Data? = nil,
         deletedAt: Date? = nil,
+        deletedBy: String? = nil,
+        deletionReason: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         currencyCode: String = "",
         professional: Professional? = nil,
         sessions: [Session] = [],
-        activeDiagnoses: [Diagnosis] = [],
+        allDiagnoses: [Diagnosis] = [],
         priorTreatments: [PriorTreatment] = [],
         hospitalizations: [Hospitalization] = [],
         anthropometricRecords: [AnthropometricRecord] = [],
@@ -350,12 +360,14 @@ final class Patient {
         self.familyHistoryOther = familyHistoryOther
         self.genogramData = genogramData
         self.deletedAt = deletedAt
+        self.deletedBy = deletedBy
+        self.deletionReason = deletionReason
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.currencyCode = currencyCode
         self.professional = professional
         self.sessions = sessions
-        self.activeDiagnoses = activeDiagnoses
+        self.allDiagnoses = allDiagnoses
         self.priorTreatments = priorTreatments
         self.hospitalizations = hospitalizations
         self.anthropometricRecords = anthropometricRecords
@@ -364,18 +376,71 @@ final class Patient {
     }
 }
 
+// MARK: - Auditable
+
+extension Patient: Auditable {
+    var entityID: UUID { id }
+    var auditEntityType: AuditEntityType { .patient }
+}
+
 extension Patient {
 
-    var isActive: Bool { deletedAt == nil }
+    // MARK: - Vistas filtradas de relaciones clínicas
+    //
+    // Filtros ejecutados en memoria sobre las relaciones ya cargadas por SwiftData.
+    // Son correctos para listas pequeñas (diagnósticos, tratamientos, internaciones
+    // por paciente) donde la relación entera está disponible en el contexto.
+    //
+    // Limitación: no reducen el conjunto de objetos que SwiftData trae del store —
+    // todos los ítems de la relación se cargan, independientemente de `deletedAt`.
+    // En el futuro, si el volumen crece, migrar a #Predicate en un FetchDescriptor
+    // separado para evitar cargar registros inactivos en memoria.
 
-    func softDelete() {
+    /// Diagnósticos activos del paciente — excluye soft-deleted.
+    /// Usar en toda la UI, exportaciones y lógica de dominio.
+    /// La relación persistida completa (incluye inactivos) es `allDiagnoses`.
+    var activeDiagnoses: [Diagnosis] {
+        allDiagnoses.filter { $0.isActive }
+    }
+
+    /// Tratamientos previos activos — excluye soft-deleted.
+    var activePriorTreatments: [PriorTreatment] {
+        priorTreatments.filter { $0.isActive }
+    }
+
+    /// Internaciones activas — excluye soft-deleted.
+    var activeHospitalizations: [Hospitalization] {
+        hospitalizations.filter { $0.isActive }
+    }
+
+    // MARK: - Borrado lógico
+    //
+    // softDelete() y restore() actualizan `updatedAt` en el propio paciente y en
+    // todos los registros hijos afectados, para que el token de refresco del
+    // dashboard detecte el cambio en el mismo ciclo de render.
+
+    /// Marca el paciente como inactivo y propaga la baja a todos los registros
+    /// clínicos activos: diagnósticos, tratamientos e internaciones.
+    /// Los registros ya inactivos antes de esta llamada conservan su `deletedAt` original.
+    /// `restore()` NO propaga la restauración — requiere acción manual por registro.
+    func softDelete(by actor: String? = nil, reason: String? = nil) {
         let now = Date()
         deletedAt = now
         updatedAt = now
+        deletedBy = actor
+        deletionReason = reason
+
+        // Cascada solo sobre los registros activos al momento de la baja.
+        activeDiagnoses.forEach { $0.softDelete(by: actor, reason: reason) }
+        activePriorTreatments.forEach { $0.softDelete(by: actor, reason: reason) }
+        activeHospitalizations.forEach { $0.softDelete(by: actor, reason: reason) }
     }
 
     func restore() {
         deletedAt = nil
         updatedAt = Date()
+        deletedBy = nil
+        deletionReason = nil
+        // No se restauran los registros hijos: la reactivación clínica es manual.
     }
 }

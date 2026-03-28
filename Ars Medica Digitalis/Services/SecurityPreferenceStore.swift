@@ -82,14 +82,11 @@ final class SecurityPreferenceStore {
     private static func writeToKeychain(_ value: Bool, forKey key: String) throws {
         guard let data = (value ? "1" : "0").data(using: .utf8) else { return }
 
-        let deleteQuery: [CFString: Any] = [
-            kSecClass:                     kSecClassGenericPassword,
-            kSecAttrAccount:               key,
-            kSecAttrService:               "com.arsmedica.digitalis.security",
-            kSecUseDataProtectionKeychain: true
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
+        // Patrón recomendado por Apple (Updating and Deleting Keychain Items):
+        // intentar SecItemAdd primero; si el ítem ya existe (errSecDuplicateItem)
+        // usar SecItemUpdate. Evita la ventana de fallo de delete+add donde
+        // un SecItemAdd fallido después de un SecItemDelete exitoso deja el
+        // Keychain sin el ítem y la siguiente lectura devuelve nil silenciosamente.
         let addQuery: [CFString: Any] = [
             kSecClass:                     kSecClassGenericPassword,
             kSecAttrAccount:               key,
@@ -100,9 +97,28 @@ final class SecurityPreferenceStore {
             kSecAttrAccessible:            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
             kSecUseDataProtectionKeychain: true
         ]
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw SecurityPreferenceError.writeFailed(status: status)
+
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+
+        switch addStatus {
+        case errSecSuccess:
+            break
+        case errSecDuplicateItem:
+            // Ítem ya existe — actualizar solo el dato. SecItemUpdate preserva
+            // kSecAttrAccessible y los atributos de control de acceso originales.
+            let searchQuery: [CFString: Any] = [
+                kSecClass:                     kSecClassGenericPassword,
+                kSecAttrAccount:               key,
+                kSecAttrService:               "com.arsmedica.digitalis.security",
+                kSecUseDataProtectionKeychain: true
+            ]
+            let updateAttributes: [CFString: Any] = [kSecValueData: data]
+            let updateStatus = SecItemUpdate(searchQuery as CFDictionary, updateAttributes as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw SecurityPreferenceError.writeFailed(status: updateStatus)
+            }
+        default:
+            throw SecurityPreferenceError.writeFailed(status: addStatus)
         }
     }
 }

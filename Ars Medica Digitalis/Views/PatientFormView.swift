@@ -10,13 +10,20 @@
 import SwiftUI
 import SwiftData
 import Contacts
+import OSLog
 
 struct PatientFormView: View {
+
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "PatientFormView")
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.auditService) private var auditService
+    // TODO: [Audit Trail] Inyectar currentActorID desde ContentView:
+    // .environment(\.currentActorID, professional.id.uuidString)
+    @Environment(\.currentActorID) private var currentActorID
 
     let professional: Professional
 
@@ -144,8 +151,15 @@ struct PatientFormView: View {
     private func save() {
         if let targetPatient {
             viewModel.update(targetPatient, in: modelContext)
+            auditService.log(action: .update, on: targetPatient, in: modelContext, performedBy: currentActorID)
         } else {
-            viewModel.createPatient(for: professional, in: modelContext)
+            let newPatient = viewModel.createPatient(for: professional, in: modelContext)
+            auditService.log(action: .create, on: newPatient, in: modelContext, performedBy: currentActorID)
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            logger.error("Patient form save failed: \(error, privacy: .private)")
         }
         dismiss()
     }

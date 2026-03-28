@@ -55,7 +55,7 @@ enum DiagnosisType: String, Codable, CaseIterable, Sendable {
 // MARK: - Diagnosis
 
 @Model
-final class Diagnosis {
+final class Diagnosis: SoftDeletable {
 
     var id: UUID = UUID()
 
@@ -80,6 +80,12 @@ final class Diagnosis {
 
     var diagnosedAt: Date = Date()
     var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+
+    // MARK: - Borrado lógico (SoftDeletable)
+    var deletedAt: Date? = nil
+    var deletedBy: String? = nil
+    var deletionReason: String? = nil
 
     // Relaciones opcionales por requisito CloudKit.
     // Un Diagnosis pertenece a una Session (snapshot histórico)
@@ -113,6 +119,10 @@ final class Diagnosis {
         clinicalNotes: String = "",
         diagnosedAt: Date = Date(),
         createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        deletedAt: Date? = nil,
+        deletedBy: String? = nil,
+        deletionReason: String? = nil,
         session: Session? = nil,
         patient: Patient? = nil
     ) {
@@ -128,9 +138,20 @@ final class Diagnosis {
         self.clinicalNotes = clinicalNotes
         self.diagnosedAt = diagnosedAt
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.deletedAt = deletedAt
+        self.deletedBy = deletedBy
+        self.deletionReason = deletionReason
         self.session = session
         self.patient = patient
     }
+}
+
+// MARK: - Auditable
+
+extension Diagnosis: Auditable {
+    var entityID: UUID { id }
+    var auditEntityType: AuditEntityType { .diagnosis }
 }
 
 extension Diagnosis {

@@ -10,11 +10,18 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import OSLog
 
 struct PatientMedicalHistoryView: View {
 
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "PatientMedicalHistoryView")
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(\.auditService) private var auditService
+    // TODO: [Audit Trail] Inyectar currentActorID desde ContentView:
+    // .environment(\.currentActorID, professional.id.uuidString)
+    @Environment(\.currentActorID) private var currentActorID
 
     let patient: Patient
     let professional: Professional
@@ -51,13 +58,25 @@ struct PatientMedicalHistoryView: View {
                 showingNewTreatment = true
             },
             onDeleteTreatment: { treatment in
-                modelContext.delete(treatment)
+                treatment.softDelete()
+                auditService.log(action: .softDelete, on: treatment, in: modelContext, performedBy: currentActorID)
+                do {
+                    try modelContext.save()
+                } catch {
+                    logger.error("PriorTreatment softDelete save failed: \(error, privacy: .private)")
+                }
             },
             onAddHospitalization: {
                 showingNewHospitalization = true
             },
             onDeleteHospitalization: { hospitalization in
-                modelContext.delete(hospitalization)
+                hospitalization.softDelete()
+                auditService.log(action: .softDelete, on: hospitalization, in: modelContext, performedBy: currentActorID)
+                do {
+                    try modelContext.save()
+                } catch {
+                    logger.error("Hospitalization softDelete save failed: \(error, privacy: .private)")
+                }
             }
         )
         .navigationTitle(L10n.tr("patient.section.clinicalData.title"))

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import CoreData
 import OSLog
 
 @main
@@ -32,9 +33,10 @@ struct Ars_Medica_DigitalisApp: App {
     static var isDatabaseUnavailable: Bool = false
 
     @State private var securityPreferences = SecurityPreferenceStore()
+    @State private var auditService = AuditService()
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema(AppSchemaV1.models)
+        let schema = Schema(AppSchemaV3.models)
 
         let launchArguments = ProcessInfo.processInfo.arguments
         let isOnboardingUITest = launchArguments.contains(LaunchArgument.onboardingUITest)
@@ -67,6 +69,7 @@ struct Ars_Medica_DigitalisApp: App {
         do {
             let container = try ModelContainer(
                 for: schema,
+                migrationPlan: AppMigrationPlan.self,
                 configurations: [modelConfiguration]
             )
 
@@ -76,10 +79,15 @@ struct Ars_Medica_DigitalisApp: App {
             // dispositivo bloqueado.
             if isUITestLaunch == false {
                 let dbURL = modelConfiguration.url
-                try? (dbURL as NSURL).setResourceValue(
-                    FileProtectionType.completeUnlessOpen,
-                    forKey: .fileProtectionKey
-                )
+                do {
+                    try (dbURL as NSURL).setResourceValue(
+                        FileProtectionType.completeUnlessOpen,
+                        forKey: .fileProtectionKey
+                    )
+                } catch {
+                    logger.warning("DB file protection setup failed: \(error, privacy: .private)")
+                }
+                observeCloudKitSync()
             }
 
             if isProfileDashboardUITest {
@@ -98,7 +106,7 @@ struct Ars_Medica_DigitalisApp: App {
             // La app podrá usarse, pero los datos de esta sesión no se sincronizarán
             // ni persistirán. ContentView muestra un aviso al usuario si este flag está activo.
             let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            if let fallback = try? ModelContainer(for: schema, configurations: [fallbackConfig]) {
+            if let fallback = try? ModelContainer(for: schema, migrationPlan: AppMigrationPlan.self, configurations: [fallbackConfig]) {
                 Ars_Medica_DigitalisApp.isDatabaseUnavailable = true
                 return fallback
             }
@@ -114,6 +122,7 @@ struct Ars_Medica_DigitalisApp: App {
                 .preferredColorScheme(resolvedColorScheme)
                 .tint(resolvedThemeColor)
                 .environment(\.securityPreferences, securityPreferences)
+                .environment(\.auditService, auditService)
         }
         .modelContainer(sharedModelContainer)
     }
@@ -131,6 +140,37 @@ struct Ars_Medica_DigitalisApp: App {
     /// Resuelve el color de tema desde el string persistido.
     private var resolvedThemeColor: Color {
         (AppThemeColor(rawValue: themeColorRaw) ?? .blue).color
+    }
+
+    /// Observa eventos de sincronización de CloudKit y registra errores en el log.
+    /// SwiftData delega en NSPersistentCloudKitContainer internamente; el evento
+    /// incluye el tipo de operación (import/export/mirror) y el error si lo hubo.
+    /// El guard estático evita registrar múltiples observers si el contenedor
+    /// se recrea (p.ej. durante migración o recuperación de errores).
+    private static var isObservingCloudKit = false
+
+    private static func observeCloudKitSync() {
+        guard !isObservingCloudKit else { return }
+        isObservingCloudKit = true
+
+        NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
+                    as? NSPersistentCloudKitContainer.Event else { return }
+
+            // Filtrar por tipo: .setup genera ruido en arranque normal sin ser accionable.
+            // Solo se loguean import y export, que indican transferencia real de datos clínicos.
+            guard event.type == .import || event.type == .export else { return }
+
+            if let error = event.error {
+                logger.error(
+                    "CloudKit sync error [type=\(event.type.rawValue, privacy: .public)]: \(error, privacy: .private)"
+                )
+            }
+        }
     }
 
     private static func seedProfileDashboardUITestDataIfNeeded(in context: ModelContext) {

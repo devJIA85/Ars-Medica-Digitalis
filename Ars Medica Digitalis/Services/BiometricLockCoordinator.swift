@@ -76,7 +76,12 @@ final class BiometricLockCoordinator {
 
         isAuthenticating = true
         errorMessage = nil
-        capability = service.capability()
+        // No refrescar capability aquí: evaluate() crea su propio LAContext y llama
+        // canEvaluatePolicy internamente con ese mismo contexto antes de evaluatePolicy.
+        // Crear un LAContext adicional en esta capa sería redundante y generaría una
+        // evaluación extra que no se usa para la autenticación real.
+        // refreshCapability() se llama desde ContentView cuando cambia scenePhase o
+        // cuando el usuario activa/desactiva el bloqueo biométrico.
 
         let result = await method()
         isAuthenticating = false

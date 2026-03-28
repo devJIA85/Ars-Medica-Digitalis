@@ -9,9 +9,12 @@
 //
 
 import Foundation
+import OSLog
 import UIKit
 
 struct PatientPDFExportService {
+
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "PDFExport")
 
     enum ExportError: LocalizedError {
         case emptyPDF
@@ -52,7 +55,41 @@ struct PatientPDFExportService {
 
         let outputURL = makeOutputURL(for: patient)
         try pdfData.write(to: outputURL, options: .atomic)
+        applyFileAttributes(to: outputURL)
         return outputURL
+    }
+
+    // MARK: - File attributes
+    //
+    // Política de persistencia:
+    //   • Documents directory — persiste entre sesiones; no se purga en background
+    //     como tmp/. Visible en Files app solo si UIFileSharingEnabled está habilitado
+    //     en Info.plist (actualmente no lo está).
+    //   • isExcludedFromBackup = true — dato clínico sensible; no debe incluirse en
+    //     el backup de iCloud ni en el backup cifrado de iTunes/Finder sin consentimiento
+    //     explícito del usuario. La exclusión no afecta a iCloud Drive ni a Files app.
+    //   • FileProtectionType.complete — cifrado en reposo mientras el dispositivo está
+    //     bloqueado. La exportación ocurre siempre en foreground (dispositivo desbloqueado),
+    //     así que el usuario puede compartir el PDF inmediatamente.
+    //
+    // Ambas llamadas son best-effort: si fallan, el PDF ya está escrito y se retorna
+    // igualmente. Los fallos se registran para diagnóstico sin bloquear la exportación.
+
+    private func applyFileAttributes(to url: URL) {
+        do {
+            try (url as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
+        } catch {
+            logger.error("PDF backup exclusion failed: \(error, privacy: .private)")
+        }
+
+        do {
+            try (url as NSURL).setResourceValue(
+                FileProtectionType.complete,
+                forKey: .fileProtectionKey
+            )
+        } catch {
+            logger.error("PDF file protection failed: \(error, privacy: .private)")
+        }
     }
 
     // MARK: - Sections
@@ -193,7 +230,7 @@ struct PatientPDFExportService {
     }
 
     private func drawPriorTreatments(patient: Patient, using composer: PDFComposer) {
-        let priorTreatments = patient.priorTreatments.sorted { $0.createdAt > $1.createdAt }
+        let priorTreatments = patient.activePriorTreatments.sorted { $0.createdAt > $1.createdAt }
         composer.drawSectionTitle("Tratamientos Previos")
 
         if priorTreatments.isEmpty {
@@ -235,7 +272,7 @@ struct PatientPDFExportService {
     }
 
     private func drawHospitalizations(patient: Patient, using composer: PDFComposer) {
-        let hospitalizations = patient.hospitalizations.sorted { $0.admissionDate > $1.admissionDate }
+        let hospitalizations = patient.activeHospitalizations.sorted { $0.admissionDate > $1.admissionDate }
         composer.drawSectionTitle("Internaciones Previas")
 
         if hospitalizations.isEmpty {
@@ -394,19 +431,28 @@ struct PatientPDFExportService {
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = formatter.string(from: Date())
 
-        let baseName = [
-            patient.lastName,
-            patient.firstName,
-        ]
-            .joined(separator: "_")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Usar el número de historia clínica como identificador de archivo.
+        // Ventajas sobre el nombre del paciente:
+        //   1. No expone PII en el nombre del archivo visible en Files / AirDrop / share sheet.
+        //   2. Es el identificador clínico canónico de la historia (HC-XXXXXXXX).
+        //   3. Permite al profesional identificar el archivo sin revelar datos al receptor.
+        //
+        // Longitud máxima del identificador: 20 caracteres. En producción, el formato
+        // HC-XXXXXXXX tiene 11 caracteres — el cap es defensivo ante valores inesperados.
+        let recordID = String(
+            patient.medicalRecordNumber
+                .filter { $0.isLetter || $0.isNumber || $0 == "-" }
+                .prefix(20)
+        )
 
-        let cleanName = baseName
-            .replacingOccurrences(of: " ", with: "_")
-            .filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" }
+        let fileName = "\(recordID.isEmpty ? "HC" : recordID)_\(timestamp).pdf"
 
-        let fileName = "HC_\(cleanName.isEmpty ? "Paciente" : cleanName)_\(timestamp).pdf"
-        return FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        // Documents directory — elegido sobre tmp/ porque:
+        //   1. tmp/ puede purgearse mientras la app está en background, antes de completar el share.
+        //   2. Documents admite FileProtectionType.complete y isExcludedFromBackup = true.
+        // El archivo queda excluido de backup (ver applyFileAttributes) y cifrado en reposo.
+        let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docsURL.appendingPathComponent(fileName)
     }
 }
 

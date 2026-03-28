@@ -110,6 +110,6 @@ struct HospitalizationsSection: View {
     }
 
     private var sortedHospitalizations: [Hospitalization] {
-        patient.hospitalizations.sorted(by: { $0.admissionDate > $1.admissionDate })
+        patient.activeHospitalizations.sorted(by: { $0.admissionDate > $1.admissionDate })
     }
 }

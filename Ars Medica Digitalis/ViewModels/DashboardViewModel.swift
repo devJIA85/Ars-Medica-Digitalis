@@ -268,7 +268,7 @@ final class DashboardViewModel {
     // MARK: - Top 5 Diagnósticos
 
     private func computeTopDiagnoses(_ patients: [Patient]) {
-        // Recolectar todos los diagnósticos vigentes (activeDiagnoses)
+        // Recolectar todos los diagnósticos vigentes (activos — excluye soft-deleted)
         let allDiagnoses = patients.flatMap(\.activeDiagnoses)
 
         // Agrupar por código CIE-11

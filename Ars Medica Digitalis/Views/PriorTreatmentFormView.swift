@@ -9,11 +9,18 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 struct PriorTreatmentFormView: View {
 
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "PriorTreatmentFormView")
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.auditService) private var auditService
+    // TODO: [Audit Trail] Inyectar currentActorID desde ContentView:
+    // .environment(\.currentActorID, professional.id.uuidString)
+    @Environment(\.currentActorID) private var currentActorID
 
     let patient: Patient
 
@@ -119,6 +126,12 @@ struct PriorTreatmentFormView: View {
                 patient: patient
             )
             modelContext.insert(newTreatment)
+            auditService.log(action: .create, on: newTreatment, in: modelContext, performedBy: currentActorID)
+            do {
+                try modelContext.save()
+            } catch {
+                logger.error("PriorTreatment create save failed: \(error, privacy: .private)")
+            }
         }
         dismiss()
     }

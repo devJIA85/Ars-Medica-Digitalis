@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Privacy Manifest — Ars Medica Digitalis
+        Requerido desde primavera 2024 para apps que usen "required reason APIs".
+        Referencia: https://developer.apple.com/documentation/bundleresources/privacy-manifest-files
+    -->
+
+    <!-- La app no realiza tracking de usuarios entre apps ni con terceros -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <!-- Sin dominios de tracking -->
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <!--
+        Required Reason APIs usadas por la app.
+        TN3183: https://developer.apple.com/documentation/technotes/tn3183-adding-required-reason-api-entries-to-your-privacy-manifest/
+
+        NSPrivacyAccessedAPICategoryUserDefaults:
+          Razón CA92.1 — acceso a UserDefaults exclusivamente para preferencias
+          internas de la app (@AppStorage: apariencia, tema, flags de repair).
+          No se lee ni escribe información accesible por otras apps.
+    -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+    </array>
+
+    <!--
+        Datos recopilados por la app.
+        La app recopila datos clínicos sensibles exclusivamente en nombre del
+        profesional de salud que la usa. Los datos no se comparten con terceros
+        ni se usan para publicidad o tracking. La sincronización iCloud es
+        privada y sólo accesible al usuario autenticado.
+
+        NOTA PARA SUBMISSION: completar NSPrivacyCollectedDataTypes en
+        App Store Connect (privacy nutrition label) antes de publicar.
+    -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+</dict>
+</plist>

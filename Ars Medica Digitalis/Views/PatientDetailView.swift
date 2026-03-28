@@ -9,11 +9,18 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 struct PatientDetailView: View {
 
+    private let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "PatientDetailView")
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.auditService) private var auditService
+    // TODO: [Audit Trail] Inyectar currentActorID desde ContentView:
+    // .environment(\.currentActorID, professional.id.uuidString)
+    @Environment(\.currentActorID) private var currentActorID
 
     let patient: Patient
     let professional: Professional
@@ -235,6 +242,12 @@ struct PatientDetailView: View {
         ) {
             Button("Dar de Baja", role: .destructive) {
                 patient.softDelete()
+                auditService.log(action: .softDelete, on: patient, in: modelContext, performedBy: currentActorID)
+                do {
+                    try modelContext.save()
+                } catch {
+                    logger.error("Patient softDelete save failed: \(error, privacy: .private)")
+                }
             }
         } message: {
             Text(L10n.tr("patient.confirmation.deactivate.message"))
@@ -246,6 +259,12 @@ struct PatientDetailView: View {
         ) {
             Button("Reactivar") {
                 patient.restore()
+                auditService.log(action: .restore, on: patient, in: modelContext, performedBy: currentActorID)
+                do {
+                    try modelContext.save()
+                } catch {
+                    logger.error("Patient restore save failed: \(error, privacy: .private)")
+                }
             }
         } message: {
             Text("Este paciente volverá a estar activo y disponible en el sistema.")
@@ -341,16 +360,28 @@ struct PatientDetailView: View {
         let existing = patient.activeDiagnoses
         guard !existing.contains(where: { $0.icdURI == result.id }) else { return }
 
-        // Si no hay diagnósticos, el primero es principal; sino secundario
+        // Si no hay diagnósticos activos, el primero es principal; sino secundario
         let type: DiagnosisType = existing.isEmpty ? .principal : .secundario
         let diagnosis = Diagnosis(from: result, diagnosisType: type, patient: patient)
         modelContext.insert(diagnosis)
+        auditService.log(action: .create, on: diagnosis, in: modelContext, performedBy: currentActorID, detail: result.theCode)
         patient.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            logger.error("Diagnosis create save failed: \(error, privacy: .private)")
+        }
     }
 
     private func removeActiveDiagnosis(_ diagnosis: Diagnosis) {
-        modelContext.delete(diagnosis)
+        diagnosis.softDelete()
+        auditService.log(action: .softDelete, on: diagnosis, in: modelContext, performedBy: currentActorID)
         patient.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            logger.error("Diagnosis softDelete save failed: \(error, privacy: .private)")
+        }
     }
 
     /// Marca un diagnóstico como principal y degrada el anterior principal a secundario
@@ -359,7 +390,13 @@ struct PatientDetailView: View {
             d.diagnosisTypeValue = .secundario
         }
         diagnosis.diagnosisTypeValue = .principal
+        auditService.log(action: .update, on: diagnosis, in: modelContext, performedBy: currentActorID, detail: "diagnosisType=principal")
         patient.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            logger.error("Diagnosis update save failed: \(error, privacy: .private)")
+        }
     }
 
     private func exportPatientPDF() {

@@ -68,6 +68,16 @@ struct ContentView: View {
                     }
             }
         }
+        // Overlay de privacidad al nivel más alto del árbol — cubre toda la UI
+        // incluyendo toolbars y overlays internos. Se aplica cuando la app no
+        // está activa (scenePhase != .active cubre tanto .inactive como .background
+        // y cualquier fase futura desconocida). isAppUnlocked evita duplicar la
+        // redacción cuando AppLockView ya está activo.
+        .overlay {
+            if scenePhase != .active && isAppUnlocked {
+                privacyOverlay
+            }
+        }
         .task {
             await runLaunchFlowIfNeeded()
         }
@@ -364,6 +374,18 @@ struct ContentView: View {
         } catch {
             logger.error("PatientMedicalRecordNumberService failed: \(error.localizedDescription, privacy: .private)")
         }
+    }
+
+    // MARK: - Privacidad en app switcher
+
+    /// Cubre la UI completa cuando iOS hace el screenshot para el app switcher.
+    /// scenePhase pasa por .inactive antes de .background — ese es el momento
+    /// en que el sistema captura la pantalla. Color.background es el color de
+    /// fondo del sistema: respeta el modo claro/oscuro sin requerir UIKit.
+    @ViewBuilder
+    private var privacyOverlay: some View {
+        Color(.background)
+            .ignoresSafeArea()
     }
 
     // MARK: - Banner de base de datos no disponible

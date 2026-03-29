@@ -36,7 +36,7 @@ struct Ars_Medica_DigitalisApp: App {
     @State private var auditService = AuditService()
 
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema(AppSchemaV3.models)
+        let schema = Schema(AppSchemaV4.models)
 
         let launchArguments = ProcessInfo.processInfo.arguments
         let isOnboardingUITest = launchArguments.contains(LaunchArgument.onboardingUITest)
@@ -123,9 +123,23 @@ struct Ars_Medica_DigitalisApp: App {
                 .tint(resolvedThemeColor)
                 .environment(\.securityPreferences, securityPreferences)
                 .environment(\.auditService, auditService)
+                // TODO: [BLOQUEANTE — producción] Inyectar currentActorID con el ID real del
+                // Professional autenticado antes de publicar en el App Store.
+                // Sin esto, todos los registros de audit trail quedan atribuidos a "system"
+                // en lugar del profesional específico, perdiendo trazabilidad clínica.
+                // Punto de inyección: resolver `professionals.first?.id.uuidString` y pasar
+                // via `.environment(\.currentActorID, id)` desde el nivel raíz de navegación
+                // donde el Professional ya está resuelto.
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                Ars_Medica_DigitalisApp.removeStaleExportedPDFs()
+            }
+        }
     }
+
+    @Environment(\.scenePhase) private var scenePhase
 
     /// Resuelve la preferencia de string a ColorScheme opcional.
     /// nil = seguir la configuración del sistema operativo.
@@ -244,5 +258,48 @@ struct Ars_Medica_DigitalisApp: App {
         }
 
         return patient
+    }
+
+    // MARK: - PDF export TTL cleanup
+
+    /// Elimina archivos PDF exportados que hayan superado el TTL de retención.
+    ///
+    /// Se invoca cada vez que la app pasa a primer plano (`scenePhase == .active`).
+    /// Actúa como red de seguridad para el caso en que `onDismiss` del share sheet
+    /// no se ejecutó (crash, UIKit sheet, etc.).
+    ///
+    /// Criterio: archivos `*.pdf` en el directorio Documents con
+    /// `creationDate` anterior a `AuditLogRetentionPolicy.exportedPDFTTL`.
+    private static func removeStaleExportedPDFs() {
+        let fm = FileManager.default
+        guard let documentsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let cutoff = Date().addingTimeInterval(-AuditLogRetentionPolicy.exportedPDFTTL)
+
+        let enumerator = fm.enumerator(
+            at: documentsURL,
+            includingPropertiesForKeys: [.creationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+        )
+
+        while let fileURL = enumerator?.nextObject() as? URL {
+            guard fileURL.pathExtension.lowercased() == "pdf" else { continue }
+
+            guard
+                let values = try? fileURL.resourceValues(forKeys: [.creationDateKey, .isRegularFileKey]),
+                values.isRegularFile == true,
+                let creationDate = values.creationDate,
+                creationDate < cutoff
+            else { continue }
+
+            do {
+                try fm.removeItem(at: fileURL)
+                logger.info("Removed stale exported PDF: \(fileURL.lastPathComponent, privacy: .public)")
+            } catch {
+                logger.warning("Failed to remove stale PDF: \(error, privacy: .private)")
+            }
+        }
     }
 }

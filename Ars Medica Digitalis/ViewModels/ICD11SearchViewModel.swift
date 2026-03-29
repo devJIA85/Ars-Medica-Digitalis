@@ -81,7 +81,7 @@ final class ICD11SearchViewModel {
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                logger.error("ICD11 online search failed: \(error)")
+                logger.error("ICD11 online search failed: \(error, privacy: .private)")
                 if results.isEmpty {
                     errorMessage = error.localizedDescription
                 }

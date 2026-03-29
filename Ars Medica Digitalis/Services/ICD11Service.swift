@@ -198,7 +198,7 @@ actor ICD11Service {
                 try FileManager.default.removeItem(at: fileURL)
             }
         } catch {
-            logger.warning("ICD11 cache clear failed: \(error)")
+            logger.warning("ICD11 cache clear failed: \(error, privacy: .private)")
         }
     }
 

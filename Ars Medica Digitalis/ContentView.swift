@@ -68,11 +68,18 @@ struct ContentView: View {
                     }
             }
         }
-        // Overlay de privacidad al nivel más alto del árbol — cubre toda la UI
-        // incluyendo toolbars y overlays internos. Se aplica cuando la app no
-        // está activa (scenePhase != .active cubre tanto .inactive como .background
-        // y cualquier fase futura desconocida). isAppUnlocked evita duplicar la
-        // redacción cuando AppLockView ya está activo.
+        // Overlay de privacidad aplicado al root Group de ContentView.body.
+        // Este nivel cubre toda la jerarquía SwiftUI (toolbars, overlays, sheets
+        // presentados con SwiftUI nativo) sin necesidad de envolverlo en WindowGroup.
+        //
+        // scenePhase != .active cubre .inactive (ej. multitarea, llamada entrante)
+        // y .background, más cualquier fase futura desconocida.
+        // isAppUnlocked evita duplicar la redacción cuando AppLockView ya está activo.
+        //
+        // Limitación conocida: las sheets presentadas mediante UIKit directamente
+        // (UIActivityViewController, UIDocumentPickerViewController) son ventanas
+        // UIKit independientes y no quedan cubiertas por este overlay. Se acepta
+        // como limitación del sistema; documentar en el threat model.
         .overlay {
             if scenePhase != .active && isAppUnlocked {
                 privacyOverlay

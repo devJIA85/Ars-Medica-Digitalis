@@ -21,8 +21,15 @@ import SwiftUI
 /// El caller debe:
 ///   1. Ejecutar la mutación de la entidad.
 ///   2. Llamar `log()` con el mismo `ModelContext`.
-///   3. Llamar `try? context.save()` inmediatamente después.
+///   3. Llamar `do { try context.save() } catch { ... }` inmediatamente después.
 /// Los tres pasos son sincrónicos en MainActor — nunca hay un autosave intermedio.
+///
+/// ## Auditoría de lectura (read)
+/// Cada evento `.read` genera un `context.insert()` + `context.save()`, es decir,
+/// una escritura. Esto es intencional: el requisito de trazabilidad de accesos a
+/// datos clínicos sensibles tiene prioridad sobre el costo de I/O.
+/// Si en el futuro el volumen de logs de lectura genera presión en CloudKit,
+/// evaluar batching o sampling — por ahora se loguea cada acceso.
 ///
 /// ## Actor del log
 /// `performedBy` debe recibir `currentActorID` desde el entorno (ver abajo).
@@ -35,31 +42,86 @@ import SwiftUI
 @Observable
 final class AuditService {
 
-    // MARK: - API pública
+    // MARK: - Logging
 
     /// Registra una acción clínica en el audit trail.
     /// - Parameters:
     ///   - action: Tipo de acción ejecutada.
     ///   - entity: Entidad afectada — debe conformar `Auditable`.
     ///   - context: ModelContext activo en la capa de llamada. Debe ser el mismo
-    ///     que se usó para la mutación de la entidad, para garantizar atomicidad.
+    ///     que se usó para la mutación, para garantizar atomicidad.
     ///   - actor: ID del professional activo. Leer de `EnvironmentValues.currentActorID`.
     ///   - detail: Contexto adicional opcional (ej. código CIE-11, campo modificado).
+    ///   - sessionID: ID de sesión clínica relacionada, si aplica.
+    ///   - severity: Nivel de criticidad. Por defecto derivado de `action.defaultSeverity`.
     func log(
         action: AuditAction,
         on entity: some Auditable,
         in context: ModelContext,
         performedBy actor: String = "system",
-        detail: String? = nil
+        detail: String? = nil,
+        sessionID: UUID? = nil,
+        severity: AuditSeverity? = nil
     ) {
         let entry = AuditLog(
             action: action,
             entityType: entity.auditEntityType,
             entityID: entity.entityID,
             performedBy: actor,
-            detail: detail
+            detail: detail,
+            sessionID: sessionID,
+            severity: severity
         )
         context.insert(entry)
+    }
+
+    // MARK: - Consultas
+
+    /// Devuelve todos los eventos del audit trail para una entidad específica,
+    /// ordenados por fecha descendente.
+    @MainActor
+    func events(
+        for entityID: UUID,
+        in context: ModelContext
+    ) throws -> [AuditLog] {
+        var descriptor = FetchDescriptor<AuditLog>(
+            predicate: #Predicate { $0.entityID == entityID },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return try context.fetch(descriptor)
+    }
+
+    /// Devuelve todos los eventos de un tipo de acción específico,
+    /// ordenados por fecha descendente.
+    @MainActor
+    func events(
+        action: AuditAction,
+        in context: ModelContext
+    ) throws -> [AuditLog] {
+        let rawValue = action.rawValue
+        var descriptor = FetchDescriptor<AuditLog>(
+            predicate: #Predicate { $0.actionRaw == rawValue },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 500
+        return try context.fetch(descriptor)
+    }
+
+    /// Devuelve todos los eventos dentro de una ventana temporal,
+    /// ordenados por fecha descendente.
+    @MainActor
+    func events(
+        from startDate: Date,
+        to endDate: Date,
+        in context: ModelContext
+    ) throws -> [AuditLog] {
+        var descriptor = FetchDescriptor<AuditLog>(
+            predicate: #Predicate { $0.timestamp >= startDate && $0.timestamp <= endDate },
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1000
+        return try context.fetch(descriptor)
     }
 }
 

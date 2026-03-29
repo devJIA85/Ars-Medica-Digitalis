@@ -61,7 +61,7 @@ nonisolated enum ICD11KeychainStore {
 #if DEBUG
             // En simulador/debug el Keychain puede no estar disponible.
             // Se acepta el fallback solo en entornos de desarrollo.
-            logger.warning("Keychain migration failed (DEBUG only fallback): \(error)")
+            logger.warning("Keychain migration failed (DEBUG only fallback): \(error, privacy: .private)")
             return plist
 #else
             // En producción, no continuar con credenciales del bundle en texto plano.

@@ -16,6 +16,10 @@
 //  V3 (3.0.0) — Agrega AuditLog para audit trail clínico (append-only).
 //               Migración V2→V3 es lightweight: nueva tabla sin cambios en
 //               entidades existentes.
+//  V4 (4.0.0) — Extiende AuditLog: agrega sessionID (UUID?) y severityRaw (String).
+//               Migración V3→V4 es lightweight: columnas opcionales/con default
+//               en tabla existente. Registros V3 quedan con sessionID=nil y
+//               severityRaw=AuditSeverity.info.rawValue.
 //
 //  Agregar versiones futuras:
 //    1. Crear AppSchemaVN con versionIdentifier incrementado.
@@ -63,13 +67,23 @@ enum AppSchemaV2: VersionedSchema {
     }
 }
 
-// MARK: - Schema V3 (actual)
+// MARK: - Schema V3 (anterior)
 
 enum AppSchemaV3: VersionedSchema {
     static var versionIdentifier = Schema.Version(3, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         AppSchemaV2.models + [AuditLog.self]
+    }
+}
+
+// MARK: - Schema V4 (actual)
+
+enum AppSchemaV4: VersionedSchema {
+    static var versionIdentifier = Schema.Version(4, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
+        AppSchemaV3.models   // mismos tipos — AuditLog actualizado en su .swift
     }
 }
 
@@ -80,8 +94,9 @@ enum AppMigrationPlan: SchemaMigrationPlan {
         AppSchemaV1.self,
         AppSchemaV2.self,
         AppSchemaV3.self,
+        AppSchemaV4.self,
     ]
-    static var stages: [MigrationStage] = [v1ToV2, v2ToV3]
+    static var stages: [MigrationStage] = [v1ToV2, v2ToV3, v3ToV4]
 
     /// Migración V1 → V2: no-op de datos.
     /// SwiftData necesita conocer el cambio de versión para no rechazar
@@ -99,5 +114,12 @@ enum AppMigrationPlan: SchemaMigrationPlan {
     static let v2ToV3 = MigrationStage.lightweight(
         fromVersion: AppSchemaV2.self,
         toVersion: AppSchemaV3.self
+    )
+
+    /// Migración V3 → V4: lightweight, agrega sessionID y severityRaw a AuditLog.
+    /// Registros existentes quedan con sessionID=nil y severityRaw="info".
+    static let v3ToV4 = MigrationStage.lightweight(
+        fromVersion: AppSchemaV3.self,
+        toVersion: AppSchemaV4.self
     )
 }

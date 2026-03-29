@@ -36,6 +36,10 @@ struct PatientDetailView: View {
     @State private var showingDebtSettlement: Bool = false
     @State private var didAppearDiagnoses: Bool = false
     @State private var didAppearSessions: Bool = false
+    /// Garantiza que el evento de lectura se registre una sola vez por instancia de vista.
+    /// onAppear dispara en cada aparición (navegación, sheet dismiss) — sin este flag
+    /// se generaría un log por cada reactivación de la vista, no solo en la primera apertura.
+    @State private var hasLoggedReadEvent: Bool = false
 
     var body: some View {
         ScrollView {
@@ -149,6 +153,26 @@ struct PatientDetailView: View {
         // sale del viewport al hacer scroll, eliminando la duplicación permanente.
         .navigationTitle(patient.fullName)
         .navigationBarTitleDisplayMode(.inline)
+        // Audit trail: lectura de ficha clínica.
+        // Nota: cada evento read genera un context.insert() + context.save() (escritura).
+        // Esto es intencional — la trazabilidad de accesos a datos sensibles tiene
+        // prioridad sobre el costo de I/O. Ver AuditService para más contexto.
+        .onAppear {
+            guard !hasLoggedReadEvent else { return }
+            hasLoggedReadEvent = true
+            auditService.log(
+                action: .read,
+                on: patient,
+                in: modelContext,
+                performedBy: currentActorID,
+                detail: "view_detail"
+            )
+            do {
+                try modelContext.save()
+            } catch {
+                logger.error("Patient read audit save failed: \(error, privacy: .private)")
+            }
+        }
         .toolbar {
             // Edición: acción primaria de contenido — trailing por convención iOS.
             ToolbarItem(placement: .topBarTrailing) {
@@ -217,7 +241,15 @@ struct PatientDetailView: View {
                 )
             }
         }
-        .sheet(isPresented: $showingPDFShareSheet) {
+        .sheet(isPresented: $showingPDFShareSheet, onDismiss: {
+            // Eliminar el archivo PDF del directorio Documents una vez que el
+            // share sheet se cierra (usuario compartió o canceló). El archivo
+            // es temporal: se generó solo para la sesión de exportación.
+            if let url = exportedPDFURL {
+                try? FileManager.default.removeItem(at: url)
+                exportedPDFURL = nil
+            }
+        }) {
             if let exportedPDFURL {
                 PDFExportShareView(
                     fileURL: exportedPDFURL,
@@ -407,6 +439,22 @@ struct PatientDetailView: View {
         do {
             let service = PatientPDFExportService()
             let fileURL = try service.export(patient: patient, professional: professional)
+            // Audit trail: el PDF fue generado exitosamente — datos clínicos
+            // materializados en archivo. Se loguea aquí (no en share sheet) porque
+            // el dato salió del dispositivo en este punto, independientemente de
+            // que el usuario comparta o cancele el share sheet.
+            auditService.log(
+                action: .export,
+                on: patient,
+                in: modelContext,
+                performedBy: currentActorID,
+                detail: "pdf_materialized"
+            )
+            do {
+                try modelContext.save()
+            } catch {
+                logger.error("Patient export audit save failed: \(error, privacy: .private)")
+            }
             exportedPDFURL = fileURL
             showingPDFShareSheet = true
         } catch {

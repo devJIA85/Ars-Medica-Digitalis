@@ -296,7 +296,7 @@ struct Ars_Medica_DigitalisApp: App {
 
             do {
                 try fm.removeItem(at: fileURL)
-                logger.info("Removed stale exported PDF: \(fileURL.lastPathComponent, privacy: .public)")
+                logger.info("Removed stale exported PDF")
             } catch {
                 logger.warning("Failed to remove stale PDF: \(error, privacy: .private)")
             }

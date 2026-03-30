@@ -29,13 +29,16 @@ enum AuditLogRetentionPolicy {
 
     /// Años mínimos de retención de registros `AuditLog`.
     ///
-    /// Valor: 10 años (requisito legal mínimo en Argentina para registros médicos).
-    /// Los registros más antiguos pueden archivarse o exportarse antes de eliminarse,
-    /// pero nunca deben borrarse antes de este umbral.
+    /// Valor: 15 años.
+    /// La ley argentina 25.326 establece un mínimo de 10 años para datos personales,
+    /// pero la normativa de registros médicos (Ley 17.132 y resoluciones del Ministerio
+    /// de Salud) y buenas prácticas internacionales (HIPAA, HL7) recomiendan 15 años
+    /// para historia clínica computarizada. Se adopta el valor más conservador para
+    /// maximizar la trazabilidad clínica y cubrir eventuales cambios normativos.
     ///
     /// - Note: SwiftData + CloudKit no implementa eliminación automática.
     ///   La purga debe ejecutarse de forma explícita y auditada.
-    static let auditLogRetentionYears: Int = 10
+    static let auditLogRetentionYears: Int = 15
 
     /// Fecha mínima de retención calculada desde `Date.now`.
     static var auditLogRetentionCutoff: Date {
@@ -51,10 +54,12 @@ enum AuditLogRetentionPolicy {
     /// Tiempo máximo (en segundos) que un PDF exportado puede permanecer
     /// en el directorio Documents antes de ser eliminado automáticamente.
     ///
-    /// Valor: 1 hora (3600 s).
-    /// Justificación: los PDFs exportados son copias temporales para compartir;
-    /// no deben persistir más tiempo del necesario para completar la operación.
+    /// Valor: 24 horas (86 400 s).
+    /// Justificación: los PDFs exportados son copias temporales para compartir.
+    /// En contexto clínico el profesional puede necesitar abrir la app, generar
+    /// el PDF y enviarlo en momentos distintos dentro de una jornada de trabajo.
+    /// 24 h da margen operativo sin comprometer la minimización de datos.
     /// El `onDismiss` del share sheet elimina el archivo inmediatamente;
     /// este TTL actúa como red de seguridad para crashes o sheets de UIKit.
-    static let exportedPDFTTL: TimeInterval = 3_600
+    static let exportedPDFTTL: TimeInterval = 86_400
 }

@@ -42,6 +42,15 @@ import SwiftUI
 @Observable
 final class AuditService {
 
+    // MARK: - Missing-actor detection
+
+    /// Número de veces que se registró un log sin actor inyectado en esta sesión.
+    /// Observable: cualquier vista o monitor puede reaccionar a este contador
+    /// sin necesidad de infraestructura adicional.
+    private(set) var missingActorCount: Int = 0
+
+    private static let logger = Logger(subsystem: "com.arsmedica.digitalis", category: "AuditService")
+
     // MARK: - Logging
 
     /// Registra una acción clínica en el audit trail.
@@ -58,11 +67,21 @@ final class AuditService {
         action: AuditAction,
         on entity: some Auditable,
         in context: ModelContext,
-        performedBy actor: String = "system",
+        performedBy actor: String = "unknown_actor",
         detail: String? = nil,
         sessionID: UUID? = nil,
         severity: AuditSeverity? = nil
     ) {
+        if actor == "unknown_actor" {
+            // .fault garantiza visibilidad en Console.app incluso con nivel de log reducido.
+            // No se interrumpe la operación: el registro se persiste con el sentinel
+            // para mantener la integridad del trail.
+            AuditService.logger.fault(
+                "Audit log without actor injection [action=\(action.rawValue, privacy: .public), entity=\(entity.auditEntityType.rawValue, privacy: .public)]"
+            )
+            missingActorCount += 1
+        }
+
         let entry = AuditLog(
             action: action,
             entityType: entity.auditEntityType,
@@ -150,10 +169,14 @@ extension EnvironmentValues {
 ///
 ///     .environment(\.currentActorID, professional.id.uuidString)
 ///
-/// Mientras no esté inyectado, el valor es "system" — los logs quedan
-/// válidos pero sin atribución a un professional específico.
+/// ## Fallback
+/// El valor por defecto es `"unknown_actor"` — sentinel explícito que indica
+/// que la inyección no ocurrió. Es distinto de `"system"` (acciones internas
+/// de la app) para facilitar la detección en auditorías:
+/// cualquier registro con `performedBy == "unknown_actor"` señala un punto
+/// del código donde falta la inyección del actor real.
 private struct CurrentActorIDKey: EnvironmentKey {
-    static let defaultValue: String = "system"
+    static let defaultValue: String = "unknown_actor"
 }
 
 extension EnvironmentValues {

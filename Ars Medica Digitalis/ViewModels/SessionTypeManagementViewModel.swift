@@ -178,7 +178,7 @@ final class SessionTypeManagementViewModel {
             }
         )
 
-        let sessionTypes = (try? context.fetch(descriptor)) ?? professional.sessionCatalogTypes
+        let sessionTypes = (try? context.fetch(descriptor)) ?? (professional.sessionCatalogTypes ?? [])
 
         return sessionTypes.contains { existingType in
             guard existingType.id != sessionType.id else { return false }

@@ -59,10 +59,10 @@ final class Session {
     var patient: Patient? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \Diagnosis.session)
-    var diagnoses: [Diagnosis] = []
+    var diagnoses: [Diagnosis]! = []
 
     @Relationship(deleteRule: .cascade, inverse: \Attachment.session)
-    var attachments: [Attachment] = []
+    var attachments: [Attachment]! = []
 
     // Flujo financiero desacoplado del registro clínico:
     // Session referencia un tipo facturable y acumula Payment sin tocar
@@ -83,7 +83,7 @@ final class Session {
     var isCourtesy: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \Payment.session)
-    var payments: [Payment] = []
+    var payments: [Payment]! = []
 
     /// API rica para la UI de edición.
     /// Conserva `notes` como fallback plano para compatibilidad y exportación.

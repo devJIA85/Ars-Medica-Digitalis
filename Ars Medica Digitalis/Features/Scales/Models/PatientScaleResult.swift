@@ -17,7 +17,18 @@ final class PatientScaleResult {
     var date: Date = Date()
     var totalScore: Int = 0
     var severity: String = ""
-    var answers: [ScaleAnswer] = []
+    @Attribute(originalName: "answers")
+    private var answersData: Data = Data()
+
+    var answers: [ScaleAnswer] {
+        get {
+            guard answersData.isEmpty == false else { return [] }
+            return (try? Self.decoder.decode([ScaleAnswer].self, from: answersData)) ?? []
+        }
+        set {
+            answersData = (try? Self.encoder.encode(newValue)) ?? Data()
+        }
+    }
 
     init(
         id: UUID = UUID(),
@@ -34,8 +45,11 @@ final class PatientScaleResult {
         self.date = date
         self.totalScore = totalScore
         self.severity = severity
-        self.answers = answers
+        self.answersData = (try? Self.encoder.encode(answers)) ?? Data()
     }
+
+    private static let encoder = JSONEncoder()
+    private static let decoder = JSONDecoder()
 }
 
 struct SavedScaleResultSnapshot: Identifiable, Equatable, Hashable {

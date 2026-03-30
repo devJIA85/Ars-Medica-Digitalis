@@ -54,22 +54,32 @@ struct Ars_Medica_DigitalisApp: App {
         if isUITestLaunch {
             modelConfiguration = ModelConfiguration(
                 schema: schema,
-                isStoredInMemoryOnly: true
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
             )
         } else {
-            // cloudKitDatabase: .automatic habilita sincronización con la zona privada
-            // de iCloud del usuario. Requiere el entitlement de CloudKit configurado en Xcode.
+            #if targetEnvironment(simulator)
+            // En simulador suele no haber sesión iCloud activa (CKAccountStatusNoAccount),
+            // lo que genera errores de setup y recovery de CloudKit en cada arranque.
+            // Persistimos localmente sin sync para mantener un entorno de desarrollo estable.
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: false,
+                cloudKitDatabase: .none
+            )
+            #else
+            // CloudKit principal del usuario en dispositivo real.
             modelConfiguration = ModelConfiguration(
                 schema: schema,
                 isStoredInMemoryOnly: false,
                 cloudKitDatabase: .automatic
             )
+            #endif
         }
 
         do {
             let container = try ModelContainer(
                 for: schema,
-                migrationPlan: AppMigrationPlan.self,
                 configurations: [modelConfiguration]
             )
 
@@ -100,19 +110,37 @@ struct Ars_Medica_DigitalisApp: App {
 
             return container
         } catch {
-            logger.critical("ModelContainer creation failed: \(error, privacy: .private)")
+            logger.critical("ModelContainer creation failed: \(describedError(error), privacy: .private)")
 
             // Intentar con almacenamiento en memoria como fallback de emergencia.
             // La app podrá usarse, pero los datos de esta sesión no se sincronizarán
             // ni persistirán. ContentView muestra un aviso al usuario si este flag está activo.
-            let fallbackConfig = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-            if let fallback = try? ModelContainer(for: schema, migrationPlan: AppMigrationPlan.self, configurations: [fallbackConfig]) {
+            // El contenedor in-memory no tiene store que migrar — no pasar migrationPlan
+            // para evitar que la validación del plan bloquee el fallback de emergencia.
+            let fallbackConfig = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+            var fallbackErrorDescription: String = "sin detalle"
+            do {
+                let fallback = try ModelContainer(for: schema, configurations: [fallbackConfig])
                 Ars_Medica_DigitalisApp.isDatabaseUnavailable = true
                 return fallback
+            } catch {
+                fallbackErrorDescription = describedError(error)
+                logger.critical(
+                    "ModelContainer in-memory fallback failed: \(describedError(error), privacy: .private)"
+                )
             }
 
             // Si ni el contenedor en memoria funciona, el entorno está completamente roto.
-            fatalError("No se pudo crear el ModelContainer ni en memoria: \(error)")
+            let schemaDiagnosis = diagnoseSchemaIssue()
+            fatalError(
+                "No se pudo crear el ModelContainer. Error inicial: \(describedError(error)). " +
+                "Error fallback in-memory: \(fallbackErrorDescription). " +
+                "Diagnóstico de schema: \(schemaDiagnosis)"
+            )
         }
     }()
 
@@ -132,7 +160,7 @@ struct Ars_Medica_DigitalisApp: App {
                 // donde el Professional ya está resuelto.
         }
         .modelContainer(sharedModelContainer)
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Ars_Medica_DigitalisApp.removeStaleExportedPDFs()
             }
@@ -301,5 +329,65 @@ struct Ars_Medica_DigitalisApp: App {
                 logger.warning("Failed to remove stale PDF: \(error, privacy: .private)")
             }
         }
+    }
+
+    /// Representación compacta del error y su cadena subyacente.
+    private static func describedError(_ error: Error) -> String {
+        var parts: [String] = []
+        var current: NSError? = error as NSError
+        var depth = 0
+
+        while let nsError = current, depth < 4 {
+            parts.append("\(nsError.domain)(\(nsError.code)): \(nsError.localizedDescription)")
+            current = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+            depth += 1
+        }
+
+        return parts.joined(separator: " -> ")
+    }
+
+    /// Intenta aislar el modelo (o combinación mínima) que rompe el schema.
+    private static func diagnoseSchemaIssue() -> String {
+        let allModels = AppSchemaV4.models
+        let allModelNames = allModels.map { String(describing: $0) }.joined(separator: ", ")
+
+        // 1) Validación individual por modelo.
+        for model in allModels {
+            let modelName = String(describing: model)
+            let schema = Schema([model])
+            let config = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+
+            do {
+                _ = try ModelContainer(for: schema, configurations: [config])
+            } catch {
+                return "Falla con modelo individual '\(modelName)': \(describedError(error))"
+            }
+        }
+
+        // 2) Validación incremental por prefijos del schema.
+        var prefix: [any PersistentModel.Type] = []
+        for model in allModels {
+            prefix.append(model)
+            let schema = Schema(prefix)
+            let config = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
+
+            do {
+                _ = try ModelContainer(for: schema, configurations: [config])
+            } catch {
+                let lastModel = String(describing: model)
+                let prefixNames = prefix.map { String(describing: $0) }.joined(separator: ", ")
+                return "Falla al agregar '\(lastModel)'. Prefijo: [\(prefixNames)]. Error: \(describedError(error))"
+            }
+        }
+
+        return "No se pudo aislar con validación individual/incremental. Modelos: [\(allModelNames)]"
     }
 }

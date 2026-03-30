@@ -80,7 +80,7 @@ final class Patient: SoftDeletable {
 
     /// Medicación actual seleccionada desde el vademécum local.
     @Relationship(deleteRule: .nullify, inverse: \Medication.patients)
-    var currentMedications: [Medication] = []
+    var currentMedications: [Medication]! = []
 
     // MARK: - Antropometría
 
@@ -138,7 +138,7 @@ final class Patient: SoftDeletable {
     var professional: Professional? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \Session.patient)
-    var sessions: [Session] = []
+    var sessions: [Session]! = []
 
     /// Colección persistida de TODOS los diagnósticos del paciente — activos y soft-deleted.
     /// Es el lado de navegación de la relación SwiftData/CloudKit cuya foreign key
@@ -149,31 +149,31 @@ final class Patient: SoftDeletable {
     /// (computed property que filtra `deletedAt == nil`) o una query con #Predicate.
     /// Acceder a `allDiagnoses` directamente es un bug silencioso: expone registros
     /// dados de baja que no deben aparecer en la historia clínica activa.
-    @Relationship(deleteRule: .cascade, inverse: \Diagnosis.patient)
-    private(set) var allDiagnoses: [Diagnosis] = []
+    @Relationship(deleteRule: .cascade, originalName: "activeDiagnoses", inverse: \Diagnosis.patient)
+    private(set) var allDiagnoses: [Diagnosis]! = []
 
     /// Antecedentes de tratamientos previos (psicoterapia, psiquiatría, etc.)
     @Relationship(deleteRule: .cascade, inverse: \PriorTreatment.patient)
-    var priorTreatments: [PriorTreatment] = []
+    var priorTreatments: [PriorTreatment]! = []
 
     /// Internaciones previas del paciente
     @Relationship(deleteRule: .cascade, inverse: \Hospitalization.patient)
-    var hospitalizations: [Hospitalization] = []
+    var hospitalizations: [Hospitalization]! = []
 
     /// Registros históricos de antropometría para graficar evolución
     /// con Swift Charts (peso, IMC, cintura a lo largo del tiempo)
     @Relationship(deleteRule: .cascade, inverse: \AnthropometricRecord.patient)
-    var anthropometricRecords: [AnthropometricRecord] = []
+    var anthropometricRecords: [AnthropometricRecord]! = []
 
     // Flujo de configuración financiera del paciente:
     // Patient -> PatientCurrencyVersion para moneda vigente por fecha.
     // Patient -> PatientSessionDefaultPrice para precios por defecto por tipo.
     // Se agrega separado del dominio clínico para no alterar los formularios actuales.
     @Relationship(deleteRule: .cascade, inverse: \PatientCurrencyVersion.patient)
-    var currencyVersions: [PatientCurrencyVersion] = []
+    var currencyVersions: [PatientCurrencyVersion]! = []
 
     @Relationship(deleteRule: .cascade, inverse: \PatientSessionDefaultPrice.patient)
-    var sessionDefaultPrices: [PatientSessionDefaultPrice] = []
+    var sessionDefaultPrices: [PatientSessionDefaultPrice]! = []
 
     // MARK: - Computed properties (no se persisten)
 

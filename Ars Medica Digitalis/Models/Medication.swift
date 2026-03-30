@@ -32,8 +32,8 @@ final class Medication: Identifiable {
     var updatedAt: Date = Date()
 
     /// Relación inversa many-to-many con pacientes.
-    @Relationship
-    var patients: [Patient] = []
+    /// La definición canónica vive en Patient.currentMedications.
+    var patients: [Patient]! = []
 
     init(
         id: UUID = UUID(),

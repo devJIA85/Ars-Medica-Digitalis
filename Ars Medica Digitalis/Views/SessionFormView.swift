@@ -76,11 +76,21 @@ struct SessionFormView: View {
         // de consultorio, no la hora actual, para permitir cargar sesiones
         // pasadas del mismo día sin una fricción artificial.
         // En modo edición, load(from:) la sobreescribirá en onAppear.
-        if session == nil, let initialDate {
-            let resolved = initialDate.defaultSessionStartDate()
-            _viewModel = State(initialValue: SessionViewModel(initialDate: resolved))
-        } else {
+        if let session {
+            // Modo edición: load(from:) establece chiefComplaint en onAppear.
+            _ = session
             _viewModel = State(initialValue: SessionViewModel())
+        } else if let initialDate {
+            // Modo alta con fecha del calendario.
+            let resolved = initialDate.defaultSessionStartDate()
+            let vm = SessionViewModel(initialDate: resolved)
+            vm.applyDefaultChiefComplaint(for: patient)
+            _viewModel = State(initialValue: vm)
+        } else {
+            // Modo alta sin fecha preseleccionada.
+            let vm = SessionViewModel()
+            vm.applyDefaultChiefComplaint(for: patient)
+            _viewModel = State(initialValue: vm)
         }
     }
 

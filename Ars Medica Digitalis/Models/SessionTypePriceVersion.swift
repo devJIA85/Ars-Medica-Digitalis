@@ -32,15 +32,21 @@ final class SessionTypePriceVersion {
     var currencyCode: String = ""
 
     /// Origen del ajuste que generó esta versión.
-    /// Se persiste para distinguir cambios manuales, sugeridos por IPC o
-    /// actualizaciones masivas futuras sin alterar la lógica vigente actual.
-    var adjustmentSource: PriceAdjustmentSource = PriceAdjustmentSource.manual
+    /// Se persiste como String para máxima compatibilidad con SwiftData/CloudKit.
+    /// `adjustmentSource` expone acceso tipado para el dominio.
+    @Attribute(originalName: "adjustmentSource")
+    private var adjustmentSourceRaw: String = PriceAdjustmentSource.manual.rawValue
 
     // Trazabilidad administrativa
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
     var sessionCatalogType: SessionCatalogType? = nil
+
+    var adjustmentSource: PriceAdjustmentSource {
+        get { PriceAdjustmentSource(rawValue: adjustmentSourceRaw) ?? .manual }
+        set { adjustmentSourceRaw = newValue.rawValue }
+    }
 
     init(
         id: UUID = UUID(),
@@ -56,7 +62,7 @@ final class SessionTypePriceVersion {
         self.effectiveFrom = effectiveFrom
         self.price = price
         self.currencyCode = currencyCode
-        self.adjustmentSource = adjustmentSource
+        self.adjustmentSourceRaw = adjustmentSource.rawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.sessionCatalogType = sessionCatalogType

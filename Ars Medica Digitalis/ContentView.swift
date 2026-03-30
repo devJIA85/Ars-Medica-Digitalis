@@ -40,6 +40,7 @@ struct ContentView: View {
     @State private var didResolveSessionRepairForCurrentLaunch: Bool = false
     @State private var didResolvePatientRecordRepairForCurrentLaunch: Bool = false
     @State private var deepLinkedSessionContext: DeepLinkedSessionContext?
+    @State private var searchText: String = ""
 
     private enum LaunchPhase {
         case splash
@@ -106,6 +107,7 @@ struct ContentView: View {
         .onOpenURL { url in
             handleIncomingDeepLink(url)
         }
+        .environment(\.currentActorID, resolvedCurrentActorID)
     }
 
     // MARK: - Vista principal
@@ -148,6 +150,10 @@ struct ContentView: View {
         && isRunningPatientRecordRepair == false
     }
 
+    private var resolvedCurrentActorID: String {
+        professionals.first?.id.uuidString ?? "system"
+    }
+
     @ViewBuilder
     private func mainView(for professional: Professional) -> some View {
         TabView {
@@ -157,7 +163,7 @@ struct ContentView: View {
                         professional: professional,
                         namespace: patientTransition,
                         onAddPatient: { showingNewPatient = true },
-                        enablesSearch: true
+                        enablesSearch: false
                     )
                 }
             }
@@ -171,6 +177,21 @@ struct ContentView: View {
             Tab("Clínico", systemImage: "chart.bar.xaxis.ascending") {
                 NavigationStack {
                     ClinicalDashboardView(professional: professional)
+                }
+            }
+
+            // Lupa de búsqueda separada en la tab bar (patrón Liquid Glass iOS 26).
+            // Al tocarla, la tab bar se transforma en campo de búsqueda.
+            Tab(role: .search) {
+                NavigationStack {
+                    PatientListView(
+                        professional: professional,
+                        namespace: patientTransition,
+                        onAddPatient: { showingNewPatient = true },
+                        enablesSearch: false,
+                        externalSearchText: searchText
+                    )
+                    .searchable(text: $searchText, prompt: "Buscar paciente")
                 }
             }
         }
@@ -391,7 +412,7 @@ struct ContentView: View {
     /// fondo del sistema: respeta el modo claro/oscuro sin requerir UIKit.
     @ViewBuilder
     private var privacyOverlay: some View {
-        Color(.background)
+        Color(uiColor: .systemBackground)
             .ignoresSafeArea()
     }
 

@@ -86,7 +86,7 @@ struct SessionDetailView: View {
             }
 
             // MARK: - Diagnósticos CIE-11
-            let diagnoses = session.diagnoses
+            let diagnoses = session.diagnoses ?? []
             if !diagnoses.isEmpty {
                 Section {
                     let visible = showAllDiagnoses

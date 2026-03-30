@@ -262,6 +262,20 @@ final class SessionViewModel {
         adjustStatusForDate()
     }
 
+    // MARK: - Configuración para sesión nueva
+
+    /// Aplica el motivo de consulta por defecto para sesiones nuevas,
+    /// basado en si el paciente ya tiene sesiones previas.
+    ///
+    /// No tiene efecto si el usuario ya escribió algo en el campo
+    /// (permite sobreescribir el default antes de que se llame este método).
+    /// Solo debe llamarse en modo alta — en modo edición `load(from:)`
+    /// ya establece el motivo real de la sesión existente.
+    func applyDefaultChiefComplaint(for patient: Patient) {
+        guard chiefComplaint.isEmpty else { return }
+        chiefComplaint = patient.sessions.isEmpty ? "Primera sesión" : "Seguimiento"
+    }
+
     // MARK: - Validación
 
     /// El motivo de consulta es el campo mínimo obligatorio para una sesión.
@@ -518,7 +532,7 @@ final class SessionViewModel {
         session.updatedAt = Date()
 
         // Reconciliar diagnósticos: eliminar los que ya no están seleccionados
-        let existingDiagnoses = session.diagnoses
+        let existingDiagnoses = session.diagnoses ?? []
         let selectedURIs = Set(snapshot.selectedDiagnoses.map(\.id))
 
         for existing in existingDiagnoses {

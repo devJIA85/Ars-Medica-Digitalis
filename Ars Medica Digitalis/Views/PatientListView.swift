@@ -19,8 +19,16 @@ struct PatientListView: View {
     let onAddPatient: () -> Void
     var enablesSearch: Bool = true
 
+    /// Texto de búsqueda inyectado desde el Tab(role: .search) del TabView.
+    var externalSearchText: String? = nil
+
     @State private var searchText: String = ""
     @State private var showInactive: Bool = false
+
+    /// Usa el texto externo (del search tab) si existe, sino el local.
+    private var effectiveSearchText: String {
+        externalSearchText ?? searchText
+    }
 
     var body: some View {
         content
@@ -29,7 +37,7 @@ struct PatientListView: View {
     @ViewBuilder
     private var content: some View {
         let dashboard = PatientFilteredList(
-            searchText: searchText,
+            searchText: effectiveSearchText,
             showInactive: showInactive,
             professional: professional,
             namespace: namespace
@@ -64,8 +72,6 @@ struct PatientListView: View {
                     }
                     .accessibilityIdentifier("main.profile")
                 }
-
-                // El CTA principal vive en el top bar, junto a perfil.
             }
 
         if enablesSearch {

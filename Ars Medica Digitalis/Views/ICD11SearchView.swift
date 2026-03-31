@@ -22,6 +22,7 @@ struct ICD11SearchView: View {
     @State private var viewModel = ICD11SearchViewModel()
 
     @State private var searchText: String = ""
+    @FocusState private var isSearchFieldFocused: Bool
 
     /// Diagnósticos ya seleccionados previamente (para mostrar checkmarks)
     let alreadySelected: [ICD11SearchResult]
@@ -57,6 +58,12 @@ struct ICD11SearchView: View {
             prompt: "Ej: depresión, fractura, diabetes..."
         )
         .searchToolbarBehavior(.minimize)
+        .modifier(SearchFieldAutoFocusModifier(isSearchFieldFocused: $isSearchFieldFocused))
+        .onAppear {
+            if #available(iOS 18.0, *) {
+                isSearchFieldFocused = true
+            }
+        }
         .onChange(of: searchText) { _, newValue in
             viewModel.search(query: newValue, context: modelContext)
         }
@@ -185,6 +192,18 @@ struct ICD11SearchView: View {
                 Spacer()
             }
             .padding(.vertical)
+        }
+    }
+}
+
+private struct SearchFieldAutoFocusModifier: ViewModifier {
+    let isSearchFieldFocused: FocusState<Bool>.Binding
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.searchFocused(isSearchFieldFocused)
+        } else {
+            content
         }
     }
 }

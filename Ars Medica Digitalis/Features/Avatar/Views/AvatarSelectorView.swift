@@ -41,6 +41,8 @@ struct AvatarSelectorView: View {
                     predefinedSection
                     if supportsImagePlayground {
                         aiSection
+                    } else {
+                        imagePlaygroundUnavailableSection
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -157,6 +159,23 @@ struct AvatarSelectorView: View {
                 .disabled(viewModel.vibeText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .padding(AppSpacing.md)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    private var imagePlaygroundUnavailableSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            sectionHeader("Crear con IA")
+
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Label("Image Playground no está disponible en este dispositivo.", systemImage: "sparkles.slash")
+                    .font(.subheadline.weight(.medium))
+                Text("Probá en un dispositivo compatible con Apple Intelligence.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(AppSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         }
     }

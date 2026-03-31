@@ -20,12 +20,22 @@ struct ProfileView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var viewModel = ProfessionalViewModel()
+    // AvatarViewModel se inicializa en el init() explícito para garantizar
+    // un único ciclo de vida, sin re-instancias por recomposición de SwiftUI
+    // (elimina la inicialización lazy frágil que existía en .onAppear).
+    @State private var avatarViewModel: AvatarViewModel
+    @State private var showingAvatarSelector: Bool = false
     @State private var showingFinanceDashboard: Bool = false
     @State private var showingHonorarios: Bool = false
     @State private var saveErrorMessage: String?
 
     // Controla la animación de entrada en cascada de los 5 módulos
     @State private var appeared: Bool = false
+
+    init(professional: Professional) {
+        self.professional = professional
+        _avatarViewModel = State(initialValue: AvatarViewModel(from: professional))
+    }
 
     var body: some View {
         @Bindable var viewModel = viewModel
@@ -37,7 +47,10 @@ struct ProfileView: View {
                     ProfileHeaderSection(
                         fullName: viewModel.fullName,
                         professionalTitle: viewModel.specialty,
-                        licenseNumber: viewModel.licenseNumber
+                        licenseNumber: viewModel.licenseNumber,
+                        avatarConfiguration: avatarViewModel.preview,
+                        generatedImage: avatarViewModel.generatedImage,
+                        onAvatarTap: { showingAvatarSelector = true }
                     )
                     .moduleEntrance(appeared: appeared, delay: 0.00)
 
@@ -109,7 +122,7 @@ struct ProfileView: View {
         .scrollContentBackground(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
-        // Dispara la animación de entrada en cascada al aparecer la vista
+        // Dispara la animación de entrada en cascada de los módulos
         .onAppear {
             appeared = true
         }
@@ -126,6 +139,9 @@ struct ProfileView: View {
         }
         .task(id: professional.updatedAt) {
             await loadViewModel()
+        }
+        .sheet(isPresented: $showingAvatarSelector) {
+            AvatarSelectorView(viewModel: avatarViewModel, professional: professional)
         }
         .sheet(isPresented: $showingFinanceDashboard) {
             FinanceDashboardView()

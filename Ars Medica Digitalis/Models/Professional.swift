@@ -35,6 +35,24 @@ final class Professional {
     // extra y poder usarlo como preferencia liviana de captura.
     var defaultFinancialSessionTypeID: UUID? = nil
 
+    // MARK: - Avatar
+
+    // La configuración del avatar se serializa como JSON en un único campo Data?.
+    // Esto reemplaza el esquema anterior de tres campos raw/string independientes.
+    //
+    // Ventajas:
+    //   • Type safety: la lógica de encode/decode vive en AvatarConfiguration.
+    //   • Evolución sin fragmentación: agregar metadatos no requiere nuevos campos de schema.
+    //   • Data? es un tipo primitivo de CKRecord — mejor base para futura sync que strings dispersos.
+    //
+    // ATENCIÓN — CloudKit NO queda resuelto por este campo:
+    //   Usar Data? es condición necesaria pero no suficiente. Antes de activar CloudKit
+    //   habrá que validar schema (Dashboard), sync behavior, evolución entre versiones de app
+    //   y compatibilidad del JSON Codable entre builds distintos. Ver nota en AvatarConfiguration.swift.
+    //
+    // nil = usar AvatarConfiguration.defaultValue (.predefined(style: .blue)).
+    var avatarConfigData: Data? = nil
+
     // Trazabilidad: auditoría clínica y resolución de conflictos de sincronización
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
@@ -85,5 +103,22 @@ final class Professional {
         self.patients = patients
         self.sessionCatalogTypes = sessionCatalogTypes
         self.pricingAdjustmentPolicy = pricingAdjustmentPolicy
+    }
+}
+
+// MARK: - Avatar (computed — no almacenado)
+
+extension Professional {
+
+    /// Propiedad tipada que expone y escribe `AvatarConfiguration` sobre `avatarConfigData`.
+    ///
+    /// Getter: decodifica el JSON almacenado; devuelve `.defaultValue` si nil o inválido.
+    /// Setter: serializa y persiste la nueva configuración en `avatarConfigData`.
+    ///
+    /// Usar esta propiedad en lugar de `avatarConfigData` directamente para garantizar
+    /// type safety y encapsular la lógica de encode/decode en un único punto.
+    var avatar: AvatarConfiguration {
+        get { AvatarConfiguration.from(data: avatarConfigData) }
+        set { avatarConfigData = newValue.encoded() }
     }
 }

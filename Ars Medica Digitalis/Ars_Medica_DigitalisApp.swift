@@ -163,6 +163,11 @@ struct Ars_Medica_DigitalisApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Ars_Medica_DigitalisApp.removeStaleExportedPDFs()
+                // Cleanup defensivo de imágenes de avatar: elimina archivos en
+                // Application Support/Avatars/ que no correspondan al avatar activo.
+                // Se pasa nil cuando no hay un Professional cargado aún; en ese caso
+                // se eliminarán todos los archivos (comportamiento seguro en bootstrap).
+                Ars_Medica_DigitalisApp.removeOrphanAvatarImages(in: sharedModelContainer.mainContext)
             }
         }
     }
@@ -389,5 +394,27 @@ struct Ars_Medica_DigitalisApp: App {
         }
 
         return "No se pudo aislar con validación individual/incremental. Modelos: [\(allModelNames)]"
+    }
+
+    // MARK: - Avatar orphan cleanup
+
+    /// Delega en AvatarImageStore la limpieza de imágenes huérfanas.
+    ///
+    /// Fetchea TODOS los Professional para construir el conjunto completo de nombres
+    /// de archivo activos. Esto evita borrar imágenes válidas si en el futuro el
+    /// modelo soporta múltiples Professional, o si el fetch retorna un registro
+    /// distinto al esperado en cada ejecución.
+    ///
+    /// Si el fetch falla o no hay registros, el conjunto queda vacío y se eliminan
+    /// todos los archivos del directorio — comportamiento seguro en bootstrap.
+    private static func removeOrphanAvatarImages(in context: ModelContext) {
+        let professionals = (try? context.fetch(FetchDescriptor<Professional>())) ?? []
+        var activeFileNames: Set<String> = []
+        for professional in professionals {
+            if case .generated(let fileName, _) = professional.avatar {
+                activeFileNames.insert(fileName)
+            }
+        }
+        AvatarImageStore.removeOrphans(keeping: activeFileNames)
     }
 }

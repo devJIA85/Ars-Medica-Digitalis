@@ -3,8 +3,9 @@
 //  Ars Medica Digitalis
 //
 //  Panel de identidad profesional con lenguaje Liquid Glass.
-//  Muestra avatar SF Symbol, nombre, título y matrícula en jerarquía tipográfica,
-//  más un botón "Editar" que hace scroll hasta el formulario de datos.
+//  Muestra el avatar del profesional (predefinido o generado con IA), nombre,
+//  título y matrícula en jerarquía tipográfica, más un indicador de edición
+//  sobre el avatar al tocar.
 //
 
 import SwiftUI
@@ -14,11 +15,15 @@ struct ProfileHeaderSection: View {
     let fullName: String
     let professionalTitle: String
     let licenseNumber: String
+    let avatarConfiguration: AvatarConfiguration
+    var generatedImage: Image? = nil
+    /// Callback invocado cuando el usuario toca el avatar para cambiarlo.
+    var onAvatarTap: (() -> Void)? = nil
 
     var body: some View {
         CardContainer(style: .elevated) {
             HStack(alignment: .center, spacing: AppSpacing.md) {
-                avatar
+                avatarButton
                 professionalInfo
             }
         }
@@ -26,22 +31,30 @@ struct ProfileHeaderSection: View {
 
     // MARK: - Subvistas
 
-    /// Círculo translúcido con ícono SF Symbol person.crop.circle.fill centrado.
-    private var avatar: some View {
-        ZStack {
-            Circle()
-                .fill(.ultraThinMaterial)
-                .frame(width: 64, height: 64)
-                .overlay(
-                    // Trazo reflectante sutil que simula el brillo del cristal
-                    Circle()
-                        .strokeBorder(.white.opacity(0.3), lineWidth: 1)
+    private var avatarButton: some View {
+        Button {
+            onAvatarTap?()
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                AvatarView(
+                    configuration: avatarConfiguration,
+                    size: .medium,
+                    generatedImage: generatedImage
                 )
 
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 38))
-                .foregroundStyle(.secondary)
+                // Badge de edición — solo visible si hay callback
+                if onAvatarTap != nil {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.white, .tint)
+                        .offset(x: 4, y: 4)
+                }
+            }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Cambiar avatar")
+        .accessibilityHint("Toca para seleccionar un avatar distinto")
+        .disabled(onAvatarTap == nil)
     }
 
     /// Nombre, título profesional y matrícula con jerarquía tipográfica estricta.

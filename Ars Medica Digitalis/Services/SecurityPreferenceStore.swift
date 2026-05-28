@@ -130,7 +130,7 @@ import SwiftUI
 private struct SecurityPreferenceStoreKey: EnvironmentKey {
     // nonisolated(unsafe): el valor por defecto se crea una sola vez al arrancar
     // la app y siempre se sobreescribe con el store real inyectado desde App.
-    nonisolated(unsafe) static let defaultValue = SecurityPreferenceStore()
+    static let defaultValue = SecurityPreferenceStore()
 }
 
 extension EnvironmentValues {
@@ -152,3 +152,4 @@ enum SecurityPreferenceError: LocalizedError {
         }
     }
 }
+

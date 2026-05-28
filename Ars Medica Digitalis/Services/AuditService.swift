@@ -148,9 +148,8 @@ final class AuditService {
 // MARK: - Environment: AuditService
 
 private struct AuditServiceKey: EnvironmentKey {
-    // nonisolated(unsafe): el valor por defecto se crea una sola vez al arrancar
-    // y siempre se sobreescribe con la instancia real inyectada desde App.
-    nonisolated(unsafe) static let defaultValue = AuditService()
+    // El valor por defecto se crea una sola vez al arrancar y siempre se sobreescribe con la instancia real inyectada desde App.
+    static let defaultValue = AuditService()
 }
 
 extension EnvironmentValues {
@@ -186,3 +185,4 @@ extension EnvironmentValues {
         set { self[CurrentActorIDKey.self] = newValue }
     }
 }
+

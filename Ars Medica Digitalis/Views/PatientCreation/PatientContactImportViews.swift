@@ -59,7 +59,7 @@ struct PatientContactPickerSheet: UIViewControllerRepresentable {
 
             // Presentarlo desde un host UIKit evita los fallos de render/XPC
             // que aparecen al embeber CNContactPickerViewController en un sheet SwiftUI.
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 hostController.present(picker, animated: true)
             }
         }

@@ -119,7 +119,7 @@ struct DashboardView: View {
         }
         .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
-        .navigationTitle("Dashboard Clínico")
+        .navigationTitle("Estadísticas")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: refreshToken) {
             viewModel.loadStatistics(from: patients)

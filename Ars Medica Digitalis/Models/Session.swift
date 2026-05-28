@@ -8,7 +8,6 @@
 
 import Foundation
 import SwiftData
-import UIKit
 
 enum PaymentState: String, Sendable {
     case unpaid
@@ -91,12 +90,12 @@ final class Session {
     var notesRichText: AttributedString {
         get {
             if let data = notesRTFData, !data.isEmpty,
-               let decoded = Self.decodeRTF(from: data) { return decoded }
+               let decoded = SessionRichTextHelper.decodeRTF(from: data) { return decoded }
             return Self.decodeRichText(from: notesRichTextData, fallbackPlainText: notes)
         }
         set {
             notes = String(newValue.characters)
-            notesRTFData = Self.encodeRTF(newValue)
+            notesRTFData = SessionRichTextHelper.encodeRTF(newValue)
             notesRichTextData = Self.encodeRichText(newValue)  // mantiene legado para rollback
         }
     }
@@ -107,12 +106,12 @@ final class Session {
     var treatmentPlanRichText: AttributedString {
         get {
             if let data = treatmentPlanRTFData, !data.isEmpty,
-               let decoded = Self.decodeRTF(from: data) { return decoded }
+               let decoded = SessionRichTextHelper.decodeRTF(from: data) { return decoded }
             return Self.decodeRichText(from: treatmentPlanRichTextData, fallbackPlainText: treatmentPlan)
         }
         set {
             treatmentPlan = String(newValue.characters)
-            treatmentPlanRTFData = Self.encodeRTF(newValue)
+            treatmentPlanRTFData = SessionRichTextHelper.encodeRTF(newValue)
             treatmentPlanRichTextData = Self.encodeRichText(newValue)  // mantiene legado para rollback
         }
     }
@@ -311,29 +310,5 @@ final class Session {
         }
 
         return decoded
-    }
-
-    // MARK: - RTF helpers (V2)
-
-    /// Serializa un AttributedString a RTF usando NSAttributedString.
-    /// Retorna nil si la conversión falla (e.g., string vacío sin atributos).
-    static func encodeRTF(_ text: AttributedString) -> Data? {
-        let nsString = NSAttributedString(text)
-        guard nsString.length > 0 else { return nil }
-        return try? nsString.data(
-            from: NSRange(location: 0, length: nsString.length),
-            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
-        )
-    }
-
-    /// Deserializa RTF a AttributedString con scope UIKit.
-    /// Retorna nil si los datos son inválidos o no corresponden a RTF.
-    static func decodeRTF(from data: Data) -> AttributedString? {
-        guard let nsString = try? NSAttributedString(
-            data: data,
-            options: [.documentType: NSAttributedString.DocumentType.rtf],
-            documentAttributes: nil
-        ) else { return nil }
-        return try? AttributedString(nsString, including: \.uiKit)
     }
 }

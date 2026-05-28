@@ -11,8 +11,10 @@
 //     Cubre el primer launch tras actualizar desde una versión anterior de la app
 //     que guardaba ítems sin service. Los ítems legacy se reescriben con el
 //     esquema actual y se eliminan por referencia persistente.
-//  3. Si tampoco hay legacy → migrar desde ICD11Config.plist al Keychain.
-//     En producción el plist debería eliminarse del bundle tras esta migración.
+//  3. (Solo DEBUG) Si tampoco hay legacy → migrar desde ICD11Config.plist al Keychain.
+//     Este paso no existe en Release: builds de producción requieren Keychain previo.
+//     Flujo de provisión en desarrollo: ejecutar el app en DEBUG una vez para que
+//     el plist migre al Keychain del simulador/dispositivo, luego archivar en Release.
 //
 
 import Foundation
@@ -35,11 +37,13 @@ nonisolated enum ICD11KeychainStore {
     // MARK: - API pública
 
     /// Devuelve las credenciales desde el Keychain.
-    /// En el primer lanzamiento migra automáticamente desde `ICD11Config.plist`.
     ///
-    /// - En Release: requiere Keychain. Si la migración falla, lanza el error
-    ///   para evitar exponer credenciales del bundle en producción.
-    /// - En Debug/Simulator: permite fallback al plist para facilitar el desarrollo.
+    /// - En Release: requiere que el Keychain ya contenga las credenciales.
+    ///   Si no existen, lanza `ICD11Error.missingConfiguration`. Las credenciales
+    ///   deben haberse migrado al Keychain ejecutando un build DEBUG antes de archivar.
+    /// - En Debug/Simulator: si el Keychain está vacío, intenta migrar desde
+    ///   `ICD11Config.plist` (paso 3). Permite el primer arranque en desarrollo
+    ///   sin setup manual del Keychain.
     static func loadCredentials() throws -> (clientId: String, clientSecret: String) {
         // Paso 1: esquema actual
         if let stored = readFromKeychain() {
@@ -52,24 +56,26 @@ nonisolated enum ICD11KeychainStore {
             return migrated
         }
 
-        // Paso 3: primer uso — migrar desde plist al Keychain con esquema actual.
+#if DEBUG
+        // Paso 3 (solo DEBUG): primer uso en desarrollo — migrar desde plist al Keychain.
+        // En Release este bloque no existe: el bundle no provee credenciales en producción.
         let plist = try loadFromPlist()
         do {
             try writeToKeychain(clientId: plist.clientId, clientSecret: plist.clientSecret)
             logger.info("ICD11 credentials migrated to Keychain.")
         } catch {
-#if DEBUG
             // En simulador/debug el Keychain puede no estar disponible.
-            // Se acepta el fallback solo en entornos de desarrollo.
             logger.warning("Keychain migration failed (DEBUG only fallback): \(error, privacy: .private)")
             return plist
-#else
-            // En producción, no continuar con credenciales del bundle en texto plano.
-            logger.error("Keychain migration failed in Release build: \(error, privacy: .public)")
-            throw error
-#endif
         }
         return plist
+#else
+        logger.error("ICD11: no credentials found in Keychain. Archive after running a DEBUG build to seed the Keychain.")
+        throw ICD11Error.missingConfiguration(
+            "Credenciales ICD-11 no encontradas en el Keychain. "
+            + "Ejecute un build DEBUG para migrarlas desde ICD11Config.plist antes de archivar."
+        )
+#endif
     }
 
     // MARK: - Keychain (lectura / escritura)
@@ -210,7 +216,7 @@ nonisolated enum ICD11KeychainStore {
             // no sincronizados (ThisDeviceOnly). Reduce la superficie de match:
             // excluye ítems de iCloud Keychain de otras apps que casualmente
             // compartan el mismo kSecAttrAccount.
-            kSecAttrSynchronizable:        kCFBooleanFalse,
+            kSecAttrSynchronizable:        kCFBooleanFalse!,
             kSecReturnData:                true,
             kSecReturnPersistentRef:       true,
             kSecMatchLimit:                kSecMatchLimitOne,

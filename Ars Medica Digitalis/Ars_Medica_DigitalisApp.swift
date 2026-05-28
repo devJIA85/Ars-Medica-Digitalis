@@ -30,7 +30,7 @@ struct Ars_Medica_DigitalisApp: App {
 
     /// Flag para alertar a ContentView que la base de datos no pudo inicializarse
     /// correctamente y se está usando un contenedor en memoria temporario.
-    static var isDatabaseUnavailable: Bool = false
+    @MainActor static var isDatabaseUnavailable: Bool = false
 
     @State private var securityPreferences = SecurityPreferenceStore()
     @State private var auditService = AuditService()
@@ -151,13 +151,7 @@ struct Ars_Medica_DigitalisApp: App {
                 .tint(resolvedThemeColor)
                 .environment(\.securityPreferences, securityPreferences)
                 .environment(\.auditService, auditService)
-                // TODO: [BLOQUEANTE — producción] Inyectar currentActorID con el ID real del
-                // Professional autenticado antes de publicar en el App Store.
-                // Sin esto, todos los registros de audit trail quedan atribuidos a "system"
-                // en lugar del profesional específico, perdiendo trazabilidad clínica.
-                // Punto de inyección: resolver `professionals.first?.id.uuidString` y pasar
-                // via `.environment(\.currentActorID, id)` desde el nivel raíz de navegación
-                // donde el Professional ya está resuelto.
+                // currentActorID se inyecta en ContentView con professionals.first?.id.uuidString.
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: scenePhase) { _, newPhase in
@@ -168,6 +162,7 @@ struct Ars_Medica_DigitalisApp: App {
                 // Se pasa nil cuando no hay un Professional cargado aún; en ese caso
                 // se eliminarán todos los archivos (comportamiento seguro en bootstrap).
                 Ars_Medica_DigitalisApp.removeOrphanAvatarImages(in: sharedModelContainer.mainContext)
+                AuditLogPurgeService.purgeIfNeeded(in: sharedModelContainer.mainContext)
             }
         }
     }

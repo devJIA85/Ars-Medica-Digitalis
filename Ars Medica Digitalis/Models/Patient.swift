@@ -75,7 +75,7 @@ final class Patient: SoftDeletable {
     /// Formato legible y único para identificar la historia clínica.
     var medicalRecordNumber: String = ""
 
-    /// Medicación actual del paciente (texto libre)
+    // DEPRECATED: reemplazado por currentMedications ([Medication]). Mantener por compatibilidad de schema.
     var currentMedication: String = ""
 
     /// Medicación actual seleccionada desde el vademécum local.

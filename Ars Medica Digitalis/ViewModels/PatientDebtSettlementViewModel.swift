@@ -136,6 +136,7 @@ final class PatientDebtSettlementViewModel {
         var remainingAmount = amountToApply
         let pendingSessions = try fetchPendingSessions(for: selectedCurrency)
 
+        let now = Date()
         for session in pendingSessions where remainingAmount > 0 {
             let sessionDebt = session.debt
             guard sessionDebt > 0 else { continue }
@@ -144,10 +145,14 @@ final class PatientDebtSettlementViewModel {
             let payment = Payment(
                 amount: paymentAmount,
                 currencyCode: selectedCurrency,
-                paidAt: Date(),
+                paidAt: now,
                 session: session
             )
             context.insert(payment)
+            // Propaga el cambio financiero a la sesión para que el token de
+            // refresco de PatientListView detecte la mutación sin necesidad
+            // de recorrer todos los pagos en cada render.
+            session.updatedAt = now
             remainingAmount -= paymentAmount
         }
 

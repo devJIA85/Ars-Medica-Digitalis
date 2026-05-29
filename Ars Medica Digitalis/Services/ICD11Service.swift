@@ -164,9 +164,23 @@ actor ICD11Service {
 
     // MARK: - Cache persistente (disco)
 
+    /// TTL del cache de búsqueda en disco: 7 días.
+    /// Pasado ese tiempo la OMS puede haber actualizado descripciones o añadido
+    /// códigos, por lo que se fuerza una recarga desde la API en el siguiente uso.
+    private let diskCacheTTL: TimeInterval = 7 * 24 * 3_600
+
     private func loadSearchCache(for cacheKey: String) -> [ICD11SearchResult]? {
-        guard let url = cacheFileURL(for: cacheKey),
-              let data = try? Data(contentsOf: url) else {
+        guard let url = cacheFileURL(for: cacheKey) else { return nil }
+
+        // Verificar TTL antes de leer contenido
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let modDate = attributes[.modificationDate] as? Date,
+           Date().timeIntervalSince(modDate) > diskCacheTTL {
+            try? FileManager.default.removeItem(at: url)
+            return nil  // expirado — forzar recarga desde API
+        }
+
+        guard let data = try? Data(contentsOf: url) else {
             return nil  // cache miss — comportamiento esperado
         }
         do {

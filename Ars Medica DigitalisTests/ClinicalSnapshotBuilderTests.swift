@@ -11,13 +11,6 @@ struct ClinicalSnapshotBuilderTests {
         let referenceDate = makeDate(year: 2026, month: 3, day: 6, hour: 12, calendar: calendar)
         let patientID = UUID()
 
-        let patient = Patient(
-            id: patientID,
-            firstName: "Ana",
-            lastName: "García",
-            currencyCode: "ARS"
-        )
-
         let principal = Diagnosis(
             icdCode: "QE84",
             icdTitleEs: "Reacción aguda al estrés",
@@ -28,7 +21,14 @@ struct ClinicalSnapshotBuilderTests {
             icdTitleEs: "Ansiedad no especificada",
             diagnosisType: .secundario
         )
-        patient.activeDiagnoses = [secondary, principal]
+
+        let patient = Patient(
+            id: patientID,
+            firstName: "Ana",
+            lastName: "García",
+            currencyCode: "ARS",
+            allDiagnoses: [secondary, principal]
+        )
 
         let olderCompletedDate = makeDate(year: 2026, month: 3, day: 1, hour: 9, calendar: calendar)
         let latestCompletedDate = makeDate(year: 2026, month: 3, day: 4, hour: 17, calendar: calendar)

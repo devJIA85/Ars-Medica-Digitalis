@@ -179,9 +179,20 @@ final class Patient: SoftDeletable {
 
     var fullName: String { "\(firstName) \(lastName)" }
     /// Resume si el paciente mantiene deuda en sesiones ya completadas.
+    ///
+    /// Implementación independiente de `debtByCurrency` para evitar computar
+    /// el agrupamiento completo cuando solo se necesita un booleano.
+    /// Usa `.lazy` + `.contains` para cortocircuitar al primer resultado positivo.
     @MainActor
     var hasOutstandingDebt: Bool {
-        debtByCurrency.isEmpty == false
+        sessions
+            .lazy
+            .filter { $0.sessionStatusValue == .completada && !$0.isCourtesy }
+            .contains { session in
+                let price = session.finalPriceSnapshot ?? session.effectivePrice
+                guard price > 0 else { return false }
+                return session.totalPaid < price
+            }
     }
 
     /// Agrupa la deuda pendiente del paciente por moneda efectiva.

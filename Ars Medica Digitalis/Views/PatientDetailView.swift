@@ -144,35 +144,39 @@ struct PatientDetailView: View {
         }
         .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
+        // Un único .onAppear agrupa la inicialización de secciones y el registro de
+        // auditoría. SwiftUI solo garantiza un onAppear por aparición, y múltiples
+        // modificadores se ejecutan en orden; unificarlos evita dependencias implícitas
+        // entre bloques y facilita razonar sobre el orden de efectos.
         .onAppear {
-            guard !didAppearDiagnoses else { return }
-            didAppearDiagnoses = true
-            didAppearSessions = true
+            if !didAppearDiagnoses {
+                didAppearDiagnoses = true
+                didAppearSessions = true
+            }
+            // Audit trail: lectura de ficha clínica.
+            // Nota: cada evento read genera un context.insert() + context.save() (escritura).
+            // Esto es intencional — la trazabilidad de accesos a datos sensibles tiene
+            // prioridad sobre el costo de I/O. Ver AuditService para más contexto.
+            if !hasLoggedReadEvent {
+                hasLoggedReadEvent = true
+                auditService.log(
+                    action: .read,
+                    on: patient,
+                    in: modelContext,
+                    performedBy: currentActorID,
+                    detail: "view_detail"
+                )
+                do {
+                    try modelContext.save()
+                } catch {
+                    logger.error("Patient read audit save failed: \(error, privacy: .private)")
+                }
+            }
         }
         // El título nativo aparece en la barra solo cuando PatientQuickInfo
         // sale del viewport al hacer scroll, eliminando la duplicación permanente.
         .navigationTitle(patient.fullName)
         .navigationBarTitleDisplayMode(.inline)
-        // Audit trail: lectura de ficha clínica.
-        // Nota: cada evento read genera un context.insert() + context.save() (escritura).
-        // Esto es intencional — la trazabilidad de accesos a datos sensibles tiene
-        // prioridad sobre el costo de I/O. Ver AuditService para más contexto.
-        .onAppear {
-            guard !hasLoggedReadEvent else { return }
-            hasLoggedReadEvent = true
-            auditService.log(
-                action: .read,
-                on: patient,
-                in: modelContext,
-                performedBy: currentActorID,
-                detail: "view_detail"
-            )
-            do {
-                try modelContext.save()
-            } catch {
-                logger.error("Patient read audit save failed: \(error, privacy: .private)")
-            }
-        }
         .toolbar {
             // Edición: acción primaria de contenido — trailing por convención iOS.
             ToolbarItem(placement: .topBarTrailing) {
@@ -1200,14 +1204,15 @@ private struct SessionRowView: View {
         return "Sin resumen clínico"
     }
 
+    // Marcadores que el módulo de IA inserta en notas y plan terapéutico.
+    // Centralizar aquí evita dispersar los literales por las condiciones de presentación.
+    private static let aiNarrativeMarkers = ["[ia]", "narrativa ia", "generado por ia", "ai:"]
+
     private var hasAINarrative: Bool {
         let text = "\(session.notes)\n\(session.treatmentPlan)"
             .lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.contains("[ia]")
-            || text.contains("narrativa ia")
-            || text.contains("generado por ia")
-            || text.contains("ai:")
+        return Self.aiNarrativeMarkers.contains { text.contains($0) }
     }
 
     private var accessibilityDescription: String {
@@ -1413,8 +1418,14 @@ private struct CollapsibleContextSection: View {
 
 // MARK: - Componentes reutilizables
 
+/// Sección plegable cuyo estado se mantiene mientras la instancia de vista
+/// vive en memoria (navegación al detalle de sesión y regreso), pero no
+/// persiste entre sesiones de la app.
+///
+/// La versión anterior guardaba el estado en UserDefaults con una clave por
+/// UUID de paciente, acumulando cientos de entradas al crecer la práctica.
+/// `@State` es suficiente: la expansión es UI efímera, no datos clínicos.
 private struct PersistedDisclosureGroup<Label: View, Content: View>: View {
-    private let key: String
     private let content: Content
     private let label: Label
     @State private var isExpanded: Bool
@@ -1425,24 +1436,13 @@ private struct PersistedDisclosureGroup<Label: View, Content: View>: View {
         @ViewBuilder content: () -> Content,
         @ViewBuilder label: () -> Label
     ) {
-        self.key = key
         self.content = content()
         self.label = label()
-
-        let persisted = UserDefaults.standard.object(forKey: key) as? Bool
-        _isExpanded = State(initialValue: persisted ?? defaultExpanded)
+        _isExpanded = State(initialValue: defaultExpanded)
     }
 
     var body: some View {
-        DisclosureGroup(
-            isExpanded: Binding(
-                get: { isExpanded },
-                set: { newValue in
-                    isExpanded = newValue
-                    UserDefaults.standard.set(newValue, forKey: key)
-                }
-            )
-        ) {
+        DisclosureGroup(isExpanded: $isExpanded) {
             content
         } label: {
             label

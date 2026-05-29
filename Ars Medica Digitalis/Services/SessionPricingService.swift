@@ -165,30 +165,6 @@ final class SessionPricingService {
         session.finalPriceSnapshot = session.isCourtesy ? 0 : dynamicPrice
     }
 
-    /// Mantiene la compatibilidad con el flujo de cambios de precio versionado.
-    /// Como el precio ahora es dinámico y sin caché persistida, no escribe nada:
-    /// solo identifica la población afectada para un posible invalidation hook futuro.
-    func applyPriceUpdate(for sessionCatalogType: SessionCatalogType, effectiveFrom: Date) {
-        guard let context = resolveContext(preferred: sessionCatalogType.modelContext) else { return }
-
-        let typeID = sessionCatalogType.id
-        let completedStatus = SessionStatusMapping.completada.rawValue
-        let descriptor = FetchDescriptor<Session>(
-            predicate: #Predicate<Session> { session in
-                session.financialSessionType?.id == typeID
-                && session.sessionDate >= effectiveFrom
-            },
-            sortBy: [SortDescriptor(\Session.sessionDate)]
-        )
-
-        if let sessions = try? context.fetch(descriptor) {
-            _ = sessions.filter { session in
-                session.status != completedStatus
-                && session.priceWasManuallyOverridden == false
-            }
-        }
-    }
-
     private func resolveContext(preferred: ModelContext?) -> ModelContext? {
         preferred ?? modelContext
     }

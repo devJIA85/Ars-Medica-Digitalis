@@ -137,6 +137,16 @@ private struct PatientFilteredList: View {
         }
     }
 
+    /// Token determinístico que dispara el reload del dashboard cuando cambia
+    /// cualquier dato relevante.
+    ///
+    /// ## Estrategia O(n + n×m)
+    /// Solo recorre pacientes y sus sesiones — no baja a pagos ni diagnósticos:
+    /// - Cambios en pagos → `session.updatedAt` actualizado por el caller
+    ///   (SessionViewModel y PatientDebtSettlementViewModel).
+    /// - Cambios en diagnósticos → `patient.updatedAt` actualizado por PatientDetailView.
+    /// Esto reduce la complejidad de O(n×m×k) a O(n + n×m), eliminando el
+    /// traversal profundo que bloqueaba el hilo principal en listas grandes.
     private var refreshToken: String {
         let patientCount = patients.count
         let patientUpdate = patients.map(\.updatedAt.timeIntervalSince1970).max() ?? 0
@@ -145,30 +155,8 @@ private struct PatientFilteredList: View {
             .flatMap(\.sessions)
             .map(\.updatedAt.timeIntervalSince1970)
             .max() ?? 0
-        let paymentCount = patients
-            .flatMap(\.sessions)
-            .reduce(0) { $0 + $1.payments.count }
-        let paymentUpdate = patients
-            .flatMap(\.sessions)
-            .flatMap(\.payments)
-            .map(\.updatedAt.timeIntervalSince1970)
-            .max() ?? 0
-        let diagnosisCount = patients.reduce(0) { $0 + $1.activeDiagnoses.count }
-        let diagnosisUpdate = patients
-            .flatMap(\.activeDiagnoses)
-            .map(\.diagnosedAt.timeIntervalSince1970)
-            .max() ?? 0
 
-        return [
-            "\(patientCount)",
-            "\(patientUpdate)",
-            "\(sessionCount)",
-            "\(sessionUpdate)",
-            "\(paymentCount)",
-            "\(paymentUpdate)",
-            "\(diagnosisCount)",
-            "\(diagnosisUpdate)",
-        ].joined(separator: "|")
+        return "\(patientCount)|\(patientUpdate)|\(sessionCount)|\(sessionUpdate)"
     }
 }
 

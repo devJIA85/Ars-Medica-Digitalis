@@ -80,6 +80,7 @@ struct Ars_Medica_DigitalisApp: App {
         do {
             let container = try ModelContainer(
                 for: schema,
+                migrationPlan: AppSchemaMigrationPlan.self,
                 configurations: [modelConfiguration]
             )
 
@@ -189,6 +190,13 @@ struct Ars_Medica_DigitalisApp: App {
     /// incluye el tipo de operación (import/export/mirror) y el error si lo hubo.
     /// El guard estático evita registrar múltiples observers si el contenedor
     /// se recrea (p.ej. durante migración o recuperación de errores).
+    ///
+    /// ## Excepción justificada a la regla "no NotificationCenter"
+    /// `NSPersistentCloudKitContainer.eventChangedNotification` es una API de
+    /// sistema que solo expone eventos de sincronización vía NotificationCenter.
+    /// No existe alternativa async/await ni Combine para este evento en iOS 26.
+    /// El uso está restringido a este único punto de observación de infraestructura
+    /// (no transporta datos del dominio), y el callback solo escribe al logger.
     private static var isObservingCloudKit = false
 
     private static func observeCloudKitSync() {

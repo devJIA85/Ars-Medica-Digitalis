@@ -52,11 +52,13 @@ enum SessionDeepLink {
         components.scheme = scheme
         components.host = host
         components.path = "/\(sessionID.uuidString)"
-        if let url = components.url {
-            return url
+        // URLComponents con scheme/host/path siempre produce una URL válida.
+        // preconditionFailure documenta que esta rama es un error de programación,
+        // no un caso de runtime esperado.
+        guard let url = components.url else {
+            preconditionFailure("URLComponents no pudo construir deep link para \(sessionID) — scheme y host son constantes válidas")
         }
-
-        return URL(string: "\(scheme)://\(host)/\(sessionID.uuidString)")!
+        return url
     }
 
     static func sessionID(from url: URL) -> UUID? {
@@ -107,27 +109,13 @@ extension SessionCalendarEventPayload {
         self.title = "Session – \(resolvedPatientName)"
         self.startDate = session.startDate
         self.endDate = session.endDate
-        self.notes = Self.composeNotes(
-            clinicalNotes: session.notes,
-            treatmentPlan: session.treatmentPlan
-        )
+        // Las notas clínicas y el plan terapéutico son contenido sensible bajo
+        // secreto profesional. El calendario nativo es accesible por otras apps
+        // y se sincroniza con iCloud Calendar, por lo que no debe contener
+        // datos del encuentro clínico. El deep link en event.url permite abrir
+        // la sesión directamente desde el evento de calendario.
+        self.notes = ""
         self.deepLinkURL = SessionDeepLink.url(for: session.id)
-    }
-
-    private static func composeNotes(clinicalNotes: String, treatmentPlan: String) -> String {
-        let cleanedNotes = clinicalNotes.trimmed
-        let cleanedPlan = treatmentPlan.trimmed
-
-        switch (cleanedNotes.isEmpty, cleanedPlan.isEmpty) {
-        case (false, false):
-            return "\(cleanedNotes)\n\nPlan:\n\(cleanedPlan)"
-        case (false, true):
-            return cleanedNotes
-        case (true, false):
-            return cleanedPlan
-        case (true, true):
-            return ""
-        }
     }
 }
 

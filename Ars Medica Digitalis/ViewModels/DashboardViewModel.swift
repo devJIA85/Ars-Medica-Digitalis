@@ -436,6 +436,9 @@ final class DashboardViewModel {
     /// - altas (createdAt)
     /// - bajas (deletedAt)
     /// - pacientes activos al cierre de cada bucket
+    ///
+    /// Complejidad: O(N log N) por el sort inicial + O(N + B) por el recorrido
+    /// con punteros. Reemplaza el O(N×B×3) previo de triple filter por bucket.
     private func computePatientActivity(_ allPatients: [Patient], period: PatientActivityPeriod) {
         let calendar = Calendar.current
         guard !allPatients.isEmpty else {
@@ -464,27 +467,41 @@ final class DashboardViewModel {
             return
         }
 
+        // Pre-ordenar para recorrer cada array una sola vez con punteros.
+        // Los punteros avanzan monotónicamente → cada fecha se visita O(1) veces.
+        let sortedAdmissions = allPatients.map(\.createdAt).sorted()
+        let sortedDischarges = allPatients.compactMap(\.deletedAt).sorted()
+
+        var admissionIdx = 0
+        var dischargeIdx = 0
+        var cumulativeAdmissions = 0
+        var cumulativeDischarges = 0
         var cursor = startBucket
         var points: [PatientActivityPoint] = []
 
         while cursor <= endBucket {
             guard let nextBucket = calendar.date(byAdding: component, value: 1, to: cursor) else { break }
 
-            let admissions = allPatients.filter { patient in
-                patient.createdAt >= cursor && patient.createdAt < nextBucket
-            }.count
+            // Avanzar punteros hasta el límite del bucket actual.
+            // Los elementos ya procesados en buckets anteriores no se revisitan.
+            var admissions = 0
+            while admissionIdx < sortedAdmissions.count,
+                  sortedAdmissions[admissionIdx] < nextBucket {
+                admissions += 1
+                cumulativeAdmissions += 1
+                admissionIdx += 1
+            }
 
-            let discharges = allPatients.filter { patient in
-                guard let deletedAt = patient.deletedAt else { return false }
-                return deletedAt >= cursor && deletedAt < nextBucket
-            }.count
+            var discharges = 0
+            while dischargeIdx < sortedDischarges.count,
+                  sortedDischarges[dischargeIdx] < nextBucket {
+                discharges += 1
+                cumulativeDischarges += 1
+                dischargeIdx += 1
+            }
 
-            // Activos al cierre del bucket (inicio del siguiente).
-            let activeAtBucketClose = allPatients.filter { patient in
-                guard patient.createdAt < nextBucket else { return false }
-                guard let deletedAt = patient.deletedAt else { return true }
-                return deletedAt >= nextBucket
-            }.count
+            // Activos al cierre del bucket = altas acumuladas − bajas acumuladas.
+            let activeAtBucketClose = cumulativeAdmissions - cumulativeDischarges
 
             points.append(
                 PatientActivityPoint(

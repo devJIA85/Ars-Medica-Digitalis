@@ -91,8 +91,11 @@ struct Ars_Medica_DigitalisTests {
             icdTitleEs: "Ansiedad no especificada",
             diagnosisType: .secundario
         )
-        let patient = Patient(firstName: "Ana", lastName: "García")
-        patient.activeDiagnoses = [secondary, principal]
+        let patient = Patient(
+            firstName: "Ana",
+            lastName: "García",
+            allDiagnoses: [secondary, principal]
+        )
 
         let summary = PatientRowDiagnosisSummaryBuilder.primarySummary(for: patient)
 
@@ -205,7 +208,6 @@ struct Ars_Medica_DigitalisTests {
     @Test("PatientRow oculta el badge clínico si no hay diagnósticos válidos")
     func patientRowHidesDiagnosisBadgeWhenNoDiagnosesExist() {
         let patient = Patient(firstName: "Ana", lastName: "García")
-        patient.activeDiagnoses = []
         patient.sessions = []
 
         let summary = PatientRowDiagnosisSummaryBuilder.primarySummary(for: patient)
@@ -407,7 +409,7 @@ struct Ars_Medica_DigitalisTests {
         usdViewModel.price = 60
         try usdViewModel.save(for: professional, in: context)
 
-        let sessionTypes = professional.sessionCatalogTypes
+        let sessionTypes = professional.sessionCatalogTypes!
         #expect(sessionTypes.count == 1)
         #expect(sessionTypes.first?.priceVersions.count == 2)
     }
@@ -558,14 +560,17 @@ struct Ars_Medica_DigitalisTests {
 
     @Test("SessionViewModel.preloadDiagnoses importa diagnósticos vigentes")
     func sessionViewModelPreloadsActiveDiagnoses() {
-        let patient = Patient(firstName: "Test", lastName: "Patient")
         let diagnosis = Diagnosis(
             icdCode: "6A70",
             icdTitle: "Single episode depressive disorder",
             icdTitleEs: "Trastorno depresivo de episodio único",
             icdURI: "http://id.who.int/icd/release/11/2024-01/mms/6A70"
         )
-        patient.activeDiagnoses = [diagnosis]
+        let patient = Patient(
+            firstName: "Test",
+            lastName: "Patient",
+            allDiagnoses: [diagnosis]
+        )
 
         let viewModel = SessionViewModel()
         viewModel.preloadDiagnoses(from: patient)
